@@ -3,6 +3,17 @@ name = "centinela-backend"
 version = "0.1.0"
 description = "Backend de Centinela: vigilancia normativa de derechos LGTBI+/trans en boletines oficiales españoles."
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
 
-# Dependencias, ruff y mypy se configuran en el commit "feat: backend minimo".
+# El resto de dependencias (SQLAlchemy, psycopg, pydantic-settings, dev-deps) y la
+# configuracion de ruff/mypy se anaden en el commit "feat: backend minimo".
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app", "worker"]
