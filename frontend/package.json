@@ -1,0 +1,9 @@
+{
+  "name": "centinela-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Frontend de Centinela. Sin implementar todavía — fuera del alcance de esta sesión.",
+  "scripts": {
+    "dev": "echo \"TODO: vite no configurado todavia\" && exit 1"
+  }
+}

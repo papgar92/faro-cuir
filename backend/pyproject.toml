@@ -1,0 +1,8 @@
+[project]
+name = "centinela-backend"
+version = "0.1.0"
+description = "Backend de Centinela: vigilancia normativa de derechos LGTBI+/trans en boletines oficiales españoles."
+requires-python = ">=3.12"
+dependencies = []
+
+# Dependencias, ruff y mypy se configuran en el commit "feat: backend minimo".

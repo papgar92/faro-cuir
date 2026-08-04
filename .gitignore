@@ -1,0 +1,40 @@
+# Secretos y entorno
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# Alembic (los scripts de migración SÍ se versionan; esto son solo artefactos)
+backend/alembic/*.pyc
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+frontend/coverage/
+
+# Docker
+*.local.yml
+
+# Artefactos de datos ingeridos (nunca en el repo, van a almacenamiento propio)
+backend/data/
+*.pdf
+*.xml.bak
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
