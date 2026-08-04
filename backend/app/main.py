@@ -1,9 +1,8 @@
-"""Punto de entrada de la app FastAPI.
-
-Bootstrap minimo para que el contenedor arranque con docker-compose. El endpoint /health,
-la config vía pydantic-settings y el resto llegan en el commit "feat: backend minimo".
-"""
+"""Punto de entrada de la app FastAPI."""
 
 from fastapi import FastAPI
 
+from app.api.health import router as health_router
+
 app = FastAPI(title="Centinela")
+app.include_router(health_router)
