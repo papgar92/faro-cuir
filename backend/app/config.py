@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # por eso en `documento.ruta_almacen` se guarda la ruta relativa y no la absoluta: así
     # una fila no queda atada a la máquina donde se ingirió.
     almacen_root: Path = Path("data")
+    # Secreto para hashear emails de suscriptores (CLAUDE.md 6.4). Sin valor por defecto a
+    # propósito: `security/hashing.hash_email` falla cerrado si no está, en vez de guardar un
+    # hash sin sal que sería reversible con un diccionario de direcciones.
+    suscriptor_pepper: str | None = None
 
 
 @lru_cache
