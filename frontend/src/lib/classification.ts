@@ -40,10 +40,10 @@ export const CLASIFICACION_ALERTA_META: Record<ClasificacionAlerta, Classificati
  */
 export const COLOR_CLASSES: Record<
   ColorClasificacion,
-  { text: string; bg: string; border: string }
+  { text: string; bg: string; border: string; borderLeft: string }
 > = {
-  adv: { text: "text-adv", bg: "bg-adv-bg", border: "border-adv" },
-  reg: { text: "text-reg", bg: "bg-reg-bg", border: "border-reg" },
-  neu: { text: "text-neu", bg: "bg-neu-bg", border: "border-neu" },
-  alr: { text: "text-alr", bg: "bg-alr-bg", border: "border-alr" },
+  adv: { text: "text-adv", bg: "bg-adv-bg", border: "border-adv", borderLeft: "border-l-adv" },
+  reg: { text: "text-reg", bg: "bg-reg-bg", border: "border-reg", borderLeft: "border-l-reg" },
+  neu: { text: "text-neu", bg: "bg-neu-bg", border: "border-neu", borderLeft: "border-l-neu" },
+  alr: { text: "text-alr", bg: "bg-alr-bg", border: "border-alr", borderLeft: "border-l-alr" },
 };
