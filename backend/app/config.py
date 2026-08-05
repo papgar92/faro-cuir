@@ -2,6 +2,7 @@
 hardcodeados). Ver `.env.example` para las variables soportadas."""
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,6 +13,10 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
     database_url: str
+    # Raíz del archivo de documentos crudos (CLAUDE.md 6.5). Es configuración de despliegue,
+    # por eso en `documento.ruta_almacen` se guarda la ruta relativa y no la absoluta: así
+    # una fila no queda atada a la máquina donde se ingirió.
+    almacen_root: Path = Path("data")
 
 
 @lru_cache

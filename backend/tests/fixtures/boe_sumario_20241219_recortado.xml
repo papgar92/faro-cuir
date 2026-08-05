@@ -1,0 +1,46 @@
+<?xml version='1.0' encoding='utf-8'?>
+<response>
+  <status>
+    <code>200</code>
+    <text>ok</text>
+  </status>
+  <data>
+    <sumario>
+      <metadatos>
+        <publicacion>BOE</publicacion>
+        <fecha_publicacion>20241219</fecha_publicacion>
+      </metadatos>
+      <diario numero="305">
+        <sumario_diario>
+          <identificador>BOE-S-2024-305</identificador>
+          <url_pdf szBytes="478905" szKBytes="468">https://www.boe.es/boe/dias/2024/12/19/pdfs/BOE-S-2024-305.pdf</url_pdf>
+        </sumario_diario>
+        <seccion codigo="1" nombre="I. Disposiciones generales">
+          <departamento codigo="5140" nombre="MINISTERIO DE HACIENDA">
+            <epigrafe nombre="Impuesto sobre la Renta de las Personas Físicas">
+              <item>
+                <identificador>BOE-A-2024-26484</identificador>
+                <control>2024/19488</control>
+                <titulo>Orden HAC/1432/2024, de 11 de diciembre, por la que se modifica la Orden EHA/3127/2009, de 10 de noviembre, por la que se aprueba el modelo 190 para la Declaración del resumen anual de retenciones e ingresos a cuenta del Impuesto sobre la Renta de las Personas Físicas sobre rendimientos del trabajo y de actividades económicas, premios y determinadas ganancias patrimoniales e imputaciones de renta.</titulo>
+                <url_pdf szBytes="218239" szKBytes="213" pagina_inicial="174155" pagina_final="174159">https://www.boe.es/boe/dias/2024/12/19/pdfs/BOE-A-2024-26484.pdf</url_pdf>
+                <url_html>https://www.boe.es/diario_boe/txt.php?id=BOE-A-2024-26484</url_html>
+                <url_xml>https://www.boe.es/diario_boe/xml.php?id=BOE-A-2024-26484</url_xml>
+              </item>
+            </epigrafe>
+            </departamento>
+          </seccion>
+        <seccion codigo="5A" nombre="V. Anuncios. - A. Contratación del Sector Público">
+          <departamento codigo="1220" nombre="CORTES GENERALES">
+            <item>
+              <identificador>BOE-B-2024-46385</identificador>
+              <titulo>Anuncio de licitación de: Mesa del Congreso de los Diputados. Objeto: Servicios de seguimiento de información en medios de comunicación. Expediente: CON-P2024/0100017.0.</titulo>
+              <url_pdf szBytes="206615" szKBytes="202" pagina_inicial="72869" pagina_final="72869">https://www.boe.es/boe/dias/2024/12/19/pdfs/BOE-B-2024-46385.pdf</url_pdf>
+              <url_html>https://www.boe.es/diario_boe/txt.php?id=BOE-B-2024-46385</url_html>
+              <url_xml>https://www.boe.es/diario_boe/xml.php?id=BOE-B-2024-46385</url_xml>
+            </item>
+          </departamento>
+          </seccion>
+        </diario>
+    </sumario>
+  </data>
+</response>
