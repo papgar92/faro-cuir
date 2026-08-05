@@ -22,7 +22,9 @@ la misma ruta.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import re
+import secrets
 from pathlib import Path, PurePosixPath
 
 # Un sha256 en hexadecimal y nada más. Anclado en ambos extremos: sin `\A`/`\Z` (o `^`/`$`
@@ -38,6 +40,45 @@ ALLOWED_EXTENSIONS: frozenset[str] = frozenset({".xml", ".pdf", ".html", ".txt"}
 
 class UnsafeStoragePath(ValueError):
     """El nombre pedido no es derivable de forma segura. Nunca se intenta 'arreglarlo'."""
+
+
+class PepperNoConfigurado(RuntimeError):
+    """Falta el secreto para hashear emails. Se falla cerrado: nunca se guarda sin él."""
+
+
+def hash_email(email: str, *, pepper: str | None) -> str:
+    """HMAC-SHA256 del email normalizado, con un pepper que vive fuera de la base de datos.
+
+    Tres decisiones que importan (CLAUDE.md 6.4):
+
+    - **HMAC y no un sha256 pelado.** Un sha256 de un email es reversible en la práctica: el
+      espacio de direcciones es pequeño y hay diccionarios hechos. Con un pepper secreto, un
+      volcado de la tabla `suscriptor` no basta para hacer fuerza bruta.
+    - **El pepper es de entorno, no de base de datos.** Si viviera en una columna, se filtraría
+      junto con los datos que protege y no serviría de nada.
+    - **Se falla cerrado.** Sin pepper configurado esto lanza en vez de degradar a un hash sin
+      sal. Una suscripción no guardada es un problema; un padrón de personas del colectivo
+      guardado con un hash reversible es otro mucho peor.
+
+    El email se normaliza (minúsculas, sin espacios alrededor) para que la misma dirección dé
+    siempre el mismo hash y la unicidad funcione.
+    """
+    if not pepper:
+        raise PepperNoConfigurado(
+            "SUSCRIPTOR_PEPPER no está configurado; no se hashean emails sin él."
+        )
+    normalizado = email.strip().lower()
+    return hmac.new(pepper.encode(), normalizado.encode(), hashlib.sha256).hexdigest()
+
+
+def token_baja_opaco() -> str:
+    """Token de baja aleatorio, no derivado del email ni predecible (CLAUDE.md 6.4).
+
+    Derivarlo del email tendría dos fallos a la vez: quien conociera una dirección podría dar
+    de baja a esa persona, y quien viera un token podría deducir la dirección. `secrets` usa
+    el generador criptográfico del sistema, no `random`.
+    """
+    return secrets.token_urlsafe(32)
 
 
 def sha256_hex(content: bytes) -> str:
