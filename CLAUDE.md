@@ -284,8 +284,29 @@ cd frontend && npm run dev
 <!-- Claude Code: actualiza esta sección al final de cada sesión con 3-5 líneas de qué se hizo
 y qué toca. Es lo primero que se lee al retomar. -->
 
-- **Semana actual:** S0 / arranque — completada.
-- **Hecho:**
+- **Semana actual:** S1 / backend y seguridad — en curso.
+- **Hecho en S1 (esta sesión):**
+  - `security/url_guard.py` — puerta **única** de salida HTTP (nada en `ingest/` importa
+    `httpx` directamente). Solo https y puerto 443, allowlist por dominio con subdominio
+    real, rechazo de credenciales en la URL, rechazo de toda IP no global vía `is_global`,
+    redirecciones seguidas a mano revalidando cada salto, tope de bytes al leer el cuerpo,
+    timeouts. La petición se **clava a la IP ya validada** con el nombre en `Host` y en
+    `sni_hostname`, contra DNS rebinding, sin relajar la verificación del certificado.
+  - `security/xml_safe.py` — único sitio donde se parsea XML. `forbid_dtd=True` (mata XXE y
+    bombas de entidades de raíz) más límites propios de profundidad y número de nodos, que
+    defusedxml no cubre, comprobados durante el parseo.
+  - `security/hashing.py` — sha256 del contenido crudo y ruta de almacén derivada del hash
+    (path traversal, 6.3) con lista blanca de extensiones.
+  - Tabla `documento` + migración, con clave natural única `(fuente_id,
+    identificador_oficial)` que es lo que hace idempotente al worker.
+  - `ingest/boe.py` + `services/ingesta.py` + `worker/run.py`: **ingesta real funcionando
+    contra el BOE**. Verificada de verdad, no solo con tests: 257 items del sumario del
+    2024-12-19, segunda ejecución sin duplicar, `sha256sum` del fichero archivado igual a su
+    propio nombre. Migración de datos con la fila del BOE.
+  - ADR 0005 (archivo con sellado de tiempo) y ADR 0006 (puerta única de salida HTTP y
+    pinning de IP).
+  - 113 tests (59 nuevos de seguridad), ruff y mypy estricto limpios.
+- **Hecho en S0:**
   - Backend: esqueleto del repo, `docker-compose.yml` (Postgres 16 con collation ICU
     `es-ES`, backend con hot-reload, worker idle sin cron todavía), FastAPI con `/health`
     verificando conexión real a la DB, config vía `pydantic-settings`, mypy estricto.
@@ -307,19 +328,26 @@ y qué toca. Es lo primero que se lee al retomar. -->
   - Proyecto renombrado de "Centinela" a "Faro Cuir" (decisión del humano). La carpeta
     local del repo sigue llamándose `Centinela/` a propósito (ver sección 0).
 - **Siguiente:**
-  - Resto del modelo de dominio (`documento`, `norma`, `version_norma`, `deteccion`,
-    `cola_revision`, `alerta`, `suscriptor`) y sus migraciones.
+  - Resto del modelo de dominio (`norma`, `version_norma`, `deteccion`, `cola_revision`,
+    `alerta`, `suscriptor`) y sus migraciones. Es el paso 5 del plan de S1, no empezado.
+  - Persistir como `norma` los items que ya extrae `ingest/boe.py` del sumario (hoy se leen
+    y se devuelven, pero no se guardan: falta la tabla).
+  - Prefiltro léxico (sección 7, paso 1) sobre los títulos del sumario, que es lo que
+    decidirá de qué items se descarga el XML completo.
   - Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — verificar contra
     cada fuente oficial, no completar por deducción.
-  - Primer módulo de ingesta real (`ingest/boe.py`) + `security/xml_safe.py` +
-    `security/url_guard.py` (XXE, SSRF — sección 6.1/6.2), con sus tests de payload.
   - Cablear el frontend a la API real, sustituyendo `src/api/mocks.ts`.
-  - ADRs 0002-0005 pendientes (el LLM extrae no juzga / gate humano / no persistir
-    veredicto del LLM / archivo con sellado de tiempo).
+  - ADRs 0002-0004 pendientes (el LLM extrae no juzga / gate humano / no persistir
+    veredicto del LLM). El 0005 y el 0006 ya están escritos.
+  - Evolución documentada en el ADR 0005: sello RFC 3161 contra una TSA pública, para que
+    la fecha del archivo sea verificable por terceros y no solo afirmación nuestra.
   - `THREAT-MODEL.md` y `docs/eipd.md` siguen en esqueleto; desarrollo real pendiente.
-  - Ver también sección 12: backlog de mejoras pedido explícitamente por el humano
-    para la próxima sesión (S1), no derivado por Claude Code.
+  - Sección 12: el backlog del humano sigue **entero sin tocar**. En S1 se eligió
+    deliberadamente atacar el backend primero (decisión del humano); el mapa, el texto
+    reivindicativo y la difusión siguen pendientes tal cual se pidieron.
 - **Bloqueos:** ninguno.
+- **Deuda conocida:** `tests/test_health.py` necesita un Postgres accesible; en local falla
+  con 503 si no está levantado el `docker compose`. En CI pasa. No es regresión de S1.
 
 ---
 
