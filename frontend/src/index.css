@@ -1,1 +1,106 @@
 @import "tailwindcss";
+
+/*
+ * Tokens portados del handoff de diseño (frontend/_design-export/Centinela.dc.html).
+ * Se definen como variables CSS reales (no @theme inline) para que las utilidades
+ * generadas (bg-adv, text-reg, ...) referencien var(--color-*) y respondan en
+ * tiempo de ejecución al cambio de [data-theme], igual que hacía el mock original
+ * con document.documentElement.dataset.theme.
+ */
+@theme {
+  --font-sans: "Libre Franklin", Helvetica, Arial, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --color-bg: #f6f5f2;
+  --color-surface: #ffffff;
+  --color-surface-2: #efedea;
+  --color-inset: #faf9f7;
+  --color-ink: #16181a;
+  --color-ink-2: #4d5257;
+  --color-ink-3: #7c8288;
+  --color-line: #e2dfd9;
+  --color-line-2: #cfcbc3;
+  --color-map-line: #ffffff;
+  --color-map-label: #3c4145;
+
+  /* Avance / Retroceso / Neutro-estable / Alerta: nunca solo color, siempre
+     acompañados de glifo + texto (ver ClassificationBadge, FE-5). */
+  --color-adv: oklch(0.44 0.1 152);
+  --color-adv-bg: oklch(0.9 0.05 152);
+  --color-adv-soft: oklch(0.96 0.02 152);
+  --color-reg: oklch(0.47 0.15 28);
+  --color-reg-bg: oklch(0.88 0.07 28);
+  --color-reg-soft: oklch(0.96 0.025 28);
+  --color-neu: oklch(0.44 0.02 250);
+  --color-neu-bg: oklch(0.9 0.01 250);
+  --color-neu-soft: oklch(0.96 0.005 250);
+  --color-alr: oklch(0.47 0.12 62);
+  --color-alr-bg: oklch(0.86 0.09 72);
+  --color-alr-soft: oklch(0.96 0.03 72);
+
+  --color-link: oklch(0.45 0.12 245);
+  --color-focus: oklch(0.55 0.14 245);
+  --color-del-bg: oklch(0.9 0.07 28);
+  --color-ins-bg: oklch(0.9 0.06 152);
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0e1012;
+  --color-surface: #161a1d;
+  --color-surface-2: #1e2327;
+  --color-inset: #12161a;
+  --color-ink: #eceae7;
+  --color-ink-2: #a8aeb3;
+  --color-ink-3: #767d83;
+  --color-line: #282e33;
+  --color-line-2: #3a4147;
+  --color-map-line: #0e1012;
+  --color-map-label: #c3c8cc;
+
+  --color-adv: oklch(0.83 0.11 152);
+  --color-adv-bg: oklch(0.42 0.07 152);
+  --color-adv-soft: oklch(0.25 0.03 152);
+  --color-reg: oklch(0.78 0.13 28);
+  --color-reg-bg: oklch(0.42 0.1 28);
+  --color-reg-soft: oklch(0.26 0.04 28);
+  --color-neu: oklch(0.8 0.02 250);
+  --color-neu-bg: oklch(0.38 0.015 250);
+  --color-neu-soft: oklch(0.24 0.008 250);
+  --color-alr: oklch(0.83 0.12 78);
+  --color-alr-bg: oklch(0.45 0.09 72);
+  --color-alr-soft: oklch(0.27 0.04 72);
+
+  --color-link: oklch(0.78 0.11 245);
+  --color-focus: oklch(0.72 0.13 245);
+  --color-del-bg: oklch(0.36 0.09 28);
+  --color-ins-bg: oklch(0.36 0.08 152);
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-link);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-link) 35%, transparent);
+}
+
+a:hover {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
