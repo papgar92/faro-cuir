@@ -15,6 +15,9 @@ dependencies = [
     # desarrollo a de producción: ya no lo usa solo el TestClient de FastAPI, ahora es lo que
     # hay debajo de security/url_guard.py.
     "httpx>=0.27",
+    # Parseo de XML no confiable (CLAUDE.md 6.1). Obligatorio por diseño: el XML de las
+    # fuentes nunca pasa por xml.etree ni por lxml sin endurecer.
+    "defusedxml>=0.7",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +26,9 @@ dev = [
     "mypy>=1.13",
     "pytest>=8.3",
     "pytest-cov>=6.0",
+    # defusedxml no trae anotaciones propias; sin estos stubs mypy estricto no puede
+    # comprobar security/xml_safe.py, que es justo donde más interesa que compruebe.
+    "types-defusedxml>=0.7",
 ]
 
 [build-system]
