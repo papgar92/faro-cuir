@@ -1,0 +1,291 @@
+"""Guardia de URLs salientes: la defensa contra SSRF de CLAUDE.md 6.2.
+
+El worker de ingesta sigue enlaces que vienen dentro de los sumarios de los boletines. Eso
+es dato no confiable (regla de oro 1). Sin validación, el worker se convierte en un proxy
+hacia la red interna: quien controle o comprometa una fuente solo tiene que colar un
+`<url>http://169.254.169.254/latest/meta-data/</url>` en su sumario para que se lo
+descarguemos.
+
+**Este módulo es la única puerta de salida HTTP del proyecto.** Nada en `ingest/` debe
+importar `httpx` directamente; si lo hace, se ha saltado todos los controles de aquí.
+
+Controles implementados:
+
+1. Solo `https`. Sin `http`, `file`, `gopher`, `data`, ni nada más.
+2. Solo puerto 443.
+3. Host en allowlist (coincidencia exacta o subdominio real, no "empieza por").
+4. Sin credenciales embebidas en la URL.
+5. Toda IP resuelta debe ser global: nada de loopback, privadas, link-local (metadatos de
+   cloud), CGNAT ni reservadas.
+6. Redirecciones seguidas a mano, revalidando cada salto. Máximo 3.
+7. Tope de bytes aplicado mientras se lee el cuerpo, no confiando en `Content-Length`.
+8. Timeouts de conexión y de lectura.
+9. Conexión clavada a la IP ya validada (ver `fetch`, sobre DNS rebinding).
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import socket
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
+from urllib.parse import urljoin, urlsplit
+
+import httpx
+
+# Allowlist por defecto. Hoy solo el BOE, que es la única fuente verificada en
+# docs/fuentes.md. Cuando exista ingesta real de varias fuentes, esto debería derivarse de
+# `fuente.url_base` en la base de datos en vez de vivir en el código; se deja como constante
+# mientras solo hay una fuente para no montar la maquinaria antes de necesitarla.
+DEFAULT_ALLOWLIST: frozenset[str] = frozenset({"boe.es"})
+
+# Solo https: aparte de la confidencialidad, es lo que hace que el pinning por IP de `fetch`
+# siga siendo seguro. Sobre http no habría certificado que verificar y clavarnos a una IP
+# sería clavarnos a lo que dijera el DNS, sin nada que lo desmienta.
+ALLOWED_SCHEMES: frozenset[str] = frozenset({"https"})
+ALLOWED_PORTS: frozenset[int] = frozenset({443})
+
+MAX_RESPONSE_BYTES: int = 20 * 1024 * 1024
+MAX_REDIRECTS: int = 3
+DEFAULT_TIMEOUT: httpx.Timeout = httpx.Timeout(15.0, connect=5.0)
+
+_REDIRECT_STATUS: frozenset[int] = frozenset({301, 302, 303, 307, 308})
+
+# Resolver inyectable: (hostname, puerto) -> lista de IPs en texto. Existe para poder probar
+# el guardia sin depender del DNS real.
+Resolver = Callable[[str, int], list[str]]
+
+
+class UrlGuardError(Exception):
+    """Una URL o una respuesta se rechaza.
+
+    Todas las subclases son de rechazo, nunca de aviso: si algo llega aquí, la ingesta de
+    ese documento falla. Un guardia SSRF que degrada a warning no es un guardia.
+    """
+
+
+class SchemeNotAllowed(UrlGuardError):
+    pass
+
+
+class PortNotAllowed(UrlGuardError):
+    pass
+
+
+class HostNotAllowed(UrlGuardError):
+    pass
+
+
+class CredentialsInUrl(UrlGuardError):
+    pass
+
+
+class PrivateAddressBlocked(UrlGuardError):
+    pass
+
+
+class UnresolvableHost(UrlGuardError):
+    pass
+
+
+class TooManyRedirects(UrlGuardError):
+    pass
+
+
+class ResponseTooLarge(UrlGuardError):
+    pass
+
+
+@dataclass(frozen=True)
+class ValidatedTarget:
+    """Una URL que ha pasado todos los controles, junto con la IP a la que se resolvió."""
+
+    url: str
+    hostname: str
+    port: int
+    ip: str
+
+
+def _default_resolver(hostname: str, port: int) -> list[str]:
+    try:
+        infos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise UnresolvableHost(f"No se pudo resolver el host: {hostname!r}") from exc
+    # sockaddr[0] es la IP tanto en IPv4 como en IPv6.
+    return [str(info[4][0]) for info in infos]
+
+
+def _host_allowed(hostname: str, allowlist: frozenset[str]) -> bool:
+    """Coincidencia exacta o subdominio auténtico.
+
+    Comparar con `startswith`/`in` es el fallo clásico: `boe.es.evil.com` contiene "boe.es",
+    y `notboe.es` termina en "boe.es". Exigir el punto separador descarta ambos.
+    """
+    host = hostname.lower().rstrip(".")
+    return any(host == domain or host.endswith(f".{domain}") for domain in allowlist)
+
+
+def _assert_public_ip(raw_ip: str, hostname: str) -> None:
+    ip = ipaddress.ip_address(raw_ip)
+
+    # Un IPv6 mapeado (`::ffff:127.0.0.1`) es un IPv4 disfrazado. Se desenvuelve antes de
+    # juzgarlo porque, según la versión de Python, el predicado sobre el IPv6 envoltorio no
+    # siempre mira la dirección de dentro — y esa discrepancia es justo un bypass.
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+
+    # `is_global` en vez de una lista a mano de rangos prohibidos: la lista a mano siempre se
+    # deja algo fuera (CGNAT 100.64/10, 0.0.0.0/8, benchmarking 198.18/15, unique-local IPv6).
+    # Invertir la pregunta —"¿es enrutable en Internet?"— hace que lo desconocido se rechace
+    # por defecto en vez de colarse.
+    if not ip.is_global:
+        raise PrivateAddressBlocked(
+            f"{hostname!r} resuelve a {ip}, que no es una dirección pública. "
+            "Posible SSRF hacia la red interna o a los metadatos del proveedor cloud."
+        )
+
+
+def validate(
+    url: str,
+    *,
+    allowlist: frozenset[str] = DEFAULT_ALLOWLIST,
+    resolver: Resolver = _default_resolver,
+) -> ValidatedTarget:
+    """Valida una URL y devuelve el destino con su IP ya resuelta.
+
+    Lanza la subclase de `UrlGuardError` que corresponda al primer control que falle.
+    """
+    parts = urlsplit(url)
+
+    if parts.scheme not in ALLOWED_SCHEMES:
+        raise SchemeNotAllowed(f"Esquema no permitido: {parts.scheme!r} (solo https)")
+
+    if parts.username is not None or parts.password is not None:
+        raise CredentialsInUrl("La URL lleva credenciales embebidas")
+
+    hostname = parts.hostname
+    if not hostname:
+        raise HostNotAllowed(f"URL sin host: {url!r}")
+
+    try:
+        port = parts.port or 443
+    except ValueError as exc:  # puerto no numérico
+        raise PortNotAllowed(f"Puerto inválido en {url!r}") from exc
+    if port not in ALLOWED_PORTS:
+        raise PortNotAllowed(f"Puerto no permitido: {port}")
+
+    if not _host_allowed(hostname, allowlist):
+        raise HostNotAllowed(f"Host fuera de la allowlist: {hostname!r}")
+
+    addresses = resolver(hostname, port)
+    if not addresses:
+        raise UnresolvableHost(f"El host no resolvió a ninguna dirección: {hostname!r}")
+
+    # Se comprueban TODAS las direcciones, no solo la primera: un host que resuelve a una IP
+    # pública y a una privada a la vez no es un host legítimo, es un intento de que elijamos
+    # la buena y usemos la mala.
+    for address in addresses:
+        _assert_public_ip(address, hostname)
+
+    return ValidatedTarget(url=url, hostname=hostname, port=port, ip=addresses[0])
+
+
+def _netloc_for_ip(ip: str, port: int) -> str:
+    address = ipaddress.ip_address(ip)
+    host = f"[{address}]" if isinstance(address, ipaddress.IPv6Address) else str(address)
+    return host if port == 443 else f"{host}:{port}"
+
+
+def _build_pinned_request(client: httpx.Client, target: ValidatedTarget) -> httpx.Request:
+    """Construye la petición apuntando a la IP ya validada, no al nombre.
+
+    Sin esto queda un TOCTOU: validamos que `boe.es` resuelve a una IP pública y acto seguido
+    httpx vuelve a resolver por su cuenta. Entre las dos resoluciones, un DNS hostil puede
+    responder distinto (DNS rebinding) y la petición real acaba yendo a 127.0.0.1 con la
+    validación ya superada.
+
+    Al pedir directamente `https://<ip>/...` la segunda resolución no existe. Se conserva el
+    nombre en la cabecera `Host` (para que el servidor sirva el vhost correcto) y en la
+    extensión `sni_hostname`, que es la que usa httpx tanto para el SNI del handshake TLS como
+    para verificar el certificado. Es decir: nos conectamos a la IP validada, pero seguimos
+    exigiendo un certificado válido para el nombre original.
+    """
+    parts = urlsplit(target.url)
+    pinned_url = parts._replace(netloc=_netloc_for_ip(target.ip, target.port)).geturl()
+    host_header = target.hostname if target.port == 443 else f"{target.hostname}:{target.port}"
+    return client.build_request(
+        "GET",
+        pinned_url,
+        headers={"Host": host_header},
+        extensions={"sni_hostname": target.hostname},
+    )
+
+
+def _read_capped(response: httpx.Response, max_bytes: int) -> bytes:
+    """Lee el cuerpo abortando en cuanto supera el tope.
+
+    El tope se aplica sobre los bytes que van llegando, no sobre `Content-Length`: esa
+    cabecera la escribe el servidor, o sea el atacante, y puede mentir. Comprobarla sería un
+    atajo cómodo y exactamente igual de inútil.
+    """
+    total = 0
+    chunks: list[bytes] = []
+    for chunk in response.iter_bytes():
+        total += len(chunk)
+        if total > max_bytes:
+            raise ResponseTooLarge(f"La respuesta supera el tope de {max_bytes} bytes")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+@contextmanager
+def _ensure_client(client: httpx.Client | None) -> Iterator[httpx.Client]:
+    if client is not None:
+        yield client
+        return
+    # follow_redirects=False a propósito: las redirecciones se siguen a mano en `fetch` para
+    # poder revalidar cada salto. Si httpx las siguiera solo, el primer 302 hacia
+    # http://127.0.0.1 anularía todo lo anterior.
+    with httpx.Client(timeout=DEFAULT_TIMEOUT, follow_redirects=False) as owned:
+        yield owned
+
+
+def fetch(
+    url: str,
+    *,
+    allowlist: frozenset[str] = DEFAULT_ALLOWLIST,
+    max_bytes: int = MAX_RESPONSE_BYTES,
+    max_redirects: int = MAX_REDIRECTS,
+    resolver: Resolver = _default_resolver,
+    client: httpx.Client | None = None,
+) -> bytes:
+    """Descarga `url` aplicando todos los controles del módulo. Devuelve el cuerpo en bytes.
+
+    Lanza `UrlGuardError` si cualquier control falla, en la URL inicial o en una redirección.
+    """
+    with _ensure_client(client) as active_client:
+        current_url = url
+        for _ in range(max_redirects + 1):
+            target = validate(current_url, allowlist=allowlist, resolver=resolver)
+            request = _build_pinned_request(active_client, target)
+            response = active_client.send(request, stream=True, follow_redirects=False)
+            try:
+                if response.status_code in _REDIRECT_STATUS:
+                    location = response.headers.get("location")
+                    if not location:
+                        raise UrlGuardError(
+                            f"Redirección {response.status_code} sin cabecera Location"
+                        )
+                    # La Location se resuelve contra la URL con nombre, no contra la URL
+                    # clavada a la IP: una Location relativa debe seguir colgando del host
+                    # original, no de su dirección.
+                    current_url = urljoin(target.url, location)
+                    continue
+
+                response.raise_for_status()
+                return _read_capped(response, max_bytes)
+            finally:
+                response.close()
+
+        raise TooManyRedirects(f"Más de {max_redirects} redirecciones desde {url!r}")

@@ -11,6 +11,10 @@ dependencies = [
     # Driver binario: evita depender de libpq-dev/build tools en la imagen de Docker.
     "psycopg[binary]>=3.2",
     "alembic>=1.13",
+    # Cliente HTTP saliente de la ingesta (CLAUDE.md sección 3). Pasa de dependencia de
+    # desarrollo a de producción: ya no lo usa solo el TestClient de FastAPI, ahora es lo que
+    # hay debajo de security/url_guard.py.
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
@@ -19,8 +23,6 @@ dev = [
     "mypy>=1.13",
     "pytest>=8.3",
     "pytest-cov>=6.0",
-    # TestClient de FastAPI usa httpx por debajo.
-    "httpx>=0.27",
 ]
 
 [build-system]
