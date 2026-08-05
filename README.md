@@ -1,4 +1,4 @@
-# Centinela
+# Faro Cuir
 
 Sistema de vigilancia normativa que monitoriza a diario los boletines oficiales y parlamentos
 autonómicos españoles (17 CCAA + BOE) para detectar cambios legislativos que afecten a los
@@ -9,7 +9,7 @@ derechos del colectivo LGTBI+, con foco especial en las personas trans.
 Detecta el retroceso silencioso: no la reforma que sale en prensa, sino la instrucción de
 rango bajo publicada un martes de agosto que desmonta un derecho sin titulares.
 
-Práctica final de un máster de Ciberseguridad e IA. El diseño, las reglas de negocio y los
+Práctica de un máster de Ciberseguridad e IA. El diseño, las reglas de negocio y los
 guardarraíles del proyecto viven en [`CLAUDE.md`](./CLAUDE.md) — léelo antes de tocar código.
 
 **Estado:** en desarrollo activo (S0). Ver sección 11 de `CLAUDE.md` para el estado detallado.

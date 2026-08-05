@@ -13,22 +13,22 @@ jobs:
       db:
         image: postgres:16
         env:
-          POSTGRES_USER: centinela
-          POSTGRES_PASSWORD: centinela_ci
-          POSTGRES_DB: centinela
+          POSTGRES_USER: farocuir
+          POSTGRES_PASSWORD: farocuir_ci
+          POSTGRES_DB: farocuir
           # Mismo mecanismo de collation que docker-compose.yml (ver ADR 0001 / commit
           # de docker-compose): ICU es-ES en vez de locale glibc.
           POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=es-ES --encoding=UTF8"
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U centinela -d centinela"
+          --health-cmd "pg_isready -U farocuir -d farocuir"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
 
     env:
-      DATABASE_URL: postgresql+psycopg://centinela:centinela_ci@localhost:5432/centinela
+      DATABASE_URL: postgresql+psycopg://farocuir:farocuir_ci@localhost:5432/farocuir
       APP_ENV: test
 
     steps:

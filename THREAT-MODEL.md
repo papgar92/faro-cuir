@@ -1,4 +1,4 @@
-# Modelo de amenaza — Centinela
+# Modelo de amenaza — Faro Cuir
 
 > Pendiente de desarrollo completo. Este documento se irá llenando a medida que se implemente
 > cada componente; no es un trámite de cierre, se mantiene vivo (`CLAUDE.md` sección 9).

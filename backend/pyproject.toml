@@ -1,7 +1,7 @@
 [project]
-name = "centinela-backend"
+name = "farocuir-backend"
 version = "0.1.0"
-description = "Backend de Centinela: vigilancia normativa de derechos LGTBI+/trans en boletines oficiales españoles."
+description = "Backend de Faro Cuir: vigilancia normativa de derechos LGTBI+/trans en boletines oficiales españoles."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

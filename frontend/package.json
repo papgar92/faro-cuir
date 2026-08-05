@@ -1,8 +1,8 @@
 {
-  "name": "centinela-frontend",
+  "name": "farocuir-frontend",
   "private": true,
   "version": "0.1.0",
-  "description": "Frontend de Centinela: mapa de alertas normativas y observatorio de derechos LGTBI+.",
+  "description": "Frontend de Faro Cuir: mapa de alertas normativas y observatorio de derechos LGTBI+.",
   "type": "module",
   "scripts": {
     "dev": "vite",

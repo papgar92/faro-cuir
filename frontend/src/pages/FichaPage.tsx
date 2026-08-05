@@ -70,7 +70,7 @@ export function FichaPage({ onGoTimeline }: FichaPageProps) {
 
           <div className="mt-3.5 rounded border border-line border-l-4 border-l-line-2 bg-surface p-4">
             <p className="m-0 text-sm text-ink-2">
-              <strong className="font-semibold text-ink">Centinela no interpreta la norma.</strong> Mostramos
+              <strong className="font-semibold text-ink">Faro Cuir no interpreta la norma.</strong> Mostramos
               el texto tal como aparece publicado y el enlace a la fuente oficial. La clasificación
               indica el sentido del cambio respecto al texto anterior, no una valoración política.
             </p>

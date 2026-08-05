@@ -1,3 +1,8 @@
+# Nombre de proyecto explicito: el nombre de la carpeta local (Centinela/) no ha
+# cambiado, pero los nombres de contenedor/red/volumen deben reflejar el nombre
+# de producto actual (Faro Cuir) y no depender de como se llame el checkout local.
+name: farocuir
+
 services:
   db:
     image: postgres:16
@@ -12,7 +17,7 @@ services:
       # este ajuste solo afecta a como se ordena/compara texto (ORDER BY, indices btree).
       POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=es-ES --encoding=UTF8"
     volumes:
-      - centinela_db_data:/var/lib/postgresql/data
+      - farocuir_db_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -50,4 +55,4 @@ services:
         condition: service_healthy
 
 volumes:
-  centinela_db_data:
+  farocuir_db_data:

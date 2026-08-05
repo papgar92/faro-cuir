@@ -1,4 +1,4 @@
-# CLAUDE.md — Centinela
+# CLAUDE.md — Faro Cuir
 
 > Instrucciones persistentes para Claude Code. Léete este archivo entero al inicio de cada
 > sesión. Si vas a tomar una decisión que contradiga algo de aquí, **para y pregúntame**.
@@ -10,7 +10,10 @@
 - **Backend:** Python 3.12 + FastAPI. (Alternativa descartada por ahora: Node. Si se cambia,
   se rehace la sección de stack, no el diseño.)
 - **Frontend:** React 18 + TypeScript + Vite + TailwindCSS.
-- **Nombre del proyecto:** Centinela.
+- **Nombre del proyecto:** Faro Cuir. (Antes "Centinela"; renombrado en S0 — "cuir" deja claro
+  desde el nombre que la herramienta es de y para la comunidad LGTBIQ+, no un vigilante genérico.
+  La carpeta local del repo sigue llamándose `Centinela/`; no se ha movido, solo el nombre de
+  producto. Historial de commits previos al cambio conserva el nombre antiguo, no se reescribe.)
 - **LLM:** proveedor-agnóstico vía una interfaz propia (`llm/provider.py`). Por defecto se
   asume una API externa para clasificar (el input es **texto público** de boletines, no hay
   problema de privacidad ahí). Ollama local queda como opción documentada para independencia
@@ -20,7 +23,7 @@
 
 ## 1. Qué es esto
 
-**Centinela** es un sistema de vigilancia normativa que monitoriza a diario los boletines
+**Faro Cuir** es un sistema de vigilancia normativa que monitoriza a diario los boletines
 oficiales y parlamentos autonómicos españoles (17 CCAA + BOE) para detectar cambios legislativos
 que afecten a los derechos del colectivo LGTBI+, con foco especial en las personas trans.
 
@@ -78,7 +81,7 @@ Es la **práctica final de un máster de Ciberseguridad e IA**. Plazo: ~6 semana
 ## 4. Estructura del repositorio
 
 ```
-centinela/
+farocuir/                      # nombre canónico del proyecto; la carpeta local sigue siendo Centinela/
 ├── CLAUDE.md                  # este archivo
 ├── README.md
 ├── SECURITY.md                # política de seguridad + resumen del modelo de amenaza

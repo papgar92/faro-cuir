@@ -34,7 +34,7 @@ export function Header({ screen, onNav, dark, onToggleTheme, showDemoBadge = tru
       <div className="mx-auto flex max-w-[1360px] items-center gap-7 px-7 py-3.5">
         <div className="flex flex-col gap-0.5">
           <div className="font-serif text-xl font-bold leading-none tracking-[0.14em] text-ink">
-            CENTINELA
+            FARO CUIR
           </div>
           <div className="text-[11.5px] tracking-wide text-ink-3">
             Observatorio de derechos LGTBI+ · 17 CCAA + BOE

@@ -2,7 +2,7 @@ export function Footer() {
   return (
     <footer className="mt-10 border-t border-line bg-surface">
       <div className="mx-auto flex max-w-[1360px] flex-wrap items-center gap-6 px-7 py-5 text-xs text-ink-3">
-        <span>Centinela · proyecto de utilidad pública, sin ánimo de lucro</span>
+        <span>Faro Cuir · proyecto de utilidad pública, sin ánimo de lucro</span>
         <span>Código abierto (AGPL-3.0)</span>
         <a href="#repo">Repositorio</a>
         <a href="#metodologia">Metodología de clasificación</a>

@@ -447,7 +447,7 @@ export const fichaDetail: FichaDetail = {
     publicacion: "30 jul 2026 · BOIB núm. 98 · pág. 41.207",
     entradaVigor: "1 sep 2026",
     fuenteLabel: "Texto íntegro en el BOIB (PDF)",
-    fuenteNota: "copia archivada por Centinela",
+    fuenteNota: "copia archivada por Faro Cuir",
   },
   integridad: {
     hashSha256: "9f2c41e8b7d05a6c3e19fb84a7c2d0516be93f7ac48d21b0e6f5c9a3d7481e2b",

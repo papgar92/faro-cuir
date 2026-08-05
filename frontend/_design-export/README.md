@@ -3,6 +3,10 @@
 Exportado tal cual desde el proyecto de claude.ai/design
 `Centinela: Mapa de alertas normativas` (`ea402877-d0ec-4231-8505-11d13d1914f0`).
 
+> Nota: el proyecto se renombró a "Faro Cuir" después de este handoff. Los archivos de
+> esta carpeta son un artefacto histórico y se conservan con el nombre original tal como
+> se exportaron; no se renombran ni se editan.
+
 - `Centinela.dc.html` — maqueta única en formato `.dc.html` (runtime propio tipo
   React, ver `support.js`). No se ejecuta ni se importa desde `src/`; es solo
   referencia visual y de interacción para construir los componentes reales.
