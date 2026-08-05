@@ -6,13 +6,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
 
-class TipoFuente(str, enum.Enum):
+class TipoFuente(enum.StrEnum):
     BOE = "boe"
     BOLETIN_AUTONOMICO = "boletin_autonomico"
     PARLAMENTO = "parlamento"
 
 
-class FormatoFuente(str, enum.Enum):
+class FormatoFuente(enum.StrEnum):
     API = "api"
     RSS = "rss"
     HTML = "html"
@@ -60,4 +60,6 @@ class Fuente(Base):
     url_base: Mapped[str] = mapped_column(String(500), nullable=False)
     # Nulo mientras la licencia de reutilización de esa fuente esté TODO(verificar).
     licencia_reutil: Mapped[str | None] = mapped_column(String(200))
-    activa: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    activa: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )

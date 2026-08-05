@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: centinela
+          POSTGRES_PASSWORD: centinela_ci
+          POSTGRES_DB: centinela
+          # Mismo mecanismo de collation que docker-compose.yml (ver ADR 0001 / commit
+          # de docker-compose): ICU es-ES en vez de locale glibc.
+          POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=es-ES --encoding=UTF8"
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U centinela -d centinela"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg://centinela:centinela_ci@localhost:5432/centinela
+      APP_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        working-directory: backend
+        run: pip install -e ".[dev]"
+
+      - name: ruff check
+        working-directory: backend
+        run: ruff check .
+
+      - name: ruff format --check
+        working-directory: backend
+        run: ruff format --check .
+
+      # Equivalente a "mypy backend/app" (CLAUDE.md sección 10) ejecutado desde backend/.
+      - name: mypy
+        working-directory: backend
+        run: mypy app
+
+      # No lo pidió el enunciado explícitamente, pero ya que el job levanta una DB real
+      # para pytest, verificar que la migración aplica limpia es casi gratis y evita que
+      # una migración rota solo se descubra el día que alguien la corre en local.
+      - name: Migraciones (alembic upgrade head)
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: pytest
+        working-directory: backend
+        run: pytest --cov
+
+      # CLI oficial de gitleaks descargada directamente (sin la Action de marketplace,
+      # que en repos de organización exige licencia). --no-git: escanea los archivos tal
+      # como están en el checkout, no el historial completo — el checkout es superficial
+      # (fetch-depth por defecto) así que escanear "git log" daría una cobertura parcial
+      # y engañosa; lo que importa en cada push/PR es qué hay en el árbol de trabajo.
+      - name: gitleaks
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=$(curl -sSf https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep -oP '"tag_name": "v\K[^"]+')
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks detect --source . --no-git --no-banner --redact
