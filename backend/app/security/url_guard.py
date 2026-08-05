@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
@@ -51,6 +51,11 @@ MAX_REDIRECTS: int = 3
 DEFAULT_TIMEOUT: httpx.Timeout = httpx.Timeout(15.0, connect=5.0)
 
 _REDIRECT_STATUS: frozenset[int] = frozenset({301, 302, 303, 307, 308})
+
+# Identificarse ante fuentes públicas es cortesía básica: si la ingesta molestara a alguien,
+# quien administre el servidor puede saber qué es esto y a quién escribir, en vez de ver
+# tráfico anónimo y bloquearlo sin más.
+USER_AGENT: str = "FaroCuir/0.1 (vigilancia normativa de derechos LGTBI+; proyecto academico)"
 
 # Resolver inyectable: (hostname, puerto) -> lista de IPs en texto. Existe para poder probar
 # el guardia sin depender del DNS real.
@@ -197,7 +202,9 @@ def _netloc_for_ip(ip: str, port: int) -> str:
     return host if port == 443 else f"{host}:{port}"
 
 
-def _build_pinned_request(client: httpx.Client, target: ValidatedTarget) -> httpx.Request:
+def _build_pinned_request(
+    client: httpx.Client, target: ValidatedTarget, headers: Mapping[str, str] | None
+) -> httpx.Request:
     """Construye la petición apuntando a la IP ya validada, no al nombre.
 
     Sin esto queda un TOCTOU: validamos que `boe.es` resuelve a una IP pública y acto seguido
@@ -214,10 +221,18 @@ def _build_pinned_request(client: httpx.Client, target: ValidatedTarget) -> http
     parts = urlsplit(target.url)
     pinned_url = parts._replace(netloc=_netloc_for_ip(target.ip, target.port)).geturl()
     host_header = target.hostname if target.port == 443 else f"{target.hostname}:{target.port}"
+
+    cabeceras = {"User-Agent": USER_AGENT, **dict(headers or {})}
+    # El Host lo fija el guardia y no quien llama. Permitir sobreescribirlo dejaría a la
+    # capa de ingesta desactivar el pinning sin querer (o queriendo) con un solo parámetro.
+    if any(nombre.lower() == "host" for nombre in cabeceras):
+        raise UrlGuardError("La cabecera Host la fija el guardia; no se puede sobreescribir")
+    cabeceras["Host"] = host_header
+
     return client.build_request(
         "GET",
         pinned_url,
-        headers={"Host": host_header},
+        headers=cabeceras,
         extensions={"sni_hostname": target.hostname},
     )
 
@@ -255,6 +270,7 @@ def fetch(
     url: str,
     *,
     allowlist: frozenset[str] = DEFAULT_ALLOWLIST,
+    headers: Mapping[str, str] | None = None,
     max_bytes: int = MAX_RESPONSE_BYTES,
     max_redirects: int = MAX_REDIRECTS,
     resolver: Resolver = _default_resolver,
@@ -262,13 +278,17 @@ def fetch(
 ) -> bytes:
     """Descarga `url` aplicando todos los controles del módulo. Devuelve el cuerpo en bytes.
 
+    `headers` permite a cada fuente añadir lo que necesite (la API del BOE, por ejemplo,
+    responde 400 si no se le manda un `Accept` explícito). El `Host` no es negociable: lo
+    pone el guardia, porque es la mitad del mecanismo de pinning.
+
     Lanza `UrlGuardError` si cualquier control falla, en la URL inicial o en una redirección.
     """
     with _ensure_client(client) as active_client:
         current_url = url
         for _ in range(max_redirects + 1):
             target = validate(current_url, allowlist=allowlist, resolver=resolver)
-            request = _build_pinned_request(active_client, target)
+            request = _build_pinned_request(active_client, target, headers)
             response = active_client.send(request, stream=True, follow_redirects=False)
             try:
                 if response.status_code in _REDIRECT_STATUS:

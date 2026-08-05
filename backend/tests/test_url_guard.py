@@ -183,6 +183,44 @@ def test_fetch_se_conecta_a_la_ip_validada_conservando_el_nombre() -> None:
     assert peticion.extensions["sni_hostname"] == "boe.es"
 
 
+def test_fetch_permite_anadir_cabeceras_y_se_identifica() -> None:
+    vistas: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        vistas.append(request)
+        return httpx.Response(200, content=b"ok")
+
+    with cliente_mock(handler) as client:
+        url_guard.fetch(
+            "https://boe.es/sumario",
+            allowlist=ALLOWLIST,
+            headers={"Accept": "application/xml"},
+            resolver=resolver_fijo(IP_PUBLICA),
+            client=client,
+        )
+
+    (peticion,) = vistas
+    assert peticion.headers["Accept"] == "application/xml"
+    assert peticion.headers["User-Agent"] == url_guard.USER_AGENT
+
+
+@pytest.mark.parametrize("nombre", ["Host", "host", "HOST"])
+def test_fetch_no_deja_sobreescribir_el_host(nombre: str) -> None:
+    """El Host es la mitad del pinning: si quien llama pudiera cambiarlo, lo desactivaria."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"ok")
+
+    with cliente_mock(handler) as client, pytest.raises(url_guard.UrlGuardError):
+        url_guard.fetch(
+            "https://boe.es/sumario",
+            allowlist=ALLOWLIST,
+            headers={nombre: "interno.local"},
+            resolver=resolver_fijo(IP_PUBLICA),
+            client=client,
+        )
+
+
 def test_fetch_sigue_redirecciones_dentro_de_la_allowlist() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/viejo":
