@@ -317,4 +317,48 @@ y qué toca. Es lo primero que se lee al retomar. -->
   - ADRs 0002-0005 pendientes (el LLM extrae no juzga / gate humano / no persistir
     veredicto del LLM / archivo con sellado de tiempo).
   - `THREAT-MODEL.md` y `docs/eipd.md` siguen en esqueleto; desarrollo real pendiente.
+  - Ver también sección 12: backlog de mejoras pedido explícitamente por el humano
+    para la próxima sesión (S1), no derivado por Claude Code.
 - **Bloqueos:** ninguno.
+
+---
+
+## 12. Backlog de mejoras (pedido por el humano, para S1)
+
+> Pedido tal cual al cierre de S0. No reordenar por criterio propio sin comentarlo primero;
+> si al empezar S1 alguno de estos puntos ya no aplica o contradice algo de este archivo,
+> **para y pregunta** antes de tocarlo.
+
+### Contenido
+
+- Texto reivindicativo al principio (pantalla Mapa/home): explicar el objetivo del proyecto,
+  a quién protege y por qué existe, antes de que el usuario llegue al mapa. Contenido, no
+  solo maquetación — pensar el mensaje con calma, no rellenar con genérico.
+
+### Mapa
+
+- Canarias no se renderiza bien (posición/escala rotas en el recuadro inferior izquierdo).
+  Revisar el offset manual que trae `MapaCCAA`/`_design-export/data/ccaa-paths.json`.
+- Hacer el mapa ampliable (zoom), para poder bajar de CCAA a provincia y localidad.
+- Añadir división por provincias y localidades, no solo CCAA (implica geometría nueva, no
+  solo la que ya tenemos — no inventar límites, buscar fuente oficial equivalente al IGN).
+- Faltan las ciudades autónomas (Ceuta y Melilla) en el mapa actual — ni geometría ni datos
+  mock las incluyen hoy.
+
+### Datos / navegación
+
+- El enlace a "Texto íntegro" / fuente oficial en la Ficha de norma no lleva al documento
+  real todavía (hoy es un ancla muerta `#fuente`; no hay backend detrás). Puede quedar como
+  TODO explícito hasta que exista almacenamiento real, pero no debería parecer un enlace
+  funcional si no lo es.
+
+### Difusión (acciones externas — confirmar con el humano antes de ejecutar cada una, no encadenarlas)
+
+- Subir el repositorio a GitHub (público) y valorar promocionarlo en LinkedIn. Publicar en
+  redes es una acción visible e irreversible: proponer el texto, no publicarlo sin
+  aprobación explícita en el momento.
+- Investigar opciones para desplegar una versión pública en la web (hosting del frontend
+  y, más adelante, del backend).
+- Contactar con asociaciones LGTBI+/trans para dar a conocer el proyecto — carácter
+  totalmente altruista, sin monetización. Esto es contacto con terceros reales: preparar
+  materiales/mensaje con el humano, no enviar nada en su nombre sin que lo revise antes.
