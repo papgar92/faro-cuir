@@ -39,3 +39,6 @@ backend/data/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Notas sueltas del humano (ya recogidas en CLAUDE.md seccion 12)
+Mejoras.txt
