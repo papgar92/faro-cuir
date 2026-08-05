@@ -343,6 +343,7 @@ export interface DiffSegment {
 
 export interface FichaDetail {
   id: string;
+  ref: string;
   clasificacion: ClasificacionAlerta;
   comunidad: string;
   ambito: string;
@@ -390,6 +391,7 @@ export interface FichaDetail {
  */
 export const fichaDetail: FichaDetail = {
   id: "boib-112-2026",
+  ref: "BOIB 112/2026",
   clasificacion: "retroceso",
   comunidad: "Illes Balears",
   ambito: "Sanitario",

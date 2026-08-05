@@ -1,5 +1,5 @@
-import { AlertasPage } from "./pages/AlertasPage";
+import { FichaPage } from "./pages/FichaPage";
 
 export default function App() {
-  return <AlertasPage onVerFicha={(id) => console.log("verFicha", id)} />;
+  return <FichaPage onGoTimeline={() => console.log("goTimeline")} />;
 }
