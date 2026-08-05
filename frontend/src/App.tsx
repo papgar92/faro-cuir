@@ -1,10 +1,5 @@
-import { MapaPage } from "./pages/MapaPage";
+import { AlertasPage } from "./pages/AlertasPage";
 
 export default function App() {
-  return (
-    <MapaPage
-      onGoFicha={() => console.log("goFicha")}
-      onGoTimeline={(com) => console.log("goTimeline", com)}
-    />
-  );
+  return <AlertasPage onVerFicha={(id) => console.log("verFicha", id)} />;
 }
