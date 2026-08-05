@@ -284,7 +284,37 @@ cd frontend && npm run dev
 <!-- Claude Code: actualiza esta sección al final de cada sesión con 3-5 líneas de qué se hizo
 y qué toca. Es lo primero que se lee al retomar. -->
 
-- **Semana actual:** S0 / arranque.
-- **Hecho:** —
-- **Siguiente:** montar esqueleto, docker-compose, CI verde, primer ADR, auditoría de fuentes.
-- **Bloqueos:** —
+- **Semana actual:** S0 / arranque — completada.
+- **Hecho:**
+  - Backend: esqueleto del repo, `docker-compose.yml` (Postgres 16 con collation ICU
+    `es-ES`, backend con hot-reload, worker idle sin cron todavía), FastAPI con `/health`
+    verificando conexión real a la DB, config vía `pydantic-settings`, mypy estricto.
+  - Alembic inicializado con la primera migración: solo la tabla `fuente` (enum como
+    VARCHAR+CHECK, no ENUM nativo; valores en minúsculas coincidiendo con el vocabulario
+    de la sección 5). Resto de tablas del modelo de dominio, pendientes.
+  - CI en GitHub Actions: ruff → mypy → alembic upgrade → pytest → gitleaks, con un
+    servicio de Postgres real en el job. Test trivial de `/health` en verde.
+  - ADR 0001 (arquitectura y alcance) y arranque de `docs/fuentes.md` (18 fuentes, solo
+    BOE confirmado; las 17 CCAA quedan `TODO(verificar)` a propósito).
+  - Frontend (añadido en esta misma sesión a partir de un handoff de diseño en
+    claude.ai/design, fuera del plan original de hoy): scaffold Vite + React 18 + TS +
+    Tailwind v4, tokens de diseño con tema claro/oscuro, datos mock (`src/api/mocks.ts`),
+    componentes compartidos (`ClassificationBadge`, `AlertCard`, `DiffBlock`) y las tres
+    pantallas (Mapa, Alertas, Ficha de norma) con navegación real entre ellas. Verificado
+    en navegador de verdad con Playwright headless (no solo "compila"), accesible por
+    teclado en el mapa (mejora sobre el mock original) y con `sr-only` en el diff.
+    Todavía corre 100% sobre datos mock, sin cablear a la API.
+  - Proyecto renombrado de "Centinela" a "Faro Cuir" (decisión del humano). La carpeta
+    local del repo sigue llamándose `Centinela/` a propósito (ver sección 0).
+- **Siguiente:**
+  - Resto del modelo de dominio (`documento`, `norma`, `version_norma`, `deteccion`,
+    `cola_revision`, `alerta`, `suscriptor`) y sus migraciones.
+  - Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — verificar contra
+    cada fuente oficial, no completar por deducción.
+  - Primer módulo de ingesta real (`ingest/boe.py`) + `security/xml_safe.py` +
+    `security/url_guard.py` (XXE, SSRF — sección 6.1/6.2), con sus tests de payload.
+  - Cablear el frontend a la API real, sustituyendo `src/api/mocks.ts`.
+  - ADRs 0002-0005 pendientes (el LLM extrae no juzga / gate humano / no persistir
+    veredicto del LLM / archivo con sellado de tiempo).
+  - `THREAT-MODEL.md` y `docs/eipd.md` siguen en esqueleto; desarrollo real pendiente.
+- **Bloqueos:** ninguno.
