@@ -1,3 +1,6 @@
+import { listarDocumentos } from "../../api/client";
+import { useRecurso } from "../../api/useRecurso";
+import { formatearFecha } from "../../lib/formato";
 import type { Screen } from "../../lib/navigation";
 
 interface HeaderProps {
@@ -5,12 +8,14 @@ interface HeaderProps {
   onNav: (screen: Screen) => void;
   dark: boolean;
   onToggleTheme: () => void;
-  showDemoBadge?: boolean;
+  /** Si la pantalla activa sirve datos inventados. Lo decide App, no el Header. */
+  esDemo: boolean;
 }
 
 const NAV_ITEMS: Array<{ screen: Screen; label: string }> = [
   { screen: "mapa", label: "Mapa" },
   { screen: "alertas", label: "Alertas" },
+  { screen: "archivo", label: "Archivo" },
   { screen: "ficha", label: "Ficha de norma" },
 ];
 
@@ -27,7 +32,66 @@ function PrideStripe({ className = "" }: { className?: string }) {
   );
 }
 
-export function Header({ screen, onNav, dark, onToggleTheme, showDemoBadge = true }: HeaderProps) {
+/**
+ * Franja de pulso con cifras inventadas. Se mantiene solo en las pantallas que ya son una
+ * maqueta; en las que leen de la API se sustituye por `PulsoReal`.
+ */
+function PulsoDemo() {
+  return (
+    <>
+      <span className="font-medium text-ink">Pulso · datos de demostración</span>
+      <span>
+        <span className="font-medium text-ink">1.284</span> documentos analizados hoy
+      </span>
+      <span>
+        <span className="font-medium text-ink">6</span> alertas nuevas
+      </span>
+      <span>
+        <span className="font-medium text-ink">18</span> boletines en cola
+      </span>
+      <span className="ml-auto text-ink-3">última pasada 07:40 CEST</span>
+    </>
+  );
+}
+
+/**
+ * Pulso con lo que de verdad hay ingerido.
+ *
+ * Es una petición extra, pero la alternativa era dejar "1.284 documentos analizados hoy" —una
+ * cifra inventada— presidiendo la pantalla que sí muestra datos reales. Una franja fija que
+ * miente sobre el volumen del sistema es peor que una petición de más.
+ */
+function PulsoReal() {
+  const estado = useRecurso((signal) => listarDocumentos({ limite: 100 }, signal), []);
+
+  if (estado.fase === "cargando") return <span className="text-ink-3">Consultando la API…</span>;
+  if (estado.fase === "error") return <span className="text-ink-3">API no disponible</span>;
+
+  const documentos = estado.datos;
+  const ultimo = documentos[0];
+
+  return (
+    <>
+      <span className="font-medium text-ink">Pulso · datos reales</span>
+      <span>
+        <span className="font-medium text-ink">{documentos.length}</span>{" "}
+        {documentos.length === 1 ? "documento archivado" : "documentos archivados"}
+      </span>
+      {ultimo && (
+        <span>
+          último: <span className="font-medium text-ink">{ultimo.identificador_oficial}</span> ·{" "}
+          {formatearFecha(ultimo.fecha_publicacion)}
+        </span>
+      )}
+      <span className="ml-auto text-ink-3">
+        {/* Sin pipeline no hay "pasada de análisis" que anunciar: solo ingesta. */}
+        pipeline de clasificación: pendiente
+      </span>
+    </>
+  );
+}
+
+export function Header({ screen, onNav, dark, onToggleTheme, esDemo }: HeaderProps) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-surface">
       <PrideStripe />
@@ -58,9 +122,13 @@ export function Header({ screen, onNav, dark, onToggleTheme, showDemoBadge = tru
         </nav>
 
         <div className="ml-auto flex items-center gap-2.5">
-          {showDemoBadge && (
-            <span className="rounded border border-dashed border-line-2 px-1.5 py-1 font-mono text-[10.5px] uppercase tracking-wide text-ink-3">
-              Datos de demostración
+          {esDemo ? (
+            <span className="rounded border border-alr bg-alr-soft px-1.5 py-1 font-mono text-[10.5px] uppercase tracking-wide text-alr">
+              Datos de ejemplo
+            </span>
+          ) : (
+            <span className="rounded border border-adv bg-adv-soft px-1.5 py-1 font-mono text-[10.5px] uppercase tracking-wide text-adv">
+              Datos reales
             </span>
           )}
           <button
@@ -76,17 +144,7 @@ export function Header({ screen, onNav, dark, onToggleTheme, showDemoBadge = tru
 
       <div className="border-t border-line bg-inset">
         <div className="mx-auto flex max-w-[1360px] flex-wrap items-center gap-6 px-7 py-2 font-mono text-xs text-ink-2">
-          <span className="font-medium text-ink">Pulso · datos de demostración</span>
-          <span>
-            <span className="font-medium text-ink">1.284</span> documentos analizados hoy
-          </span>
-          <span>
-            <span className="font-medium text-ink">6</span> alertas nuevas
-          </span>
-          <span>
-            <span className="font-medium text-ink">18</span> boletines en cola
-          </span>
-          <span className="ml-auto text-ink-3">última pasada 07:40 CEST</span>
+          {esDemo ? <PulsoDemo /> : <PulsoReal />}
         </div>
       </div>
     </header>
