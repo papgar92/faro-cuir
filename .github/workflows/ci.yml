@@ -71,6 +71,31 @@ jobs:
       # como están en el checkout, no el historial completo — el checkout es superficial
       # (fetch-depth por defecto) así que escanear "git log" daría una cobertura parcial
       # y engañosa; lo que importa en cada push/PR es qué hay en el árbol de trabajo.
+      # Cierra el hueco que THREAT-MODEL.md 4.6 tenía marcado como pendiente: hasta ahora
+      # las dependencias estaban fijadas pero nadie comprobaba si alguna tenía una
+      # vulnerabilidad conocida. Se ejecuta contra el entorno ya instalado, así que cubre
+      # también las transitivas, que es donde suele estar el problema.
+      #
+      # Falla el job a propósito. Un aviso que no rompe nada se ignora a la tercera semana;
+      # si un CVE obliga a parar y mirar, es justo lo que tiene que pasar en un proyecto de
+      # un máster de ciberseguridad. Si algún día bloquea por algo sin arreglo disponible,
+      # la salida es `--ignore-vuln` con el identificador y un comentario que diga por qué,
+      # nunca desactivar el paso.
+      - name: pip-audit (vulnerabilidades en dependencias)
+        working-directory: backend
+        run: |
+          # El propio pip entra en la auditoría, y la primera ejecución encontró
+          # PYSEC-2026-2876 en pip 25.0.1. Se actualiza antes de auditar: dejar la
+          # herramienta sin parchear y luego auditar con ella es contradictorio.
+          python -m pip install --upgrade pip
+          pip install pip-audit
+          # --skip-editable: nuestro propio paquete se instala con -e y no está en PyPI, así
+          # que sin esto el paso falla por no poder auditarse a sí mismo.
+          # Sin --strict a propósito: --strict convierte ese salto en error y choca con lo
+          # anterior. Sin él, pip-audit sigue devolviendo código != 0 si encuentra una
+          # vulnerabilidad, que es exactamente lo que tiene que romper el job.
+          pip-audit --skip-editable --progress-spinner off
+
       - name: gitleaks
         run: |
           set -euo pipefail
