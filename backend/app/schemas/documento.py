@@ -28,6 +28,15 @@ class NormaResumen(BaseModel):
     ambito: str | None
     url_texto: str | None
 
+    # Etapa 1 del pipeline (ADR 0007). Se publica a propósito: es lo que permite a cualquiera
+    # comprobar por qué una norma no llegó a analizarse, en vez de tener que fiarse. Un
+    # filtro que decide en silencio qué se mira y qué no es justo lo que este proyecto
+    # denuncia en la administración; sería incoherente esconder el nuestro.
+    prefiltro_estado: str
+    # Términos del vocabulario que la hicieron pasar. Lista vacía si se descartó, null si
+    # todavía no se ha evaluado — la misma distinción que guarda la tabla.
+    prefiltro_terminos: list[str] | None
+
 
 class DocumentoResumen(BaseModel):
     """Un documento ingerido. Incluye la huella para que el archivo sea comprobable."""

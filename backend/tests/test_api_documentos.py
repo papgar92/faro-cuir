@@ -24,6 +24,7 @@ from app.database import Base
 from app.main import app
 from app.models.fuente import FormatoFuente, Fuente, TipoFuente
 from app.services import ingesta
+from app.services import prefiltro as servicio_prefiltro
 
 FIXTURES = Path(__file__).parent / "fixtures"
 FECHA = datetime.date(2024, 12, 19)
@@ -131,3 +132,32 @@ def test_la_api_publica_no_expone_ninguna_escritura(client: TestClient) -> None:
     rutas = app.openapi()["paths"]
     metodos = {metodo.upper() for ruta in rutas.values() for metodo in ruta}
     assert metodos <= {"GET"}, f"la API expone metodos de escritura: {metodos - {'GET'}}"
+
+
+def test_publica_el_estado_del_prefiltro(client: TestClient) -> None:
+    """El embudo se expone a proposito (ADR 0007).
+
+    Un filtro que decide en silencio que se mira y que no es justo lo que este proyecto
+    denuncia en la administracion; el nuestro tiene que poder auditarse desde fuera.
+    """
+    documento_id = client.get("/api/documentos").json()[0]["id"]
+    normas = client.get(f"/api/documentos/{documento_id}").json()["normas"]
+
+    # La fixture solo ingiere, no pasa el prefiltro: las normas estan sin evaluar.
+    for norma in normas:
+        assert norma["prefiltro_estado"] == "pendiente"
+        # None, no lista vacia: "sin evaluar" no es lo mismo que "evaluada y sin coincidencias".
+        assert norma["prefiltro_terminos"] is None
+
+
+def test_el_prefiltro_aplicado_se_ve_en_la_api(client: TestClient, tmp_path: Path) -> None:
+    documento_id = client.get("/api/documentos").json()[0]["id"]
+
+    with next(app.dependency_overrides[get_session]()) as sesion:  # type: ignore[misc]
+        servicio_prefiltro.aplicar(sesion, documento_id=documento_id)
+
+    normas = client.get(f"/api/documentos/{documento_id}").json()["normas"]
+    for norma in normas:
+        assert norma["prefiltro_estado"] in {"relevante", "descartada"}
+        # Ya evaluadas: lista (vacia si se descarto), nunca None.
+        assert isinstance(norma["prefiltro_terminos"], list)
