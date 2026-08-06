@@ -45,6 +45,18 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.flake8-bugbear]
+# B008 persigue defaults mutables creados una sola vez al definir la función. En FastAPI,
+# `Depends()` y `Query()` en el default son la forma idiomática de declarar dependencias y
+# parámetros: devuelven marcadores que FastAPI resuelve en cada petición, no estado
+# compartido. Se declaran inmutables en vez de sembrar el router de `# noqa`.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.Path",
+    "fastapi.Query",
+]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

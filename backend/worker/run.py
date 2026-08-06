@@ -93,17 +93,28 @@ def main(argv: list[str] | None = None) -> int:
 
     if resultado.creado:
         logger.info(
-            "Ingerido %s (%s items) sha256=%s -> %s",
+            "Ingerido %s (%s items, %s normas nuevas) sha256=%s -> %s",
             resultado.sumario.identificador,
             len(resultado.sumario.items),
+            resultado.normas_creadas,
             resultado.sha256,
             resultado.ruta_almacen,
         )
-    else:
+    elif resultado.normas_creadas:
+        # El documento ya estaba pero le faltaban normas: una ingesta anterior se quedó a
+        # medias y esta la ha completado. Decir "nada que hacer" aquí sería mentir en el log.
         logger.info(
-            "Ya estaba ingerido %s (documento id=%s); nada que hacer.",
+            "El documento %s (id=%s) ya estaba, pero le faltaban normas: %s añadidas.",
             resultado.sumario.identificador,
             resultado.documento_id,
+            resultado.normas_creadas,
+        )
+    else:
+        logger.info(
+            "Ya estaba ingerido %s (documento id=%s) con sus %s normas; nada que hacer.",
+            resultado.sumario.identificador,
+            resultado.documento_id,
+            len(resultado.sumario.items),
         )
     return 0
 

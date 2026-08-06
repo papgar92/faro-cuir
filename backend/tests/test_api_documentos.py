@@ -1,0 +1,133 @@
+"""Tests de la API publica de solo lectura.
+
+Se monta la app contra un SQLite en memoria sobreescribiendo la dependencia de sesion, asi
+que no hace falta Postgres. Lo que se comprueba no es que FastAPI sepa serializar, sino las
+decisiones propias: que no se filtren campos internos, que la paginacion tenga tope y que la
+API siga sin exponer escrituras.
+"""
+
+from __future__ import annotations
+
+import datetime
+from collections.abc import Iterator
+from pathlib import Path
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.api.documentos import get_session
+from app.database import Base
+from app.main import app
+from app.models.fuente import FormatoFuente, Fuente, TipoFuente
+from app.services import ingesta
+
+FIXTURES = Path(__file__).parent / "fixtures"
+FECHA = datetime.date(2024, 12, 19)
+
+
+@pytest.fixture
+def client(tmp_path: Path) -> Iterator[TestClient]:
+    # El TestClient atiende las peticiones en otro hilo, y una base SQLite en memoria vive
+    # dentro de una conexion: con el pool por defecto, cada hilo abriria la suya y veria una
+    # base vacia. StaticPool mantiene una unica conexion compartida, y check_same_thread=False
+    # permite usarla desde el hilo del servidor. Solo aplica a los tests.
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    fabrica = sessionmaker(bind=engine)
+
+    with fabrica() as sesion:
+        fuente = Fuente(
+            nombre="Boletín Oficial del Estado",
+            tipo=TipoFuente.BOE,
+            ccaa=None,
+            formato=FormatoFuente.API,
+            url_base="https://www.boe.es/datosabiertos/api/boe/sumario/",
+            licencia_reutil=None,
+            activa=True,
+        )
+        sesion.add(fuente)
+        sesion.commit()
+
+        contenido = (FIXTURES / "boe_sumario_20241219_recortado.xml").read_bytes()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=contenido)
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as http:
+            ingesta.ingerir_sumario_boe(
+                sesion, fuente_id=fuente.id, fecha=FECHA, almacen_root=tmp_path, client=http
+            )
+
+    def _session_de_prueba() -> Iterator[Session]:
+        with fabrica() as sesion:
+            yield sesion
+
+    app.dependency_overrides[get_session] = _session_de_prueba
+    with TestClient(app) as cliente:
+        yield cliente
+    app.dependency_overrides.clear()
+    engine.dispose()
+
+
+def test_lista_los_documentos_ingeridos(client: TestClient) -> None:
+    respuesta = client.get("/api/documentos")
+    assert respuesta.status_code == 200
+    (documento,) = respuesta.json()
+    assert documento["identificador_oficial"] == "BOE-S-2024-305"
+    assert documento["fecha_publicacion"] == "2024-12-19"
+
+
+def test_publica_la_huella_para_que_el_archivo_sea_comprobable(client: TestClient) -> None:
+    """El sha256 se expone a proposito (6.5): quien reciba una alerta debe poder verificar
+    por su cuenta que el contenido archivado es el que se publico."""
+    (documento,) = client.get("/api/documentos").json()
+    assert len(documento["sha256"]) == 64
+    assert documento["sello_tiempo"]
+
+
+def test_no_expone_la_ruta_interna_del_almacen(client: TestClient) -> None:
+    """Publicar rutas del sistema de ficheros del servidor solo regala informacion."""
+    (documento,) = client.get("/api/documentos").json()
+    assert "ruta_almacen" not in documento
+
+
+def test_el_detalle_incluye_las_normas(client: TestClient) -> None:
+    documento_id = client.get("/api/documentos").json()[0]["id"]
+    detalle = client.get(f"/api/documentos/{documento_id}").json()
+
+    assert len(detalle["normas"]) == 2
+    norma = next(n for n in detalle["normas"] if n["identificador_oficial"] == "BOE-A-2024-26484")
+    assert norma["titulo"].startswith("Orden HAC/1432/2024")
+    assert norma["organo_emisor"] == "MINISTERIO DE HACIENDA"
+    # Nulos hasta que el extractor procese el texto completo: no se deducen del titulo.
+    assert norma["rango"] is None
+    assert norma["ambito"] is None
+
+
+def test_documento_inexistente_da_404(client: TestClient) -> None:
+    assert client.get("/api/documentos/99999").status_code == 404
+
+
+def test_filtra_por_fecha(client: TestClient) -> None:
+    assert len(client.get("/api/documentos", params={"fecha": "2024-12-19"}).json()) == 1
+    assert client.get("/api/documentos", params={"fecha": "2024-12-20"}).json() == []
+
+
+def test_el_tamano_de_pagina_lo_decide_el_servidor(client: TestClient) -> None:
+    """API publica sin auth: sin tope, un ?limite=1000000 es una denegacion de servicio gratis."""
+    assert client.get("/api/documentos", params={"limite": 101}).status_code == 422
+    assert client.get("/api/documentos", params={"limite": 0}).status_code == 422
+    assert client.get("/api/documentos", params={"desplazamiento": -1}).status_code == 422
+
+
+def test_la_api_publica_no_expone_ninguna_escritura(client: TestClient) -> None:
+    """Lo que modifica el estado es el worker; el panel de revision ira con autenticacion."""
+    rutas = app.openapi()["paths"]
+    metodos = {metodo.upper() for ruta in rutas.values() for metodo in ruta}
+    assert metodos <= {"GET"}, f"la API expone metodos de escritura: {metodos - {'GET'}}"

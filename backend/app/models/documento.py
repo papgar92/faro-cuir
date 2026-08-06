@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import datetime
 import enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.norma import Norma
 
 
 class EstadoPipeline(enum.StrEnum):
@@ -76,3 +82,8 @@ class Documento(Base):
         server_default=EstadoPipeline.INGERIDO.value,
         index=True,
     )
+
+    # Relación ORM, no columna nueva: no cambia el esquema y por tanto no necesita migración.
+    # Sin cascade de borrado a propósito — la FK es RESTRICT y el archivo no se borra en
+    # cascada por accidente.
+    normas: Mapped[list[Norma]] = relationship(back_populates="documento")

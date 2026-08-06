@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.ingest import boe
 from app.ingest.boe import Sumario
 from app.models.documento import Documento, EstadoPipeline
+from app.models.norma import Norma
 from app.security import hashing
 
 
@@ -32,6 +33,8 @@ class ResultadoIngesta:
     # False cuando el sumario ya estaba ingerido. Es el caso normal al reintentar, no un
     # error: el worker es idempotente por diseño (CLAUDE.md sección 3).
     creado: bool
+    # Cuántas normas nuevas se registraron. En una reingesta limpia será 0.
+    normas_creadas: int
 
 
 def _archivar(contenido: bytes, digest: str, *, almacen_root: Path) -> str:
@@ -57,6 +60,49 @@ def _archivar(contenido: bytes, digest: str, *, almacen_root: Path) -> str:
     return ruta_relativa
 
 
+def _buscar_documento(session: Session, *, fuente_id: int, identificador: str) -> Documento | None:
+    return session.scalar(
+        select(Documento).where(
+            Documento.fuente_id == fuente_id,
+            Documento.identificador_oficial == identificador,
+        )
+    )
+
+
+def _sincronizar_normas(session: Session, *, documento_id: int, sumario: Sumario) -> int:
+    """Registra como `norma` los items del sumario que aún no estén.
+
+    Se comparan los identificadores ya guardados contra los del sumario en vez de intentar
+    insertar y capturar el error: así una ingesta que se quedó a medias (documento guardado
+    pero normas no) se completa al reintentar, en vez de darse por buena porque el documento
+    ya existía.
+    """
+    ya_guardados = set(
+        session.scalars(
+            select(Norma.identificador_oficial).where(Norma.documento_id == documento_id)
+        ).all()
+    )
+
+    nuevas = [
+        Norma(
+            documento_id=documento_id,
+            identificador_oficial=item.identificador,
+            titulo=item.titulo,
+            url_texto=item.url_xml,
+            # El departamento del sumario es el órgano que emite: es dato real de la fuente,
+            # no una deducción. `rango` y `ambito` se quedan en NULL a propósito — del título
+            # no se pueden saber sin leer el texto completo, y rellenarlos a ojo sería
+            # justamente lo que prohíbe la regla de oro 8.
+            organo_emisor=item.departamento or None,
+        )
+        for item in sumario.items
+        if item.identificador not in ya_guardados
+    ]
+
+    session.add_all(nuevas)
+    return len(nuevas)
+
+
 def ingerir_sumario_boe(
     session: Session,
     *,
@@ -65,7 +111,7 @@ def ingerir_sumario_boe(
     almacen_root: Path,
     client: httpx.Client | None = None,
 ) -> ResultadoIngesta:
-    """Descarga, archiva y registra el sumario del BOE de una fecha.
+    """Descarga, archiva y registra el sumario del BOE de una fecha, con sus normas.
 
     Idempotente: volver a lanzarlo sobre una fecha ya ingerida no duplica nada.
     """
@@ -75,63 +121,45 @@ def ingerir_sumario_boe(
     digest = hashing.sha256_hex(contenido)
     ruta_relativa = _archivar(contenido, digest, almacen_root=almacen_root)
 
-    existente = session.scalar(
-        select(Documento).where(
-            Documento.fuente_id == fuente_id,
-            Documento.identificador_oficial == sumario.identificador,
-        )
-    )
-    if existente is not None:
-        return ResultadoIngesta(
-            documento_id=existente.id,
-            sumario=sumario,
-            sha256=existente.sha256,
-            ruta_almacen=existente.ruta_almacen,
-            creado=False,
-        )
+    documento = _buscar_documento(session, fuente_id=fuente_id, identificador=sumario.identificador)
+    creado = False
 
-    documento = Documento(
-        fuente_id=fuente_id,
-        identificador_oficial=sumario.identificador,
-        fecha_publicacion=sumario.fecha_publicacion,
-        url_original=boe.url_sumario(fecha),
-        sha256=digest,
-        # Cuándo lo vimos nosotros, en UTC explícito. Junto al sha256 es lo que sostiene la
-        # afirmación "el día X esto decía exactamente esto" (CLAUDE.md 6.5).
-        sello_tiempo=datetime.datetime.now(datetime.UTC),
-        ruta_almacen=ruta_relativa,
-        estado_pipeline=EstadoPipeline.INGERIDO,
-    )
-    session.add(documento)
-
-    try:
-        session.flush()
-    except IntegrityError:
-        # Dos ejecuciones del cron solapadas pueden pasar las dos por el SELECT de arriba
-        # antes de que ninguna inserte. La restricción única de la tabla es la que decide de
-        # verdad; aquí solo se recoge el resultado de esa carrera.
-        session.rollback()
-        ganador = session.scalar(
-            select(Documento).where(
-                Documento.fuente_id == fuente_id,
-                Documento.identificador_oficial == sumario.identificador,
+    if documento is None:
+        documento = Documento(
+            fuente_id=fuente_id,
+            identificador_oficial=sumario.identificador,
+            fecha_publicacion=sumario.fecha_publicacion,
+            url_original=boe.url_sumario(fecha),
+            sha256=digest,
+            # Cuándo lo vimos nosotros, en UTC explícito. Junto al sha256 es lo que sostiene
+            # la afirmación "el día X esto decía exactamente esto" (CLAUDE.md 6.5).
+            sello_tiempo=datetime.datetime.now(datetime.UTC),
+            ruta_almacen=ruta_relativa,
+            estado_pipeline=EstadoPipeline.INGERIDO,
+        )
+        session.add(documento)
+        try:
+            session.flush()
+            creado = True
+        except IntegrityError:
+            # Dos ejecuciones del cron solapadas pueden pasar las dos por el SELECT de arriba
+            # antes de que ninguna inserte. La restricción única de la tabla es la que decide
+            # de verdad; aquí solo se recoge el resultado de esa carrera.
+            session.rollback()
+            documento = _buscar_documento(
+                session, fuente_id=fuente_id, identificador=sumario.identificador
             )
-        )
-        if ganador is None:
-            raise
-        return ResultadoIngesta(
-            documento_id=ganador.id,
-            sumario=sumario,
-            sha256=ganador.sha256,
-            ruta_almacen=ganador.ruta_almacen,
-            creado=False,
-        )
+            if documento is None:
+                raise
 
+    normas_creadas = _sincronizar_normas(session, documento_id=documento.id, sumario=sumario)
     session.commit()
+
     return ResultadoIngesta(
         documento_id=documento.id,
         sumario=sumario,
-        sha256=digest,
-        ruta_almacen=ruta_relativa,
-        creado=True,
+        sha256=documento.sha256,
+        ruta_almacen=documento.ruta_almacen,
+        creado=creado,
+        normas_creadas=normas_creadas,
     )
