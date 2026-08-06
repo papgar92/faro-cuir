@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import datetime
 import enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.documento import Documento
 
 
 class RangoNorma(enum.StrEnum):
@@ -78,6 +84,8 @@ class Norma(Base):
         ),
         index=True,
     )
+
+    documento: Mapped[Documento] = relationship(back_populates="normas")
 
 
 class VersionNorma(Base):
