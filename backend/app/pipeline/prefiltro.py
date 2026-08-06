@@ -30,6 +30,8 @@ import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.models.norma import EstadoPrefiltro
+
 # Versión del vocabulario. Se guarda junto a cada resultado para que una norma evaluada con
 # un diccionario viejo sea reconocible y se pueda reevaluar. Súbela SIEMPRE que cambien los
 # términos: sin eso, "esta norma se descartó" deja de ser una afirmación comprobable.
@@ -188,14 +190,6 @@ def _normalizar(texto: str) -> str:
 _VOCABULARIO_NORMALIZADO: dict[str, tuple[str, Categoria]] = {
     _normalizar(termino): (termino, categoria) for termino, categoria in _VOCABULARIO.items()
 }
-
-
-class EstadoPrefiltro(StrEnum):
-    """Resultado del prefiltro sobre una norma."""
-
-    PENDIENTE = "pendiente"
-    RELEVANTE = "relevante"
-    DESCARTADA = "descartada"
 
 
 @dataclass(frozen=True)
