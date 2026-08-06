@@ -3,6 +3,7 @@ import type { DocumentoDetalleApi, NormaApi } from "../api/client";
 import { listarDocumentos, obtenerDocumento } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
 import { acortarHash, formatearFecha, formatearSelloTiempo } from "../lib/formato";
+import type { SeleccionNorma } from "../lib/navigation";
 
 /**
  * Un sumario del BOE trae ~250 normas y la API las devuelve todas en la respuesta del
@@ -27,18 +28,26 @@ function Aviso({ children }: { children: ReactNode }) {
   );
 }
 
-function FilaNorma({ norma }: { norma: NormaApi }) {
+function FilaNorma({ norma, onVerFicha }: { norma: NormaApi; onVerFicha: () => void }) {
   return (
-    <li className="grid grid-cols-1 gap-1 border-b border-line px-4 py-3 last:border-b-0 sm:grid-cols-[190px_minmax(0,1fr)_auto] sm:gap-4">
-      <span className="font-mono text-xs text-ink-3">{norma.identificador_oficial}</span>
-      <div className="min-w-0">
-        {/* line-clamp mantiene la lista escaneable: los títulos del BOE pasan de 400
-            caracteres y uno solo llenaría la pantalla. */}
-        <p className="m-0 line-clamp-2 text-sm text-ink">{norma.titulo}</p>
-        <p className="m-0 mt-1 text-xs text-ink-3">
-          {norma.organo_emisor ?? "Órgano emisor no informado"}
-        </p>
-      </div>
+    <li className="flex items-start gap-4 border-b border-line px-4 py-3 last:border-b-0 hover:bg-inset">
+      {/* El botón a la ficha y el enlace al BOE son hermanos, no anidados: un <a> dentro de
+          un <button> no es HTML válido y el teclado no sabría a cuál de los dos va. */}
+      <button
+        type="button"
+        onClick={onVerFicha}
+        className="grid min-w-0 flex-1 grid-cols-1 gap-1 text-left sm:grid-cols-[190px_minmax(0,1fr)] sm:gap-4"
+      >
+        <span className="font-mono text-xs text-ink-3">{norma.identificador_oficial}</span>
+        <span className="min-w-0">
+          {/* line-clamp mantiene la lista escaneable: los títulos del BOE pasan de 400
+              caracteres y uno solo llenaría la pantalla. El completo está en la ficha. */}
+          <span className="line-clamp-2 block text-sm text-ink">{norma.titulo}</span>
+          <span className="mt-1 block text-xs text-ink-3">
+            {norma.organo_emisor ?? "Órgano emisor no informado"}
+          </span>
+        </span>
+      </button>
       {norma.url_texto ? (
         <a
           href={norma.url_texto}
@@ -101,7 +110,7 @@ function CabeceraDocumento({ documento }: { documento: DocumentoDetalleApi }) {
  * relleno — con su hash y su sello es el entregable de la sección 6.5, así que merece
  * pantalla propia y no esconderse en un desplegable.
  */
-export function ArchivoPage() {
+export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionNorma) => void }) {
   const [documentoElegido, setDocumentoElegido] = useState<number | null>(null);
   const [busqueda, setBusqueda] = useState("");
 
@@ -230,7 +239,11 @@ export function ArchivoPage() {
             ) : (
               <ul className="m-0 list-none p-0">
                 {coincidencias.slice(0, NORMAS_VISIBLES).map((norma) => (
-                  <FilaNorma key={norma.id} norma={norma} />
+                  <FilaNorma
+                    key={norma.id}
+                    norma={norma}
+                    onVerFicha={() => onVerFicha({ documentoId: documento.id, normaId: norma.id })}
+                  />
                 ))}
               </ul>
             )}
