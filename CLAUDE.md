@@ -285,7 +285,35 @@ cd frontend && npm run dev
 y qué toca. Es lo primero que se lee al retomar. -->
 
 - **Semana actual:** S1 / backend y seguridad — en curso.
-- **Hecho en S1 (esta sesión):**
+- **Hecho en S1 (última sesión): el frontend deja de ser una maqueta.**
+  - **Pantalla `Archivo` nueva** (`pages/ArchivoPage.tsx`), la primera que lee de la API:
+    lista los documentos ingeridos con su `sha256` y su sello, y las 257 normas del sumario
+    con buscador. Existe porque la Ficha necesita el id de una norma real y ni el Mapa ni
+    las Alertas pueden dárselo, y porque el archivo con su huella es el entregable de la
+    6.5, no material de relleno. `api/useRecurso.ts`: hook de veinte líneas en vez de
+    react-query; lo único que hacía falta era cancelar la petición en curso y no confundir
+    una cancelación con un error.
+  - **Ficha de norma migrada a `GET /api/documentos/{id}`.** Ya no importa de `mocks.ts`.
+    El ancla muerta `#fuente` apunta ahora a `norma.url_texto` con `rel="noopener
+    noreferrer"`; si el sumario no publica enlace para esa norma, se dice en vez de pintar
+    uno falso. **Lo relevante es lo que la Ficha ha dejado de enseñar porque no existe:**
+    la insignia de clasificación (vive en `deteccion`, vacía — pintarla sería el veredicto
+    sin gate humano que prohíben las reglas 2 y 4), el diff y el historial (`version_norma`,
+    vacía), la autoridad TSA «freetsa.org» que el mock anunciaba (hoy el sello lo pone
+    nuestro propio ingestor: se declara pendiente, ADR 0005) y el «✓ Íntegro», que afirmaba
+    una recomprobación del hash que nadie hace todavía (pasa a «Archivado»). `rango` y
+    `ambito` nulos se pintan como «pendiente de análisis», no como huecos.
+  - **El Mapa y las Alertas se quedan con mocks, pero marcados.** `DemoDataNotice`: aviso a
+    ancho completo arriba de las dos, diciendo de qué tabla depende cada una para dejar de
+    ser una maqueta. La insignia de la cabecera se calcula por pantalla desde
+    `PANTALLAS_CON_MOCK`; la franja de pulso, que anunciaba «1.284 documentos analizados
+    hoy» también sobre las pantallas reales, consulta ahora la API en ellas. Los botones
+    que prometían un diff llevan al Archivo y lo dicen.
+  - Verificado en navegador de verdad (Playwright, 3 guiones, 55 comprobaciones sobre el
+    DOM) contra la API real a través del proxy de Vite, contrastado con `psql` fila a fila,
+    y comprobado que el proxy sigue sin necesitar ninguna cabecera CORS. Backend intacto:
+    136 tests en verde.
+- **Hecho antes en S1:**
   - `security/url_guard.py` — puerta **única** de salida HTTP (nada en `ingest/` importa
     `httpx` directamente). Solo https y puerto 443, allowlist por dominio con subdominio
     real, rechazo de credenciales en la URL, rechazo de toda IP no global vía `is_global`,
@@ -339,22 +367,19 @@ y qué toca. Es lo primero que se lee al retomar. -->
   - Proyecto renombrado de "Centinela" a "Faro Cuir" (decisión del humano). La carpeta
     local del repo sigue llamándose `Centinela/` a propósito (ver sección 0).
 - **Siguiente (por orden sugerido):**
-  1. **Migrar las pantallas al cliente de la API.** Ya existe `frontend/src/api/client.ts`
-     (tipado, verificado contra la API real) y el proxy de Vite; lo que falta es que las
-     pantallas dejen de importar de `mocks.ts`. Empezar por la **Ficha de norma**, que es la
-     que tiene datos reales detrás (`GET /api/documentos/{id}` → `normas`), y de paso arreglar
-     el ancla muerta `#fuente` de la sección 12 apuntándola a `norma.url_texto`.
-     Aviso: el Mapa y las Alertas **no** tienen equivalente real todavía — dependen de
-     `deteccion`/`alerta`, que están vacías hasta que exista el pipeline. Esas dos pantallas
-     deben seguir con mocks, y conviene marcarlo en la interfaz en vez de aparentar datos.
-  2. **Prefiltro léxico** (sección 7, etapa 1) sobre los títulos del sumario. Es lo que
+  1. **Prefiltro léxico** (sección 7, etapa 1) sobre los títulos del sumario. Es lo que
      decide de qué normas se descarga el texto completo, así que va antes que el extractor.
      Ajustado a recall máximo.
-  3. **Gold set** (`tests/gold_set/`): sin él la parte de IA no es evaluable. No recortarlo.
-  4. Extractor LLM (`llm/provider.py`) y clasificador por diff.
-  5. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — verificar contra
+  2. **Gold set** (`tests/gold_set/`): sin él la parte de IA no es evaluable. No recortarlo.
+  3. Extractor LLM (`llm/provider.py`) y clasificador por diff.
+  4. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — verificar contra
      cada fuente oficial, no completar por deducción. Sesión propia.
-  6. Panel de revisión con autenticación (gate humano, ADR 0003).
+  5. Panel de revisión con autenticación (gate humano, ADR 0003).
+  6. **Migrar el Mapa y las Alertas a la API.** Bloqueado hasta que existan los puntos 1-3:
+     hasta que `deteccion` y `alerta` tengan filas no hay nada real que enseñar. Cuando se
+     migre cada una, quitarla de `PANTALLAS_CON_MOCK` (`frontend/src/lib/navigation.ts`) y
+     el aviso de la interfaz desaparece solo. Los componentes `DiffBlock` y `ArticleHistory`
+     están sin usar a propósito, esperando a ese momento; no borrarlos.
   - Pendiente transversal: `THREAT-MODEL.md` y `docs/eipd.md` siguen en esqueleto. La EIPD
     tiene ahora material real que documentar (modelo de suscriptores de la 6.4).
   - Evolución documentada en el ADR 0005: sello RFC 3161 contra una TSA pública, para que
@@ -362,10 +387,16 @@ y qué toca. Es lo primero que se lee al retomar. -->
   - **Aviso para migraciones futuras:** el autogenerate de alembic propone en *cada*
     migración borrar las CHECK generadas por `Enum(native_enum=False, create_constraint=True)`.
     Ha pasado tres veces. Revisar y eliminar esas líneas siempre antes de aplicar.
-  - `THREAT-MODEL.md` y `docs/eipd.md` siguen en esqueleto; desarrollo real pendiente.
-  - Sección 12: el backlog del humano sigue **entero sin tocar**. En S1 se eligió
-    deliberadamente atacar el backend primero (decisión del humano); el mapa, el texto
-    reivindicativo y la difusión siguen pendientes tal cual se pidieron.
+  - **Aviso sobre el frontend:** no se ha añadido ningún endpoint nuevo al backend para el
+    Archivo ni para la Ficha. La Ficha pide el documento entero y busca la norma dentro,
+    porque el documento hace falta igualmente (la fecha, el hash y el sello son suyos). Si
+    algún día hay muchos documentos ingeridos, lo que se queda corto primero es que
+    `GET /api/documentos/{id}` devuelva las ~250 normas de golpe, no la pantalla.
+  - Sección 12: el backlog del humano sigue **sin tocar salvo un punto**, que ha caído de
+    paso: el ancla muerta `#fuente` de "Datos / navegación" ya apunta al texto real. El
+    mapa (Canarias, zoom, provincias, Ceuta y Melilla), el texto reivindicativo y la
+    difusión siguen pendientes tal cual se pidieron. La entrada del backlog **no** se ha
+    editado: el backlog es del humano.
 - **Bloqueos:** ninguno.
 - **Deuda conocida:** `tests/test_health.py` necesita un Postgres accesible; en local falla
   con 503 si no está levantado el `docker compose`. En CI pasa. No es regresión de S1.
