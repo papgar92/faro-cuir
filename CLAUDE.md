@@ -289,8 +289,31 @@ Dos cosas, siempre:
      hace falta), no de una fórmula. Sirve para decidir si una tarea cabe en la sesión que
      empieza o hay que partirla; si la estimación no es obvia, di en qué se basa. -->
 
-- **Semana actual:** S1 / backend y seguridad — en curso.
-- **Hecho en S1 (última sesión): el frontend deja de ser una maqueta.**
+- **Semana actual:** S1 / backend y seguridad — en curso. Repo arrancado el **2026-08-04**.
+- **Hecho en S1 (último trabajo): prefiltro léxico, etapa 1 del pipeline.**
+  - `pipeline/prefiltro.py` — módulo **puro** (ni DB ni red) con ~90 términos. Sesgado a
+    recall, no equilibrado: sin lista negra ni exclusiones, con las variantes antiguas y
+    clínicas (`disforia de genero`, `reasignacion de sexo`) porque quien recorta derechos
+    escribe con el léxico de hace veinte años, y con límites de palabra —sin ellos `trans`
+    dispara con «transporte» y «transitoria», que salen en el BOE a diario—.
+  - Dos categorías de término, `DIRECTO` y `CONTEXTO`, que **no cambian la decisión**: sirven
+    para medir cuánto ruido mete la lista genérica y poder afinarla sin tocar el recall.
+  - Persistido en `norma` (4 columnas + migración): estado, términos que dispararon, versión
+    del vocabulario y cuándo. `pendiente` ≠ `descartada`, y al descartar se guarda lista
+    vacía, no NULL. Subir `VERSION_VOCABULARIO` obliga a reevaluar lo anterior:
+    `worker.run --reprefiltrar`. El worker aplica el filtro en la misma pasada que la ingesta.
+  - **ADR 0007**, con la alternativa importante razonada: no se usa un LLM para filtrar
+    porque cuesta una llamada por norma, no es auditable y no es reproducible.
+  - Verificado sobre datos reales: se ingirió además el BOE del **2023-03-01** para tener un
+    positivo conocido. 436 normas evaluadas, encuentra la **Ley 4/2023** por `lgtbi` y
+    `personas trans`, descarta 435 sin un solo falso positivo de contexto, segunda pasada
+    evalúa 0 (idempotente) y la CHECK rechaza un estado inventado. 178 tests.
+  - **Aviso honesto:** eso demuestra que funciona, **no** que el recall sea alto. Con un solo
+    positivo conocido no se puede estimar cuántos se pierden. El recall real solo se podrá
+    medir con el gold set; hasta entonces no publicar ninguna cifra de recall.
+  - Cuarta vez con la trampa del autogenerate, y la peor: proponía borrar **ocho** CHECK,
+    incluida `origenclasificacion` de `deteccion` (ADR 0004). Ver aviso más abajo.
+- **Hecho antes en S1: el frontend deja de ser una maqueta.**
   - **Pantalla `Archivo` nueva** (`pages/ArchivoPage.tsx`), la primera que lee de la API:
     lista los documentos ingeridos con su `sha256` y su sello, y las 257 normas del sumario
     con buscador. Existe porque la Ficha necesita el id de una norma real y ni el Mapa ni
@@ -373,22 +396,23 @@ Dos cosas, siempre:
     local del repo sigue llamándose `Centinela/` a propósito (ver sección 0).
 - **Siguiente (por orden sugerido).** El coste es contexto estimado para hacer la tarea
   entera *con verificación real*, no solo escribir el código:
-  1. **Prefiltro léxico** (sección 7, etapa 1) sobre los títulos del sumario — **~55k**.
-     Es lo que decide de qué normas se descarga el texto completo, así que va antes que el
-     extractor. Ajustado a recall máximo. Cabe en una sesión: el diccionario y el módulo son
-     pequeños, y hay 257 títulos reales ya ingeridos contra los que medirlo sin salir a red.
-  2. **Gold set** (`tests/gold_set/`) — **~90k, pártelo**. Sin él la parte de IA no es
+  1. **Gold set** (`tests/gold_set/`) — **~90k, pártelo**. Sin él la parte de IA no es
      evaluable. No recortarlo. Lo caro no es el código sino traer y etiquetar 150-200
-     documentos históricos; hazlo por tandas de CCAA, una sesión por tanda.
-  3. Extractor LLM (`llm/provider.py`) — **~70k** — y clasificador por diff — **~60k**.
+     documentos históricos; hazlo por tandas de CCAA, una sesión por tanda. **Ha subido de
+     prioridad:** ahora es también lo único que puede medir el recall del prefiltro, que hoy
+     está sin medir. Empieza apartando documentos candidatos aunque no toque todavía.
+  2. Extractor LLM (`llm/provider.py`) — **~70k** — y clasificador por diff — **~60k**.
      **Dos sesiones distintas**: juntos no caben, y el clasificador depende de la salida ya
      estabilizada del extractor.
-  4. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — **~100k, pártelo**.
+  3. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — **~100k, pártelo**.
      Verificar contra cada fuente oficial, no completar por deducción. Es coste de lectura
      externa, no de código: ~6k por fuente. Dos sesiones de 8-9 fuentes.
-  5. Panel de revisión con autenticación (gate humano, ADR 0003) — **~80k**. Sube si hay que
+     **Candidata a recortar si aprieta el plazo:** la sección 8 ya autoriza documentar el
+     resto como hoja de ruta, y compra poco frente al tribunal comparado con tener el
+     pipeline entero funcionando sobre el BOE.
+  4. Panel de revisión con autenticación (gate humano, ADR 0003) — **~80k**. Sube si hay que
      decidir el modelo de sesión y contraseñas desde cero.
-  6. **Migrar el Mapa y las Alertas a la API** — **~40k**. Bloqueado hasta los puntos 1-3:
+  5. **Migrar el Mapa y las Alertas a la API** — **~40k**. Bloqueado hasta los puntos 1-2:
      hasta que `deteccion` y `alerta` tengan filas no hay nada real que enseñar. Cuando se
      migre cada una, quitarla de `PANTALLAS_CON_MOCK` (`frontend/src/lib/navigation.ts`) y
      el aviso de la interfaz desaparece solo. Los componentes `DiffBlock` y `ArticleHistory`
@@ -399,7 +423,12 @@ Dos cosas, siempre:
     la fecha del archivo sea verificable por terceros y no solo afirmación nuestra.
   - **Aviso para migraciones futuras:** el autogenerate de alembic propone en *cada*
     migración borrar las CHECK generadas por `Enum(native_enum=False, create_constraint=True)`.
-    Ha pasado tres veces. Revisar y eliminar esas líneas siempre antes de aplicar.
+    **Ha pasado cuatro veces.** Revisar y eliminar esas líneas SIEMPRE antes de aplicar. En la
+    cuarta proponía borrar ocho de golpe, incluida `origenclasificacion` de `deteccion`, que
+    es la que hace que el veredicto del LLM no sea representable en el esquema (ADR 0004):
+    aplicarlo a ciegas no es ruido cosmético, desarma un control del proyecto. Después de
+    cada `alembic upgrade`, comprobar que siguen vivas:
+    `SELECT conrelid::regclass, conname FROM pg_constraint WHERE contype='c'` — hoy son 11.
   - **Aviso sobre el frontend:** no se ha añadido ningún endpoint nuevo al backend para el
     Archivo ni para la Ficha. La Ficha pide el documento entero y busca la norma dentro,
     porque el documento hace falta igualmente (la fecha, el hash y el sello son suyos). Si
