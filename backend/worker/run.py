@@ -20,9 +20,11 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.ingest.boe import BoeIngestError, SumarioNoDisponible
 from app.models.fuente import Fuente, TipoFuente
+from app.pipeline import prefiltro
 from app.security.url_guard import UrlGuardError
 from app.security.xml_safe import XmlSafeError
 from app.services import ingesta
+from app.services import prefiltro as servicio_prefiltro
 
 logger = logging.getLogger("worker")
 
@@ -40,14 +42,28 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="worker.run", description="Ingesta de boletines oficiales"
     )
-    parser.add_argument("--fuente", required=True, choices=FUENTES_SOPORTADAS)
+    parser.add_argument("--fuente", choices=FUENTES_SOPORTADAS)
     parser.add_argument(
         "--fecha",
         type=_fecha,
         default=datetime.date.today(),
         help="Fecha del sumario en formato AAAA-MM-DD. Por defecto, hoy.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--reprefiltrar",
+        action="store_true",
+        help=(
+            "No ingiere nada: vuelve a pasar el prefiltro léxico por las normas ya guardadas "
+            "que estén pendientes o evaluadas con un vocabulario anterior. Es lo que hay que "
+            "lanzar después de tocar el diccionario."
+        ),
+    )
+    args = parser.parse_args(argv)
+    # `--fuente` deja de ser obligatorio porque `--reprefiltrar` no ingiere; se sigue
+    # exigiendo para todo lo demás, que sí necesita saber de dónde descargar.
+    if not args.reprefiltrar and args.fuente is None:
+        parser.error("--fuente es obligatorio salvo con --reprefiltrar")
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -57,6 +73,20 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     settings = get_settings()
+
+    if args.reprefiltrar:
+        with SessionLocal() as session:
+            resumen = servicio_prefiltro.aplicar(session)
+        logger.info(
+            "Prefiltro reaplicado (vocabulario %s): %s evaluadas, %s relevantes "
+            "(%s solo por términos de contexto), %s descartadas.",
+            prefiltro.VERSION_VOCABULARIO,
+            resumen.evaluadas,
+            resumen.relevantes,
+            resumen.solo_por_contexto,
+            resumen.descartadas,
+        )
+        return 0
 
     with SessionLocal() as session:
         fuente = session.scalar(select(Fuente).where(Fuente.tipo == TipoFuente.BOE))
@@ -91,6 +121,11 @@ def main(argv: list[str] | None = None) -> int:
             logger.error("No se pudo ingerir el sumario del %s: %s", args.fecha, exc)
             return 1
 
+        # Etapa 1 del pipeline, en la misma pasada que la ingesta. Va aquí y no en un cron
+        # aparte porque es determinista y barato (no toca la red ni el LLM): separarlo solo
+        # añadiría una ventana en la que hay normas ingeridas que nadie ha mirado todavía.
+        resumen = servicio_prefiltro.aplicar(session, documento_id=resultado.documento_id)
+
     if resultado.creado:
         logger.info(
             "Ingerido %s (%s items, %s normas nuevas) sha256=%s -> %s",
@@ -116,6 +151,18 @@ def main(argv: list[str] | None = None) -> int:
             resultado.documento_id,
             len(resultado.sumario.items),
         )
+    # El embudo se registra siempre, incluso cuando no se creó nada: es la cifra que dice
+    # cuánto trabajo se ahorra el extractor, y perderla en las reejecuciones dejaría el log
+    # sin la única métrica interesante de esta etapa.
+    logger.info(
+        "Prefiltro (vocabulario %s): %s evaluadas, %s relevantes (%s solo por términos de "
+        "contexto), %s descartadas.",
+        prefiltro.VERSION_VOCABULARIO,
+        resumen.evaluadas,
+        resumen.relevantes,
+        resumen.solo_por_contexto,
+        resumen.descartadas,
+    )
     return 0
 
 

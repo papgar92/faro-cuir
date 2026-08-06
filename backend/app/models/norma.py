@@ -4,7 +4,17 @@ import datetime
 import enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -36,6 +46,22 @@ class AmbitoNorma(enum.StrEnum):
     DOCUMENTAL = "documental"
     DEPORTIVO = "deportivo"
     GENERAL = "general"
+
+
+class EstadoPrefiltro(enum.StrEnum):
+    """Resultado de la etapa 1 del pipeline sobre una norma (CLAUDE.md sección 7).
+
+    Vive aquí y no en `pipeline/prefiltro.py` para que la dependencia vaya en la dirección
+    correcta: el pipeline conoce el modelo, no al revés.
+
+    `PENDIENTE` es un estado real, no un hueco: una norma ingerida antes de que existiera el
+    prefiltro —o después de subir la versión del vocabulario— está sin evaluar, y eso no es
+    lo mismo que estar descartada.
+    """
+
+    PENDIENTE = "pendiente"
+    RELEVANTE = "relevante"
+    DESCARTADA = "descartada"
 
 
 class Norma(Base):
@@ -84,6 +110,33 @@ class Norma(Base):
         ),
         index=True,
     )
+
+    # --- Etapa 1 del pipeline: prefiltro léxico -------------------------------------------
+    # Se guarda el resultado en vez de recalcularlo al vuelo, aunque el filtro sea
+    # determinista y barato, porque lo que importa no es el veredicto sino poder sostenerlo:
+    # con qué vocabulario se evaluó, qué término disparó y cuándo. Recalculando, "esta norma
+    # se descartó el día 3" dejaría de ser comprobable en cuanto cambiara el diccionario.
+    prefiltro_estado: Mapped[EstadoPrefiltro] = mapped_column(
+        Enum(
+            EstadoPrefiltro,
+            native_enum=False,
+            length=20,
+            create_constraint=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+        default=EstadoPrefiltro.PENDIENTE,
+        server_default=EstadoPrefiltro.PENDIENTE.value,
+        index=True,
+    )
+    # Términos del vocabulario que hicieron saltar la norma. JSON genérico y no JSONB: aquí
+    # no se consulta por contenido, solo se lee junto a su fila; JSONB añadiría un tipo
+    # específico del dialecto a cambio de nada.
+    prefiltro_terminos: Mapped[list[str] | None] = mapped_column(JSON)
+    # Versión del vocabulario con la que se evaluó. Es lo que permite saber qué normas hay
+    # que reevaluar cuando el diccionario cambia.
+    prefiltro_version: Mapped[str | None] = mapped_column(String(20))
+    prefiltro_evaluado_en: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
 
     documento: Mapped[Documento] = relationship(back_populates="normas")
 
