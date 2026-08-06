@@ -295,6 +295,27 @@ Dos cosas, siempre:
      sale más de 50k, sospecha de la estimación antes que del alcance. -->
 
 - **Semana actual:** S1 / backend y seguridad — en curso. Repo arrancado el **2026-08-04**.
+- **Hecho en S1 (último trabajo): contrato de extracción del LLM (media etapa 2).**
+  - Se hizo **la mitad verificable sin credenciales**, que además es donde están todas las
+    decisiones de seguridad. El proveedor real y el cableado al pipeline quedan pendientes:
+    no se da por bueno lo que no se ha podido ejecutar de verdad.
+  - `schemas/extraccion.py` es un **control, no un DTO**: no tiene ningún campo de
+    clasificación, severidad ni valoración, y `extra="forbid"` rechaza entera una respuesta
+    que los traiga. Misma idea que la CHECK de `deteccion.origen` (ADR 0004) pero una capa
+    antes: el veredicto del modelo no tiene dónde aterrizar. La ausencia de esos campos está
+    escrita en el fichero para que nadie los añada creyendo que faltaban.
+  - `llm/provider.py` — puerta única al modelo, mismo criterio que `url_guard` con el HTTP
+    saliente. La interfaz no expone temperatura ni tokens: ataría el pipeline a un proveedor.
+  - **Orden de las defensas contra inyección de prompt (6.7):** el documento va entre marcas
+    largas, y si el propio documento las contiene se eliminan antes de envolver (si no,
+    podría cerrar el bloque y escribir fuera de la zona delimitada). El prompt declara el
+    contenido como no confiable — eso es **mitigación, no garantía**. La defensa que cuenta
+    es que **al validador no se le convence**: hay un test que simula que la inyección
+    funciona y comprueba que la salida se descarta igual.
+  - Al descartar se registran los **campos** que fallan, nunca lo que devolvió el modelo: si
+    fue manipulado para emitir un veredicto, ese texto no puede quedar en un log donde
+    alguien lo lea como conclusión del sistema.
+  - 219 tests.
 - **Hecho en S1 (último trabajo): los dos controles que faltaban de la 6.8 y seguridad
   documentada de verdad.**
   - `security/headers.py` — CSP `default-src 'none'` (una respuesta JSON no debe cargar
@@ -438,9 +459,13 @@ Dos cosas, siempre:
      documentos históricos —eso no lo acelera el contexto—; hazlo por tandas. **Ha subido de
      prioridad:** ahora es también lo único que puede medir el recall del prefiltro, que hoy
      está sin medir. Empieza apartando documentos candidatos aunque no toque todavía.
-  2. Extractor LLM (`llm/provider.py`) — **~30k** — y clasificador por diff — **~25k**.
-     Caben juntos en una sesión holgada, pero **hazlos en commits separados**: el clasificador
-     depende de que la salida del extractor ya esté estabilizada.
+  2. **Cerrar el extractor** — **~20k**. El contrato, la interfaz y las defensas ya están
+     (`llm/provider.py`, `schemas/extraccion.py`, 25 tests). Falta: un proveedor real detrás
+     de `ProveedorLLM` —necesita **clave de API**, decidir proveedor y meterlo en `config.py`
+     como el resto, nunca hardcodeado—, descargar el texto íntegro **vía `url_guard`** solo
+     de las normas que pasan el prefiltro, y persistir en `deteccion.extraccion_json` con la
+     versión del prompt. Luego el clasificador por diff — **~25k**, commit aparte: depende de
+     que la salida del extractor esté ya estabilizada.
   3. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — **~45k, pártelo**.
      Verificar contra cada fuente oficial, no completar por deducción. Es coste de lectura
      externa, no de código: ~2,5k por fuente. Es el único punto donde el coste escala con
