@@ -316,6 +316,37 @@ Dos cosas, siempre:
      tests, migración si toca y verificación en navegador o curl- ronda los **15-30k**. Si te
      sale más de 50k, sospecha de la estimación antes que del alcance. -->
 
+### ⇨ EMPIEZA AQUÍ (próxima sesión)
+
+**Tarea: cerrar el extractor — etapa 2 del pipeline (~20k).** Todo lo demás está en verde y
+fusionado en `main`; no hay nada a medias que rescatar.
+
+Lo que ya existe y **no** hay que rehacer: el contrato (`schemas/extraccion.py`), la interfaz
+(`llm/provider.py`), las defensas contra inyección de prompt y el proveedor
+(`llm/ollama.py`), **verificado de punta a punta contra un Ollama real**. No hace falta
+ninguna clave de API (ADR 0008).
+
+Lo que falta, en este orden:
+
+1. `services/extraccion.py` — para cada `norma` con `prefiltro_estado == 'relevante'` y sin
+   extracción: descargar `norma.url_texto` **obligatoriamente vía `security/url_guard.py`**
+   (es una URL que propone la fuente, no nosotros: ADR 0006 aplica entero, a diferencia de la
+   excepción de Ollama), parsear con `security/xml_safe.py`, extraer y persistir.
+2. Persistir en `deteccion.extraccion_json` junto con la **versión del prompt** y el modelo,
+   igual que el prefiltro guarda la versión del vocabulario. `origen` NO admite el valor
+   `llm` y eso no se toca (ADR 0004).
+3. Enganchar al `worker/run.py` después del prefiltro, con su cifra en el log.
+4. Verificar **de verdad**: correrlo sobre `BOE-A-2023-5366` (la Ley 4/2023, la única norma
+   real que hoy pasa el prefiltro) y enseñar la fila resultante con `psql`.
+
+Requisitos del entorno, ya cumplidos: Ollama instalado con `qwen2.5:3b-instruct`, y
+`docker-compose` apuntando a `host.docker.internal`.
+
+**Después:** gold set (~35k, es el cuello de botella real del proyecto porque el etiquetado lo
+hace el humano) y clasificador por diff (~25k).
+
+---
+
 - **Semana actual:** S1 / backend y seguridad — en curso. Repo arrancado el **2026-08-04**.
 - **Hecho en S1 (último trabajo): contrato de extracción del LLM (media etapa 2).**
   - Se hizo **la mitad verificable sin credenciales**, que además es donde están todas las
@@ -541,6 +572,19 @@ Dos cosas, siempre:
   no encontraba nada. `docker-compose.yml` fija ahora `host.docker.internal` con
   `extra_hosts`, sobreescribible por `.env`.
 - **Bloqueos:** ninguno.
+- **Notas operativas del entorno** (cuestan media hora si no se saben):
+  - El contenedor `backend` necesita los extras de desarrollo para correr lo mismo que el CI:
+    `docker compose exec backend pip install -e ".[dev]"`. **Se pierden al recrear el
+    contenedor** (`docker compose up -d`, `build`); si `ruff: not found`, es esto.
+  - Frontend: `cd frontend && npm run dev`. Ojo, arranca escuchando en `::1`, así que un
+    `curl` a `127.0.0.1:5173` falla aunque el servidor esté vivo. Usar
+    `npm run dev -- --host 127.0.0.1`.
+  - Hay **dos documentos del BOE ingeridos**: `2024-12-19` (257 normas, 0 relevantes, un día
+    normal) y `2023-03-01` (179 normas, 1 relevante: la Ley 4/2023). El segundo se ingirió a
+    propósito para tener un positivo verificable del prefiltro; no lo borres.
+  - La verificación en navegador se hace con `npx playwright` (ya disponible, con chromium
+    descargado). Los guiones de comprobación viven en el scratchpad de la sesión, no en el
+    repo: si hacen falta otra vez, se reescriben, son treinta líneas.
 - **Deuda conocida:** `tests/test_health.py` necesita un Postgres accesible; en local falla
   con 503 si no está levantado el `docker compose`. En CI pasa. No es regresión de S1.
 
