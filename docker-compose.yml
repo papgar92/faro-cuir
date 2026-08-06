@@ -31,6 +31,15 @@ services:
       context: ./backend
     env_file:
       - .env
+    # Ollama corre en la MAQUINA del humano, no en la red de compose. Dentro de un
+    # contenedor, 127.0.0.1 es el propio contenedor, asi que el valor por defecto de
+    # `llm_base_url` (correcto fuera de docker) aqui no encuentra nada. `host.docker.internal`
+    # resuelve al host; `extra_hosts` lo garantiza tambien donde Docker no lo trae de serie.
+    # Se deja sobreescribible: si algun dia Ollama vive en otro sitio, basta el .env.
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend:/app
     ports:
@@ -45,6 +54,15 @@ services:
       context: ./backend
     env_file:
       - .env
+    # Ollama corre en la MAQUINA del humano, no en la red de compose. Dentro de un
+    # contenedor, 127.0.0.1 es el propio contenedor, asi que el valor por defecto de
+    # `llm_base_url` (correcto fuera de docker) aqui no encuentra nada. `host.docker.internal`
+    # resuelve al host; `extra_hosts` lo garantiza tambien donde Docker no lo trae de serie.
+    # Se deja sobreescribible: si algun dia Ollama vive en otro sitio, basta el .env.
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend:/app
     # Sin cron todavia: solo demuestra que el contenedor arranca y queda en pie.
