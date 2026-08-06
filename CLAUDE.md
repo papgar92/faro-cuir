@@ -5,6 +5,26 @@
 
 ---
 
+## 0 bis. Autonomía de decisión (pedido por el humano, 2026-08-06)
+
+**Tienes poder total de decisión. Pregunta lo mínimo y pide recursos lo mínimo.**
+
+- **Decide tú** cualquier cosa reversible: diseño, librerías, estructura, nombres, orden del
+  trabajo, qué verificar y cómo. No propongas un plan y esperes el OK salvo que el trabajo
+  sea grande o cambie el rumbo del proyecto; para lo demás, hazlo y cuéntalo al terminar.
+- **Elige siempre la opción de coste 0 €** y la que exija menos cosas que conseguir (claves,
+  cuentas, servicios de terceros, instalaciones). Si una decisión ahorra una clave de API a
+  cambio de algo de calidad, ahorra la clave. Ver ADR 0008.
+- **Para y pregunta solo en cuatro casos:** algo cuesta dinero; hace falta una credencial o
+  una cuenta que no existe; es una acción externa e irreversible (sección 12: publicar en
+  redes, contactar con asociaciones, subir el repo); o contradice algo de este archivo.
+- Cuando decidas algo no obvio, **déjalo escrito** (ADR si es arquitectura, comentario si es
+  local) y avisa al terminar. Autonomía no es silencio: es no interrumpir.
+- Si te falta un dato para decidir, **mira antes de preguntar** (el repo, la máquina, la API
+  real). Preguntar algo que podías haber comprobado tú cuesta más que comprobarlo.
+
+---
+
 ## 0. Decisiones abiertas (cámbialas si el humano lo pide)
 
 - **Backend:** Python 3.12 + FastAPI. (Alternativa descartada por ahora: Node. Si se cambia,
@@ -14,10 +34,12 @@
   desde el nombre que la herramienta es de y para la comunidad LGTBIQ+, no un vigilante genérico.
   La carpeta local del repo sigue llamándose `Centinela/`; no se ha movido, solo el nombre de
   producto. Historial de commits previos al cambio conserva el nombre antiguo, no se reescribe.)
-- **LLM:** proveedor-agnóstico vía una interfaz propia (`llm/provider.py`). Por defecto se
-  asume una API externa para clasificar (el input es **texto público** de boletines, no hay
-  problema de privacidad ahí). Ollama local queda como opción documentada para independencia
-  y coste.
+- **LLM:** proveedor-agnóstico vía una interfaz propia (`llm/provider.py`). **Por defecto,
+  Ollama en local: sin clave de API, sin coste y sin cuota** (ADR 0008). Se invirtió la
+  decisión original —que asumía una API externa de pago— por la restricción de coste 0 € del
+  humano y porque el gold set son cientos de llamadas. El input es texto público de
+  boletines, así que no había motivo de privacidad en ninguna dirección. Modelo y URL salen
+  de entorno: cambiar de proveedor es una variable, no un refactor.
 
 ---
 
@@ -459,12 +481,12 @@ Dos cosas, siempre:
      documentos históricos —eso no lo acelera el contexto—; hazlo por tandas. **Ha subido de
      prioridad:** ahora es también lo único que puede medir el recall del prefiltro, que hoy
      está sin medir. Empieza apartando documentos candidatos aunque no toque todavía.
-  2. **Cerrar el extractor** — **~20k**. El contrato, la interfaz y las defensas ya están
-     (`llm/provider.py`, `schemas/extraccion.py`, 25 tests). Falta: un proveedor real detrás
-     de `ProveedorLLM` —necesita **clave de API**, decidir proveedor y meterlo en `config.py`
-     como el resto, nunca hardcodeado—, descargar el texto íntegro **vía `url_guard`** solo
-     de las normas que pasan el prefiltro, y persistir en `deteccion.extraccion_json` con la
-     versión del prompt. Luego el clasificador por diff — **~25k**, commit aparte: depende de
+  2. **Cerrar el extractor** — **~20k**. Ya están el contrato, la interfaz, las defensas y el
+     **proveedor Ollama** (`llm/provider.py`, `llm/ollama.py`, `schemas/extraccion.py`, 32
+     tests). **No hace falta ninguna clave de API** (ADR 0008). Falta: descargar el texto
+     íntegro **vía `url_guard`** solo de las normas que pasan el prefiltro, y persistir en
+     `deteccion.extraccion_json` con la versión del prompt. Requisito previo, una sola vez:
+     `ollama pull qwen2.5:3b-instruct` en la máquina del humano. Luego el clasificador por diff — **~25k**, commit aparte: depende de
      que la salida del extractor esté ya estabilizada.
   3. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — **~45k, pártelo**.
      Verificar contra cada fuente oficial, no completar por deducción. Es coste de lectura
