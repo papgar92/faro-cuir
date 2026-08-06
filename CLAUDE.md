@@ -339,11 +339,14 @@ y qué toca. Es lo primero que se lee al retomar. -->
   - Proyecto renombrado de "Centinela" a "Faro Cuir" (decisión del humano). La carpeta
     local del repo sigue llamándose `Centinela/` a propósito (ver sección 0).
 - **Siguiente (por orden sugerido):**
-  1. **Cablear el frontend a la API real** — es lo único que queda para que la demo deje de
-     ser mock. El backend ya sirve datos verdaderos en `/api/documentos`; falta sustituir
-     `frontend/src/api/mocks.ts` por un cliente tipado y adaptar la Ficha de norma. De paso
-     se arregla el ancla muerta `#fuente` de la sección 12, que pasaría a apuntar a
-     `norma.url_texto`. **Empezar por aquí: es barato y cambia por completo la demo.**
+  1. **Migrar las pantallas al cliente de la API.** Ya existe `frontend/src/api/client.ts`
+     (tipado, verificado contra la API real) y el proxy de Vite; lo que falta es que las
+     pantallas dejen de importar de `mocks.ts`. Empezar por la **Ficha de norma**, que es la
+     que tiene datos reales detrás (`GET /api/documentos/{id}` → `normas`), y de paso arreglar
+     el ancla muerta `#fuente` de la sección 12 apuntándola a `norma.url_texto`.
+     Aviso: el Mapa y las Alertas **no** tienen equivalente real todavía — dependen de
+     `deteccion`/`alerta`, que están vacías hasta que exista el pipeline. Esas dos pantallas
+     deben seguir con mocks, y conviene marcarlo en la interfaz en vez de aparentar datos.
   2. **Prefiltro léxico** (sección 7, etapa 1) sobre los títulos del sumario. Es lo que
      decide de qué normas se descarga el texto completo, así que va antes que el extractor.
      Ajustado a recall máximo.
