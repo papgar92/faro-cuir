@@ -281,8 +281,13 @@ cd frontend && npm run dev
 
 ## 11. Estado actual del proyecto
 
-<!-- Claude Code: actualiza esta sección al final de cada sesión con 3-5 líneas de qué se hizo
-y qué toca. Es lo primero que se lee al retomar. -->
+<!-- Claude Code: actualiza esta sección al terminar CADA trabajo, no solo al cerrar la sesión.
+Dos cosas, siempre:
+  1. Qué se ha hecho y qué toca. Es lo primero que se lee al retomar.
+  2. Cada punto de "Siguiente" lleva su **coste estimado en tokens de contexto**, calculado
+     por ti a partir del alcance real (qué hay que leer, cuánto código sale, qué verificación
+     hace falta), no de una fórmula. Sirve para decidir si una tarea cabe en la sesión que
+     empieza o hay que partirla; si la estimación no es obvia, di en qué se basa. -->
 
 - **Semana actual:** S1 / backend y seguridad — en curso.
 - **Hecho en S1 (última sesión): el frontend deja de ser una maqueta.**
@@ -366,16 +371,24 @@ y qué toca. Es lo primero que se lee al retomar. -->
     Todavía corre 100% sobre datos mock, sin cablear a la API.
   - Proyecto renombrado de "Centinela" a "Faro Cuir" (decisión del humano). La carpeta
     local del repo sigue llamándose `Centinela/` a propósito (ver sección 0).
-- **Siguiente (por orden sugerido):**
-  1. **Prefiltro léxico** (sección 7, etapa 1) sobre los títulos del sumario. Es lo que
-     decide de qué normas se descarga el texto completo, así que va antes que el extractor.
-     Ajustado a recall máximo.
-  2. **Gold set** (`tests/gold_set/`): sin él la parte de IA no es evaluable. No recortarlo.
-  3. Extractor LLM (`llm/provider.py`) y clasificador por diff.
-  4. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — verificar contra
-     cada fuente oficial, no completar por deducción. Sesión propia.
-  5. Panel de revisión con autenticación (gate humano, ADR 0003).
-  6. **Migrar el Mapa y las Alertas a la API.** Bloqueado hasta que existan los puntos 1-3:
+- **Siguiente (por orden sugerido).** El coste es contexto estimado para hacer la tarea
+  entera *con verificación real*, no solo escribir el código:
+  1. **Prefiltro léxico** (sección 7, etapa 1) sobre los títulos del sumario — **~55k**.
+     Es lo que decide de qué normas se descarga el texto completo, así que va antes que el
+     extractor. Ajustado a recall máximo. Cabe en una sesión: el diccionario y el módulo son
+     pequeños, y hay 257 títulos reales ya ingeridos contra los que medirlo sin salir a red.
+  2. **Gold set** (`tests/gold_set/`) — **~90k, pártelo**. Sin él la parte de IA no es
+     evaluable. No recortarlo. Lo caro no es el código sino traer y etiquetar 150-200
+     documentos históricos; hazlo por tandas de CCAA, una sesión por tanda.
+  3. Extractor LLM (`llm/provider.py`) — **~70k** — y clasificador por diff — **~60k**.
+     **Dos sesiones distintas**: juntos no caben, y el clasificador depende de la salida ya
+     estabilizada del extractor.
+  4. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — **~100k, pártelo**.
+     Verificar contra cada fuente oficial, no completar por deducción. Es coste de lectura
+     externa, no de código: ~6k por fuente. Dos sesiones de 8-9 fuentes.
+  5. Panel de revisión con autenticación (gate humano, ADR 0003) — **~80k**. Sube si hay que
+     decidir el modelo de sesión y contraseñas desde cero.
+  6. **Migrar el Mapa y las Alertas a la API** — **~40k**. Bloqueado hasta los puntos 1-3:
      hasta que `deteccion` y `alerta` tengan filas no hay nada real que enseñar. Cuando se
      migre cada una, quitarla de `PANTALLAS_CON_MOCK` (`frontend/src/lib/navigation.ts`) y
      el aviso de la interfaz desaparece solo. Los componentes `DiffBlock` y `ArticleHistory`
