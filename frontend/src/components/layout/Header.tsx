@@ -11,6 +11,7 @@ interface HeaderProps {
 const NAV_ITEMS: Array<{ screen: Screen; label: string }> = [
   { screen: "mapa", label: "Mapa" },
   { screen: "alertas", label: "Alertas" },
+  { screen: "archivo", label: "Archivo" },
   { screen: "ficha", label: "Ficha de norma" },
 ];
 

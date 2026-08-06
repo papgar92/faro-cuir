@@ -1,1 +1,1 @@
-export type Screen = "mapa" | "alertas" | "ficha";
+export type Screen = "mapa" | "alertas" | "archivo" | "ficha";

@@ -3,6 +3,7 @@ import { Footer } from "./components/layout/Footer";
 import { Header } from "./components/layout/Header";
 import type { Screen } from "./lib/navigation";
 import { AlertasPage } from "./pages/AlertasPage";
+import { ArchivoPage } from "./pages/ArchivoPage";
 import { FichaPage } from "./pages/FichaPage";
 import { MapaPage } from "./pages/MapaPage";
 
@@ -20,13 +21,13 @@ export default function App() {
     setComunidadFiltro(comunidad);
     setScreen("alertas");
   };
-
   return (
     <div className="min-h-screen bg-bg text-ink">
       <Header screen={screen} onNav={setScreen} dark={dark} onToggleTheme={() => setDark((v) => !v)} />
 
       {screen === "mapa" && <MapaPage onGoFicha={goFicha} onGoTimeline={goTimeline} />}
       {screen === "alertas" && <AlertasPage comunidadInicial={comunidadFiltro} onVerFicha={goFicha} />}
+      {screen === "archivo" && <ArchivoPage />}
       {screen === "ficha" && <FichaPage onGoTimeline={() => goTimeline(undefined)} />}
 
       <Footer />
