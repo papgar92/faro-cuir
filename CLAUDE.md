@@ -313,6 +313,15 @@ Dos cosas, siempre:
     medir con el gold set; hasta entonces no publicar ninguna cifra de recall.
   - Cuarta vez con la trampa del autogenerate, y la peor: proponía borrar **ocho** CHECK,
     incluida `origenclasificacion` de `deteccion` (ADR 0004). Ver aviso más abajo.
+  - **El embudo, visible de punta a punta.** `NormaResumen` publica `prefiltro_estado` y
+    `prefiltro_terminos`, y el Archivo y la Ficha los pintan con los **términos exactos**
+    que hicieron pasar cada norma («pasó por 2 términos» no es auditable; «pasó por *lgtbi*
+    y *personas trans*» sí), más el recuento del embudo y un filtro de solo relevantes. Se
+    expone a propósito: un filtro que decide en silencio qué se mira es justo lo que este
+    proyecto denuncia en la administración. `PrefiltroBadge` usa gris neutro y **no** la
+    paleta de avance/retroceso, porque pasar el prefiltro no es una clasificación y el color
+    habría sugerido un veredicto que nadie ha emitido. 180 tests; verificado en navegador
+    sobre `BOE-S-2023-51`: «1 de 179 pasan el prefiltro».
 - **Hecho antes en S1: el frontend deja de ser una maqueta.**
   - **Pantalla `Archivo` nueva** (`pages/ArchivoPage.tsx`), la primera que lee de la API:
     lista los documentos ingeridos con su `sha256` y su sello, y las 257 normas del sumario
