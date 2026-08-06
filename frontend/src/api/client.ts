@@ -30,7 +30,20 @@ export interface NormaApi {
   ambito: string | null;
   /** URL al texto íntegro en la fuente oficial. Es lo que debe usar el enlace de la Ficha. */
   url_texto: string | null;
+
+  /**
+   * Etapa 1 del pipeline (ADR 0007). `pendiente` significa que nadie la ha mirado todavía,
+   * que no es lo mismo que `descartada`. La interfaz no debe pintar los dos casos igual.
+   */
+  prefiltro_estado: EstadoPrefiltro;
+  /**
+   * Términos del vocabulario que hicieron pasar la norma. `null` mientras está pendiente;
+   * lista vacía cuando se evaluó y no coincidió nada.
+   */
+  prefiltro_terminos: string[] | null;
 }
+
+export type EstadoPrefiltro = "pendiente" | "relevante" | "descartada";
 
 /** Un documento ingerido. Espejo de `DocumentoResumen`. */
 export interface DocumentoApi {

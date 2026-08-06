@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { DocumentoDetalleApi, NormaApi } from "../api/client";
 import { listarDocumentos, obtenerDocumento } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
+import { PrefiltroBadge } from "../components/PrefiltroBadge/PrefiltroBadge";
 import { acortarHash, formatearFecha, formatearSelloTiempo } from "../lib/formato";
 import type { SeleccionNorma } from "../lib/navigation";
 
@@ -46,6 +47,9 @@ function FilaNorma({ norma, onVerFicha }: { norma: NormaApi; onVerFicha: () => v
           <span className="line-clamp-2 text-sm text-ink">{norma.titulo}</span>
           <span className="mt-1 block text-xs text-ink-3">
             {norma.organo_emisor ?? "Órgano emisor no informado"}
+          </span>
+          <span className="mt-1.5 block">
+            <PrefiltroBadge estado={norma.prefiltro_estado} terminos={norma.prefiltro_terminos} />
           </span>
         </span>
       </button>
@@ -114,6 +118,7 @@ function CabeceraDocumento({ documento }: { documento: DocumentoDetalleApi }) {
 export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionNorma) => void }) {
   const [documentoElegido, setDocumentoElegido] = useState<number | null>(null);
   const [busqueda, setBusqueda] = useState("");
+  const [soloRelevantes, setSoloRelevantes] = useState(false);
 
   const lista = useRecurso((signal) => listarDocumentos({ limite: 100 }, signal), []);
 
@@ -132,14 +137,28 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
   const coincidencias = useMemo(() => {
     if (!documento) return [];
     const aguja = normalizar(busqueda.trim());
-    if (!aguja) return documento.normas;
-    return documento.normas.filter(
-      (norma) =>
+    return documento.normas.filter((norma) => {
+      if (soloRelevantes && norma.prefiltro_estado !== "relevante") return false;
+      if (!aguja) return true;
+      return (
         normalizar(norma.titulo).includes(aguja) ||
         normalizar(norma.identificador_oficial).includes(aguja) ||
-        normalizar(norma.organo_emisor ?? "").includes(aguja),
-    );
-  }, [documento, busqueda]);
+        normalizar(norma.organo_emisor ?? "").includes(aguja)
+      );
+    });
+  }, [documento, busqueda, soloRelevantes]);
+
+  // El embudo del prefiltro sobre el documento abierto. Se calcula en el cliente porque la
+  // API ya devuelve todas las normas del documento: pedir un recuento aparte sería una
+  // petición extra para contar lo que ya tenemos delante.
+  const embudo = useMemo(() => {
+    const normas = documento?.normas ?? [];
+    return {
+      total: normas.length,
+      relevantes: normas.filter((n) => n.prefiltro_estado === "relevante").length,
+      pendientes: normas.filter((n) => n.prefiltro_estado === "pendiente").length,
+    };
+  }, [documento]);
 
   return (
     <main className="mx-auto max-w-[1360px] px-7 pb-2 pt-7">
@@ -225,7 +244,23 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
                 placeholder={`Buscar entre ${documento.normas.length} normas…`}
                 className="mt-1.5 w-full rounded border border-line-2 bg-inset px-3 py-2 text-sm text-ink placeholder:text-ink-3"
               />
-              <p aria-live="polite" className="mt-2 m-0 font-mono text-xs text-ink-3">
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="flex items-center gap-2 text-xs text-ink-2">
+                  <input
+                    type="checkbox"
+                    checked={soloRelevantes}
+                    onChange={(evento) => setSoloRelevantes(evento.target.checked)}
+                  />
+                  Solo las que pasan el prefiltro
+                </label>
+                {/* El embudo es la métrica de la etapa 1: cuántas normas se ahorra el
+                    extractor. Se enseña siempre, no solo cuando hay resultados. */}
+                <span className="font-mono text-xs text-ink-3">
+                  {embudo.relevantes} de {embudo.total} pasan el prefiltro
+                  {embudo.pendientes > 0 && ` · ${embudo.pendientes} sin evaluar`}
+                </span>
+              </div>
+              <p aria-live="polite" className="m-0 mt-2 font-mono text-xs text-ink-3">
                 {coincidencias.length}{" "}
                 {coincidencias.length === 1 ? "norma coincide" : "normas coinciden"}
                 {coincidencias.length > NORMAS_VISIBLES &&
@@ -235,7 +270,7 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
 
             {coincidencias.length === 0 ? (
               <p className="m-0 px-4 py-8 text-center text-sm text-ink-2">
-                Ninguna norma de este documento coincide con la búsqueda.
+                Ninguna norma de este documento coincide con estos filtros.
               </p>
             ) : (
               <ul className="m-0 list-none p-0">

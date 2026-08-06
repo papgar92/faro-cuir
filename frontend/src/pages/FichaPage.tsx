@@ -3,6 +3,7 @@ import type { DocumentoDetalleApi, NormaApi } from "../api/client";
 import { obtenerDocumento } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
 import { IntegrityPanel } from "../components/IntegrityPanel/IntegrityPanel";
+import { PrefiltroBadge } from "../components/PrefiltroBadge/PrefiltroBadge";
 import { formatearFecha } from "../lib/formato";
 import type { SeleccionNorma } from "../lib/navigation";
 
@@ -128,6 +129,15 @@ function Ficha({
                 value={norma.organo_emisor ?? <Pendiente que="el órgano emisor" />}
               />
               <MetaRow label="Rango" value={norma.rango ?? <Pendiente que="el rango" />} />
+              <MetaRow
+                label="Prefiltro léxico"
+                value={
+                  <PrefiltroBadge
+                    estado={norma.prefiltro_estado}
+                    terminos={norma.prefiltro_terminos}
+                  />
+                }
+              />
               <MetaRow label="Ámbito" value={norma.ambito ?? <Pendiente que="el ámbito" />} />
               <MetaRow
                 label="Publicación"
