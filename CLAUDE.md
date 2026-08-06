@@ -311,7 +311,12 @@ y qué toca. Es lo primero que se lee al retomar. -->
     solo como HMAC con pepper de entorno, con token de baja aleatorio.
   - ADRs 0002 (el LLM extrae no juzga), 0003 (gate humano), 0004 (no persistir el veredicto
     del LLM), 0005 (archivo con sellado de tiempo) y 0006 (puerta única de salida HTTP).
-  - 127 tests (2 de ellos solo corren con PostgreSQL), ruff y mypy estricto limpios.
+  - Persistencia de `norma` desde el sumario (257 normas reales del BOE del 19-12-2024) y
+    **API pública de solo lectura**: `GET /api/documentos` y `GET /api/documentos/{id}`.
+    Esquemas de salida escritos a mano, no generados del modelo; `ruta_almacen` no se expone,
+    `sha256` y `sello_tiempo` sí (6.5). Tope duro de paginación y un test que falla si algún
+    día aparece un método distinto de GET.
+  - 135 tests (2 de ellos solo corren con PostgreSQL), ruff y mypy estricto limpios.
 - **Hecho en S0:**
   - Backend: esqueleto del repo, `docker-compose.yml` (Postgres 16 con collation ICU
     `es-ES`, backend con hot-reload, worker idle sin cron todavía), FastAPI con `/health`
@@ -334,9 +339,11 @@ y qué toca. Es lo primero que se lee al retomar. -->
   - Proyecto renombrado de "Centinela" a "Faro Cuir" (decisión del humano). La carpeta
     local del repo sigue llamándose `Centinela/` a propósito (ver sección 0).
 - **Siguiente (por orden sugerido):**
-  1. **Persistir `norma`**: los items que `ingest/boe.py` ya extrae del sumario se leen y se
-     devuelven, pero no se guardan. La tabla existe; falta el servicio. Es el hueco más
-     evidente del backend ahora mismo.
+  1. **Cablear el frontend a la API real** — es lo único que queda para que la demo deje de
+     ser mock. El backend ya sirve datos verdaderos en `/api/documentos`; falta sustituir
+     `frontend/src/api/mocks.ts` por un cliente tipado y adaptar la Ficha de norma. De paso
+     se arregla el ancla muerta `#fuente` de la sección 12, que pasaría a apuntar a
+     `norma.url_texto`. **Empezar por aquí: es barato y cambia por completo la demo.**
   2. **Prefiltro léxico** (sección 7, etapa 1) sobre los títulos del sumario. Es lo que
      decide de qué normas se descarga el texto completo, así que va antes que el extractor.
      Ajustado a recall máximo.
@@ -344,7 +351,7 @@ y qué toca. Es lo primero que se lee al retomar. -->
   4. Extractor LLM (`llm/provider.py`) y clasificador por diff.
   5. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — verificar contra
      cada fuente oficial, no completar por deducción. Sesión propia.
-  6. Cablear el frontend a la API real, sustituyendo `src/api/mocks.ts`.
+  6. Panel de revisión con autenticación (gate humano, ADR 0003).
   - Pendiente transversal: `THREAT-MODEL.md` y `docs/eipd.md` siguen en esqueleto. La EIPD
     tiene ahora material real que documentar (modelo de suscriptores de la 6.4).
   - Evolución documentada en el ADR 0005: sello RFC 3161 contra una TSA pública, para que
