@@ -130,7 +130,7 @@ diseño:
 | Amenaza | Control | Estado |
 |---|---|---|
 | Secreto commiteado | `gitleaks` en CI | Mitigado |
-| Dependencia maliciosa | Dependencias fijadas; `defusedxml` obligatorio para XML | Parcial — sin escaneo automático de vulnerabilidades (`pip-audit`) |
+| Dependencia maliciosa | Dependencias fijadas; `defusedxml` obligatorio para XML; `pip-audit` en CI rompe el job ante un CVE conocido, transitivas incluidas | Mitigado |
 | Configuración con secretos en el repo | Todo por entorno, `.env` en `.gitignore` | Mitigado |
 
 ## 5. Resumen honesto de lo que falta
@@ -144,5 +144,4 @@ Ordenado por riesgo, no por facilidad:
 3. **Sello de tiempo sin tercero de confianza.** Hasta RFC 3161, la fecha del archivo es
    afirmación nuestra (ADR 0005).
 4. **Panel de revisión y webhooks sin implementar**, con sus amenazas ya identificadas.
-5. **Sin escaneo automático de vulnerabilidades en dependencias.**
-6. **Sin protección ante DDoS**, fuera de alcance por diseño.
+5. **Sin protección ante DDoS**, fuera de alcance por diseño.

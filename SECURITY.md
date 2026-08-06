@@ -51,7 +51,7 @@ que no se pueda enseñar funcionando.
 | Validación Pydantic de la salida del LLM | Pendiente — el extractor no existe todavía | ADR 0002 |
 | Firma HMAC de webhooks | Pendiente | — |
 | Autenticación del panel de revisión | Pendiente | ADR 0003 |
-| Escaneo de vulnerabilidades en dependencias | Pendiente | — |
+| Escaneo de vulnerabilidades en dependencias | Implementado — `pip-audit` en CI, rompe el job si hay CVE | `.github/workflows/ci.yml` |
 
 El detalle de cada amenaza, con los escenarios concretos y lo que **no** está mitigado, está
 en [`THREAT-MODEL.md`](./THREAT-MODEL.md).

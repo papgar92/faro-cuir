@@ -96,7 +96,7 @@ Es la **práctica final de un máster de Ciberseguridad e IA**. Plazo: ~6 semana
 | Tests | `pytest`, `pytest-cov` (back); `vitest` (front) |
 | Lint/format | `ruff` (lint+format), `mypy` (estricto en `services/` y `llm/`) |
 | Contenedores | Docker + docker-compose |
-| CI | GitHub Actions: `ruff` → `mypy` → `pytest` → `gitleaks` |
+| CI | GitHub Actions: `ruff` → `mypy` → `alembic` → `pytest` → `pip-audit` → `gitleaks` |
 
 ---
 
@@ -526,6 +526,12 @@ Dos cosas, siempre:
     mapa (Canarias, zoom, provincias, Ceuta y Melilla), el texto reivindicativo y la
     difusión siguen pendientes tal cual se pidieron. La entrada del backlog **no** se ha
     editado: el backlog es del humano.
+- **Último cierre:** `pip-audit` en CI (rompe el job ante un CVE, transitivas incluidas) y
+  las variables del LLM documentadas en `.env.example` — donde se dice explícitamente que la
+  ausencia de clave de API **no es un olvido**. La primera ejecución de la auditoría encontró
+  PYSEC-2026-2876 en pip 25.0.1: se actualiza pip antes de auditar, porque auditar con una
+  herramienta sin parchear es contradictorio. Con esto, THREAT-MODEL 4.6 queda mitigado y la
+  lista de huecos de seguridad baja de seis a cinco.
 - **Bloqueos:** ninguno.
 - **Deuda conocida:** `tests/test_health.py` necesita un Postgres accesible; en local falla
   con 503 si no está levantado el `docker compose`. En CI pasa. No es regresión de S1.
