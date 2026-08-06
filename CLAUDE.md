@@ -303,9 +303,15 @@ y qué toca. Es lo primero que se lee al retomar. -->
     contra el BOE**. Verificada de verdad, no solo con tests: 257 items del sumario del
     2024-12-19, segunda ejecución sin duplicar, `sha256sum` del fichero archivado igual a su
     propio nombre. Migración de datos con la fila del BOE.
-  - ADR 0005 (archivo con sellado de tiempo) y ADR 0006 (puerta única de salida HTTP y
-    pinning de IP).
-  - 113 tests (59 nuevos de seguridad), ruff y mypy estricto limpios.
+  - Resto del modelo de dominio: `norma`, `version_norma`, `deteccion`, `cola_revision`,
+    `alerta`, `suscriptor` + migración. Tres reglas del proyecto pasan de convención a
+    esquema: `version_norma` es **inmutable** (trigger de PostgreSQL que rechaza UPDATE y
+    DELETE, verificado), en `origen` de `deteccion` **no existe el valor `llm`** (la CHECK
+    hace que el veredicto del modelo no sea representable), y `suscriptor` guarda el email
+    solo como HMAC con pepper de entorno, con token de baja aleatorio.
+  - ADRs 0002 (el LLM extrae no juzga), 0003 (gate humano), 0004 (no persistir el veredicto
+    del LLM), 0005 (archivo con sellado de tiempo) y 0006 (puerta única de salida HTTP).
+  - 127 tests (2 de ellos solo corren con PostgreSQL), ruff y mypy estricto limpios.
 - **Hecho en S0:**
   - Backend: esqueleto del repo, `docker-compose.yml` (Postgres 16 con collation ICU
     `es-ES`, backend con hot-reload, worker idle sin cron todavía), FastAPI con `/health`
@@ -327,20 +333,25 @@ y qué toca. Es lo primero que se lee al retomar. -->
     Todavía corre 100% sobre datos mock, sin cablear a la API.
   - Proyecto renombrado de "Centinela" a "Faro Cuir" (decisión del humano). La carpeta
     local del repo sigue llamándose `Centinela/` a propósito (ver sección 0).
-- **Siguiente:**
-  - Resto del modelo de dominio (`norma`, `version_norma`, `deteccion`, `cola_revision`,
-    `alerta`, `suscriptor`) y sus migraciones. Es el paso 5 del plan de S1, no empezado.
-  - Persistir como `norma` los items que ya extrae `ingest/boe.py` del sumario (hoy se leen
-    y se devuelven, pero no se guardan: falta la tabla).
-  - Prefiltro léxico (sección 7, paso 1) sobre los títulos del sumario, que es lo que
-    decidirá de qué items se descarga el XML completo.
-  - Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — verificar contra
-    cada fuente oficial, no completar por deducción.
-  - Cablear el frontend a la API real, sustituyendo `src/api/mocks.ts`.
-  - ADRs 0002-0004 pendientes (el LLM extrae no juzga / gate humano / no persistir
-    veredicto del LLM). El 0005 y el 0006 ya están escritos.
+- **Siguiente (por orden sugerido):**
+  1. **Persistir `norma`**: los items que `ingest/boe.py` ya extrae del sumario se leen y se
+     devuelven, pero no se guardan. La tabla existe; falta el servicio. Es el hueco más
+     evidente del backend ahora mismo.
+  2. **Prefiltro léxico** (sección 7, etapa 1) sobre los títulos del sumario. Es lo que
+     decide de qué normas se descarga el texto completo, así que va antes que el extractor.
+     Ajustado a recall máximo.
+  3. **Gold set** (`tests/gold_set/`): sin él la parte de IA no es evaluable. No recortarlo.
+  4. Extractor LLM (`llm/provider.py`) y clasificador por diff.
+  5. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — verificar contra
+     cada fuente oficial, no completar por deducción. Sesión propia.
+  6. Cablear el frontend a la API real, sustituyendo `src/api/mocks.ts`.
+  - Pendiente transversal: `THREAT-MODEL.md` y `docs/eipd.md` siguen en esqueleto. La EIPD
+    tiene ahora material real que documentar (modelo de suscriptores de la 6.4).
   - Evolución documentada en el ADR 0005: sello RFC 3161 contra una TSA pública, para que
     la fecha del archivo sea verificable por terceros y no solo afirmación nuestra.
+  - **Aviso para migraciones futuras:** el autogenerate de alembic propone en *cada*
+    migración borrar las CHECK generadas por `Enum(native_enum=False, create_constraint=True)`.
+    Ha pasado tres veces. Revisar y eliminar esas líneas siempre antes de aplicar.
   - `THREAT-MODEL.md` y `docs/eipd.md` siguen en esqueleto; desarrollo real pendiente.
   - Sección 12: el backlog del humano sigue **entero sin tocar**. En S1 se eligió
     deliberadamente atacar el backend primero (decisión del humano); el mapa, el texto
