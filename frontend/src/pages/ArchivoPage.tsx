@@ -41,8 +41,9 @@ function FilaNorma({ norma, onVerFicha }: { norma: NormaApi; onVerFicha: () => v
         <span className="font-mono text-xs text-ink-3">{norma.identificador_oficial}</span>
         <span className="min-w-0">
           {/* line-clamp mantiene la lista escaneable: los títulos del BOE pasan de 400
-              caracteres y uno solo llenaría la pantalla. El completo está en la ficha. */}
-          <span className="line-clamp-2 block text-sm text-ink">{norma.titulo}</span>
+              caracteres y uno solo llenaría la pantalla. El completo está en la ficha.
+              Sin `block`: line-clamp necesita display:-webkit-box y `block` se lo pisaba. */}
+          <span className="line-clamp-2 text-sm text-ink">{norma.titulo}</span>
           <span className="mt-1 block text-xs text-ink-3">
             {norma.organo_emisor ?? "Órgano emisor no informado"}
           </span>

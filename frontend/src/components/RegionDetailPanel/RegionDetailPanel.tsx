@@ -4,12 +4,12 @@ import { ClassificationBadge } from "../ClassificationBadge/ClassificationBadge"
 
 interface RegionDetailPanelProps {
   region: RegionSummary;
-  onGoFicha: () => void;
+  onGoArchivo: () => void;
   onGoTimeline: () => void;
 }
 
 /** Resumen de la comunidad activa (hover o pin) en el sidebar del mapa. */
-export function RegionDetailPanel({ region, onGoFicha, onGoTimeline }: RegionDetailPanelProps) {
+export function RegionDetailPanel({ region, onGoArchivo, onGoTimeline }: RegionDetailPanelProps) {
   const meta = ESTADO_MAPA_META[region.state];
   const colors = COLOR_CLASSES[meta.color];
   const hasChange = Boolean(region.title);
@@ -52,12 +52,14 @@ export function RegionDetailPanel({ region, onGoFicha, onGoTimeline }: RegionDet
               <span>{region.ambito}</span>
             </div>
             <div className="mt-3 flex gap-2">
+              {/* Esta comunidad y su cambio son inventados: no hay ficha real detrás, así
+                  que el botón lleva al Archivo y lo dice. */}
               <button
                 type="button"
-                onClick={onGoFicha}
+                onClick={onGoArchivo}
                 className="rounded bg-ink px-3.5 py-2 text-sm font-medium text-surface hover:opacity-85"
               >
-                Ver ficha con el diff
+                Ver el archivo real
               </button>
               <button
                 type="button"

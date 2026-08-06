@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Footer } from "./components/layout/Footer";
 import { Header } from "./components/layout/Header";
-import type { Screen, SeleccionNorma } from "./lib/navigation";
+import { PANTALLAS_CON_MOCK, type Screen, type SeleccionNorma } from "./lib/navigation";
 import { AlertasPage } from "./pages/AlertasPage";
 import { ArchivoPage } from "./pages/ArchivoPage";
 import { FichaPage } from "./pages/FichaPage";
@@ -20,7 +20,6 @@ export default function App() {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
   }, [dark]);
 
-  const goFicha = () => setScreen("ficha");
   const goArchivo = () => setScreen("archivo");
   const goTimeline = (comunidad?: string) => {
     setComunidadFiltro(comunidad);
@@ -33,10 +32,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-bg text-ink">
-      <Header screen={screen} onNav={setScreen} dark={dark} onToggleTheme={() => setDark((v) => !v)} />
+      <Header
+        screen={screen}
+        onNav={setScreen}
+        dark={dark}
+        onToggleTheme={() => setDark((v) => !v)}
+        esDemo={PANTALLAS_CON_MOCK.has(screen)}
+      />
 
-      {screen === "mapa" && <MapaPage onGoFicha={goFicha} onGoTimeline={goTimeline} />}
-      {screen === "alertas" && <AlertasPage comunidadInicial={comunidadFiltro} onVerFicha={goFicha} />}
+      {screen === "mapa" && <MapaPage onGoArchivo={goArchivo} onGoTimeline={goTimeline} />}
+      {screen === "alertas" && (
+        <AlertasPage comunidadInicial={comunidadFiltro} onGoArchivo={goArchivo} />
+      )}
       {screen === "archivo" && <ArchivoPage onVerFicha={verFicha} />}
       {screen === "ficha" && <FichaPage seleccion={seleccion} onIrAlArchivo={goArchivo} />}
 

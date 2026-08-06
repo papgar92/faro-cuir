@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { REGIONS } from "../api/mocks";
 import { ClassificationBadge } from "../components/ClassificationBadge/ClassificationBadge";
+import { DemoDataNotice } from "../components/DemoDataNotice/DemoDataNotice";
 import { MapaCCAA } from "../components/MapaCCAA/MapaCCAA";
 import { RegionDetailPanel } from "../components/RegionDetailPanel/RegionDetailPanel";
 import { TopAlertsRanking } from "../components/TopAlertsRanking/TopAlertsRanking";
@@ -9,11 +10,17 @@ import { ESTADO_MAPA_META, type EstadoMapa } from "../lib/classification";
 const ESTADOS_LEYENDA = Object.keys(ESTADO_MAPA_META) as EstadoMapa[];
 
 interface MapaPageProps {
-  onGoFicha: () => void;
+  onGoArchivo: () => void;
   onGoTimeline: (comunidad?: string) => void;
 }
 
-export function MapaPage({ onGoFicha, onGoTimeline }: MapaPageProps) {
+/**
+ * Mapa por comunidad autónoma. **Sigue sobre datos inventados**: el color de cada comunidad
+ * se deriva de sus detecciones validadas (`deteccion`), y esa tabla está vacía hasta que
+ * exista el pipeline. Un mapa es justo el formato que más se lee como dato duro, así que el
+ * aviso va arriba y no en una nota al pie.
+ */
+export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
   const [hover, setHover] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
   const activeCode = hover ?? pinned;
@@ -21,6 +28,12 @@ export function MapaPage({ onGoFicha, onGoTimeline }: MapaPageProps) {
 
   return (
     <main className="mx-auto max-w-[1360px] px-7 pb-2 pt-7">
+      <DemoDataNotice
+        que="El estado de cada comunidad"
+        depende="las detecciones validadas por comunidad (deteccion)"
+        onIrAlArchivo={onGoArchivo}
+      />
+
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_372px]">
         <section className="rounded border border-line bg-surface px-5 pb-2 pt-5">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
@@ -60,7 +73,7 @@ export function MapaPage({ onGoFicha, onGoTimeline }: MapaPageProps) {
           {activeRegion ? (
             <RegionDetailPanel
               region={activeRegion}
-              onGoFicha={onGoFicha}
+              onGoArchivo={onGoArchivo}
               onGoTimeline={() => onGoTimeline(activeRegion.name)}
             />
           ) : (

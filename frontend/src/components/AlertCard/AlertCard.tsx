@@ -4,11 +4,11 @@ import { ClassificationBadge } from "../ClassificationBadge/ClassificationBadge"
 
 interface AlertCardProps {
   alerta: AlertaFeedItem;
-  onVerFicha?: (id: string) => void;
+  onGoArchivo: () => void;
 }
 
-/** Tarjeta de una alerta en el feed de Alertas. */
-export function AlertCard({ alerta, onVerFicha }: AlertCardProps) {
+/** Tarjeta de una alerta en el feed de Alertas. Datos de ejemplo (ver DemoDataNotice). */
+export function AlertCard({ alerta, onGoArchivo }: AlertCardProps) {
   const meta = CLASIFICACION_ALERTA_META[alerta.tipo];
   const colors = COLOR_CLASSES[meta.color];
 
@@ -27,12 +27,15 @@ export function AlertCard({ alerta, onVerFicha }: AlertCardProps) {
       <div className="mt-2.5 flex flex-wrap items-center gap-3.5 font-mono text-xs text-ink-3">
         <span>{alerta.rango}</span>
         <span>{alerta.ref}</span>
+        {/* Antes decía "Ver diff y fuente" y abría la Ficha. Esta alerta es inventada: no hay
+            diff que ver ni norma real a la que resolver, así que el botón dice a dónde lleva
+            de verdad en vez de prometer una ficha que no existe. */}
         <button
           type="button"
-          onClick={() => onVerFicha?.(alerta.id)}
+          onClick={onGoArchivo}
           className="ml-auto font-sans text-sm text-link hover:text-ink"
         >
-          Ver diff y fuente →
+          Ver el archivo real →
         </button>
       </div>
     </article>

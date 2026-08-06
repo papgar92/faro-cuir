@@ -2,13 +2,23 @@ import { useMemo, useState } from "react";
 import { FEED } from "../api/mocks";
 import { AlertCard } from "../components/AlertCard/AlertCard";
 import { AlertFilters } from "../components/AlertFilters/AlertFilters";
+import { DemoDataNotice } from "../components/DemoDataNotice/DemoDataNotice";
 
 interface AlertasPageProps {
   comunidadInicial?: string;
-  onVerFicha: (id: string) => void;
+  onGoArchivo: () => void;
 }
 
-export function AlertasPage({ comunidadInicial, onVerFicha }: AlertasPageProps) {
+/**
+ * Feed de alertas. **Sigue sobre datos inventados**: una alerta es una detección aprobada en
+ * el gate humano (`alerta` sobre `deteccion`), y ninguna de las dos tablas tiene filas hasta
+ * que exista el pipeline.
+ *
+ * Por eso las tarjetas ya no llevan a la Ficha: la Ficha lee de la API y desde una alerta
+ * ficticia no hay ninguna norma real a la que resolver. Llevan al Archivo, que es donde está
+ * lo que sí existe.
+ */
+export function AlertasPage({ comunidadInicial, onGoArchivo }: AlertasPageProps) {
   const [comunidad, setComunidad] = useState(comunidadInicial ?? "todas");
   const [ambito, setAmbito] = useState("todos");
   const [tipo, setTipo] = useState("todos");
@@ -38,6 +48,11 @@ export function AlertasPage({ comunidadInicial, onVerFicha }: AlertasPageProps) 
   return (
     <main className="mx-auto max-w-[1360px] px-7 pb-2 pt-7">
       <div className="max-w-[900px]">
+        <DemoDataNotice
+          que="El feed de alertas"
+          depende="las detecciones aprobadas en el gate humano (deteccion, alerta)"
+          onIrAlArchivo={onGoArchivo}
+        />
         <h1 className="font-serif text-2xl font-bold tracking-tight text-ink">Alertas validadas</h1>
         <p className="mt-2 max-w-[66ch] text-sm text-ink-2">
           Detecciones revisadas por una persona antes de publicarse. Orden cronológico inverso. Cada
@@ -61,7 +76,7 @@ export function AlertasPage({ comunidadInicial, onVerFicha }: AlertasPageProps) 
 
       <div className="max-w-[900px]">
         {feed.map((alerta) => (
-          <AlertCard key={alerta.id} alerta={alerta} onVerFicha={onVerFicha} />
+          <AlertCard key={alerta.id} alerta={alerta} onGoArchivo={onGoArchivo} />
         ))}
       </div>
 
