@@ -287,9 +287,36 @@ Dos cosas, siempre:
   2. Cada punto de "Siguiente" lleva su **coste estimado en tokens de contexto**, calculado
      por ti a partir del alcance real (qué hay que leer, cuánto código sale, qué verificación
      hace falta), no de una fórmula. Sirve para decidir si una tarea cabe en la sesión que
-     empieza o hay que partirla; si la estimación no es obvia, di en qué se basa. -->
+     empieza o hay que partirla; si la estimación no es obvia, di en qué se basa.
+  3. **Calibra contra lo medido, no contra la intuición.** Las primeras estimaciones de esta
+     sección salieron ~3x altas: se estimó el frontend en 40k y el prefiltro en 55k, y
+     costaron del orden de 15k y 25k reales. Una tarea normal de este repo -un módulo, sus
+     tests, migración si toca y verificación en navegador o curl- ronda los **15-30k**. Si te
+     sale más de 50k, sospecha de la estimación antes que del alcance. -->
 
 - **Semana actual:** S1 / backend y seguridad — en curso. Repo arrancado el **2026-08-04**.
+- **Hecho en S1 (último trabajo): los dos controles que faltaban de la 6.8 y seguridad
+  documentada de verdad.**
+  - `security/headers.py` — CSP `default-src 'none'` (una respuesta JSON no debe cargar
+    nada), `nosniff`, `no-referrer` —que aquí no es rutina: el referer revela por sí solo
+    que alguien venía de esta web—, `frame-ancestors`, Permissions-Policy y HSTS sin
+    `preload`. `/docs` lleva su propia CSP acotada al CDN de Swagger en vez de relajar la de
+    la API entera.
+  - `security/rate_limit.py` — 60 pet/min por IP, ventana **deslizante** (una fija deja pasar
+    el doble a caballo entre dos ventanas). Sin dependencia nueva. Tres cosas que son el
+    fondo: **no se lee `X-Forwarded-For`** (la escribe el cliente), el limitador tiene tope
+    de clientes en memoria porque si no el propio control es el vector de agotamiento, y al
+    llegar al tope **falla abierto** a propósito. `/health` exento o el healthcheck del
+    contenedor declararía el servicio caído.
+  - **Orden de los middlewares:** en Starlette el último `add_middleware` queda por fuera,
+    así que las cabeceras van las últimas para que **el 429 salga también con ellas**. Hay un
+    test que lo fija; casi se pone al revés.
+  - `THREAT-MODEL.md` **real**: STRIDE por componente con cada control apuntando a su código,
+    y lo no mitigado escrito, no omitido. `SECURITY.md`: su tabla decía "Pendiente" en todo
+    desde S0 cuando la mayoría llevaba hecha desde S1 — corregido, con "Parcial" obligado a
+    nombrar su limitación.
+  - 194 tests. Verificado contra la API real: seis cabeceras presentes, 59 respuestas 200
+    seguidas de 429 con `Retry-After`, y el 429 con `nosniff`.
 - **Hecho en S1 (último trabajo): prefiltro léxico, etapa 1 del pipeline.**
   - `pipeline/prefiltro.py` — módulo **puro** (ni DB ni red) con ~90 términos. Sesgado a
     recall, no equilibrado: sin lista negra ni exclusiones, con las variantes antiguas y
@@ -404,30 +431,34 @@ Dos cosas, siempre:
   - Proyecto renombrado de "Centinela" a "Faro Cuir" (decisión del humano). La carpeta
     local del repo sigue llamándose `Centinela/` a propósito (ver sección 0).
 - **Siguiente (por orden sugerido).** El coste es contexto estimado para hacer la tarea
-  entera *con verificación real*, no solo escribir el código:
-  1. **Gold set** (`tests/gold_set/`) — **~90k, pártelo**. Sin él la parte de IA no es
+  entera *con verificación real*, no solo escribir el código. **Recalibrado a la baja** tras
+  medir S1: casi todo cabe en una sesión.
+  1. **Gold set** (`tests/gold_set/`) — **~35k, y aun así pártelo**. Sin él la parte de IA no es
      evaluable. No recortarlo. Lo caro no es el código sino traer y etiquetar 150-200
-     documentos históricos; hazlo por tandas de CCAA, una sesión por tanda. **Ha subido de
+     documentos históricos —eso no lo acelera el contexto—; hazlo por tandas. **Ha subido de
      prioridad:** ahora es también lo único que puede medir el recall del prefiltro, que hoy
      está sin medir. Empieza apartando documentos candidatos aunque no toque todavía.
-  2. Extractor LLM (`llm/provider.py`) — **~70k** — y clasificador por diff — **~60k**.
-     **Dos sesiones distintas**: juntos no caben, y el clasificador depende de la salida ya
-     estabilizada del extractor.
-  3. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — **~100k, pártelo**.
+  2. Extractor LLM (`llm/provider.py`) — **~30k** — y clasificador por diff — **~25k**.
+     Caben juntos en una sesión holgada, pero **hazlos en commits separados**: el clasificador
+     depende de que la salida del extractor ya esté estabilizada.
+  3. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — **~45k, pártelo**.
      Verificar contra cada fuente oficial, no completar por deducción. Es coste de lectura
-     externa, no de código: ~6k por fuente. Dos sesiones de 8-9 fuentes.
+     externa, no de código: ~2,5k por fuente. Es el único punto donde el coste escala con
+     el número de fuentes y no con el código.
      **Candidata a recortar si aprieta el plazo:** la sección 8 ya autoriza documentar el
      resto como hoja de ruta, y compra poco frente al tribunal comparado con tener el
      pipeline entero funcionando sobre el BOE.
-  4. Panel de revisión con autenticación (gate humano, ADR 0003) — **~80k**. Sube si hay que
+  4. Panel de revisión con autenticación (gate humano, ADR 0003) — **~35k**. Sube si hay que
      decidir el modelo de sesión y contraseñas desde cero.
-  5. **Migrar el Mapa y las Alertas a la API** — **~40k**. Bloqueado hasta los puntos 1-2:
+  5. **Migrar el Mapa y las Alertas a la API** — **~20k**. Bloqueado hasta los puntos 1-2:
      hasta que `deteccion` y `alerta` tengan filas no hay nada real que enseñar. Cuando se
      migre cada una, quitarla de `PANTALLAS_CON_MOCK` (`frontend/src/lib/navigation.ts`) y
      el aviso de la interfaz desaparece solo. Los componentes `DiffBlock` y `ArticleHistory`
      están sin usar a propósito, esperando a ese momento; no borrarlos.
-  - Pendiente transversal: `THREAT-MODEL.md` y `docs/eipd.md` siguen en esqueleto. La EIPD
-    tiene ahora material real que documentar (modelo de suscriptores de la 6.4).
+  - Pendiente transversal: **`docs/eipd.md` sigue en esqueleto** — **~25k**. Es lo único de
+    seguridad que queda sin desarrollar; tiene material real que documentar (modelo de
+    suscriptores de la 6.4) pero no se puede cerrar hasta que exista el flujo de alta y baja,
+    porque sin él no hay consentimiento que evaluar. `THREAT-MODEL.md` ya está desarrollado.
   - Evolución documentada en el ADR 0005: sello RFC 3161 contra una TSA pública, para que
     la fecha del archivo sea verificable por terceros y no solo afirmación nuestra.
   - **Aviso para migraciones futuras:** el autogenerate de alembic propone en *cada*
