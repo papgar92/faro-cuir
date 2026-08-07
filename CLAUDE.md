@@ -318,37 +318,70 @@ Dos cosas, siempre:
 
 ### ⇨ EMPIEZA AQUÍ (próxima sesión)
 
-**Tarea: cerrar el extractor — etapa 2 del pipeline (~20k).** Todo lo demás está en verde y
-fusionado en `main`; no hay nada a medias que rescatar.
+**Tarea: gold set (`tests/gold_set/`), ~35k, y pártelo — es el cuello de botella real del
+proyecto.** El extractor (etapa 2) ya está cerrado y verificado de punta a punta (ver más
+abajo); no hay nada a medias que rescatar ahí.
 
-Lo que ya existe y **no** hay que rehacer: el contrato (`schemas/extraccion.py`), la interfaz
-(`llm/provider.py`), las defensas contra inyección de prompt y el proveedor
-(`llm/ollama.py`), **verificado de punta a punta contra un Ollama real**. No hace falta
-ninguna clave de API (ADR 0008).
+Por qué esto y no el clasificador por diff: el clasificador (etapa 3) puede escribirse sin
+gold set, pero **no se puede evaluar** sin él — y sin evaluación no hay forma de saber si las
+reglas que se escriban sirven de algo. El prefiltro léxico tampoco tiene su recall medido
+todavía (aviso ya dejado en S1). El gold set es lo único que desbloquea las dos cosas a la
+vez, así que va primero aunque cueste más.
+
+Lo que ya existe y **no** hay que rehacer: extractor completo (`services/extraccion.py`,
+`llm/provider.py`, `llm/ollama.py`, `schemas/extraccion.py`), enganchado al worker, verificado
+contra Ollama real y Postgres real (ver el bloque de abajo). Las filas que produce hoy están
+en un estado centinela (`clasificacion=indeterminado`, ADR 0009) a la espera del clasificador.
 
 Lo que falta, en este orden:
 
-1. `services/extraccion.py` — para cada `norma` con `prefiltro_estado == 'relevante'` y sin
-   extracción: descargar `norma.url_texto` **obligatoriamente vía `security/url_guard.py`**
-   (es una URL que propone la fuente, no nosotros: ADR 0006 aplica entero, a diferencia de la
-   excepción de Ollama), parsear con `security/xml_safe.py`, extraer y persistir.
-2. Persistir en `deteccion.extraccion_json` junto con la **versión del prompt** y el modelo,
-   igual que el prefiltro guarda la versión del vocabulario. `origen` NO admite el valor
-   `llm` y eso no se toca (ADR 0004).
-3. Enganchar al `worker/run.py` después del prefiltro, con su cifra en el log.
-4. Verificar **de verdad**: correrlo sobre `BOE-A-2023-5366` (la Ley 4/2023, la única norma
-   real que hoy pasa el prefiltro) y enseñar la fila resultante con `psql`.
+1. Traer y etiquetar 150-200 documentos históricos (incluir la reforma madrileña de 2023,
+   reformas rechazadas, y muchos negativos). Lo caro es el etiquetado humano, no el código —
+   hazlo por tandas, apartando candidatos aunque no se etiqueten todos de una sesión.
+2. Con eso, medir por fin el recall real del prefiltro léxico (`pipeline/prefiltro.py`), que
+   hoy solo se ha demostrado que funciona, no que tenga buen recall (aviso de S1, sigue en pie).
+3. Solo entonces, clasificador por diff (~25k, commit aparte): sin gold set no hay con qué
+   comprobar si una regla clasifica bien o mal.
 
-Requisitos del entorno, ya cumplidos: Ollama instalado con `qwen2.5:3b-instruct`, y
-`docker-compose` apuntando a `host.docker.internal`.
-
-**Después:** gold set (~35k, es el cuello de botella real del proyecto porque el etiquetado lo
-hace el humano) y clasificador por diff (~25k).
+**Después:** auditoría real de las 17 fuentes autonómicas (~45k, pártelo) y panel de revisión
+con autenticación (~35k).
 
 ---
 
 - **Semana actual:** S1 / backend y seguridad — en curso. Repo arrancado el **2026-08-04**.
-- **Hecho en S1 (último trabajo): contrato de extracción del LLM (media etapa 2).**
+- **Hecho en S1 (último trabajo): cerrado el extractor — etapa 2 del pipeline completa.**
+  - `services/extraccion.py`: para cada `norma` con `prefiltro_estado == 'relevante'` sin
+    `deteccion`, descarga `url_texto` vía `url_guard` (allowlist entera, ADR 0006 — la URL la
+    propone el sumario, no como la excepción de Ollama), parsea con `xml_safe`, extrae y
+    persiste. Idempotente por construcción: una extracción fallida (LLM, red, control de
+    seguridad) no deja fila, así que la norma vuelve a intentarse sola en la siguiente pasada
+    del worker, sin necesitar un estado de error aparte.
+  - **`deteccion.clasificacion` y `.origen` son `NOT NULL` y el clasificador (etapa 3) no
+    existe todavía** — el ADR 0004 ya avisaba de esto en sus consecuencias. Se resuelve con
+    un valor centinela documentado en **ADR 0009**: `clasificacion=indeterminado`,
+    `origen=heuristica`, `regla_aplicada=NULL`. No es una excepción al ADR 0004, es su
+    cumplimiento literal — el centinela es fijo y no sale de nada que diga el LLM. La cola de
+    trabajo del futuro clasificador es, literalmente, filtrar por esas tres columnas.
+  - `version_prompt` y `modelo` viajan dentro del propio `extraccion_json` (no hay columnas
+    dedicadas para ellos), mismo criterio que el prefiltro guardando su versión.
+  - Enganchado a `worker/run.py` justo después del prefiltro, con su propio resumen en el log.
+  - **Verificado de verdad, no solo con tests**: corrido contra `BOE-A-2023-5366` (Ley
+    4/2023) con Ollama real y Postgres real, fila confirmada con `psql`, y una segunda
+    ejecución confirmando que no repite la llamada al LLM (idempotencia real, no solo de
+    diseño). La verificación **encontró y arregló un fallo real** que ningún test lo habría
+    visto: el XML de texto íntegro del BOE tiene la forma `documento > metadatos,
+    metadata-eli, analisis, texto` (comprobado contra el documento real, no supuesto);
+    `analisis` trae decenas de referencias cortas a normas relacionadas, y concatenar el
+    árbol entero sin distinguirlas agotaba el presupuesto de caracteres en ese ruido antes de
+    llegar al articulado real. `_texto_plano` ahora prioriza el elemento `<texto>`.
+  - **Segundo hallazgo real, de rendimiento y no de código:** con el modelo pequeño en CPU
+    (`qwen2.5:3b-instruct`, ADR 0008), 40.000 caracteres de documento producían un JSON
+    inválido (el modelo se pierde) y 8.000 agotaban el timeout de 180 s. El tope
+    (`MAX_CARACTERES_DOCUMENTO`) baja a 4.000, verificado que funciona de punta a punta. Es
+    un parámetro de rendimiento, no de calidad — sigue sin saberse si el modelo entiende bien
+    un artículo largo cortado a la mitad; eso lo medirá el gold set, no antes.
+  - 12 tests nuevos (`test_extraccion_service.py`), 238 en total. `ruff` y `mypy` limpios.
+- **Hecho en S1: contrato de extracción del LLM (media etapa 2).**
   - Se hizo **la mitad verificable sin credenciales**, que además es donde están todas las
     decisiones de seguridad. El proveedor real y el cableado al pipeline quedan pendientes:
     no se da por bueno lo que no se ha podido ejecutar de verdad.
@@ -512,13 +545,11 @@ hace el humano) y clasificador por diff (~25k).
      documentos históricos —eso no lo acelera el contexto—; hazlo por tandas. **Ha subido de
      prioridad:** ahora es también lo único que puede medir el recall del prefiltro, que hoy
      está sin medir. Empieza apartando documentos candidatos aunque no toque todavía.
-  2. **Cerrar el extractor** — **~20k**. Ya están el contrato, la interfaz, las defensas y el
-     **proveedor Ollama** (`llm/provider.py`, `llm/ollama.py`, `schemas/extraccion.py`, 32
-     tests). **No hace falta ninguna clave de API** (ADR 0008). Falta: descargar el texto
-     íntegro **vía `url_guard`** solo de las normas que pasan el prefiltro, y persistir en
-     `deteccion.extraccion_json` con la versión del prompt. Requisito previo, una sola vez:
-     `ollama pull qwen2.5:3b-instruct` en la máquina del humano. Luego el clasificador por diff — **~25k**, commit aparte: depende de
-     que la salida del extractor esté ya estabilizada.
+  2. **Clasificador por diff** — **~25k, commit aparte**. Depende del gold set para poder
+     evaluarse, no solo escribirse. Su "cola de trabajo" ya existe sin flag nuevo: las
+     `deteccion` con `clasificacion=indeterminado AND origen=heuristica AND
+     regla_aplicada IS NULL` (ADR 0009) son exactamente las que dejó pendientes el extractor,
+     que se cerró esta sesión y quedó verificado de punta a punta (ver el bloque de arriba).
   3. Auditoría real de las 17 fuentes autonómicas en `docs/fuentes.md` — **~45k, pártelo**.
      Verificar contra cada fuente oficial, no completar por deducción. Es coste de lectura
      externa, no de código: ~2,5k por fuente. Es el único punto donde el coste escala con
@@ -529,10 +560,11 @@ hace el humano) y clasificador por diff (~25k).
   4. Panel de revisión con autenticación (gate humano, ADR 0003) — **~35k**. Sube si hay que
      decidir el modelo de sesión y contraseñas desde cero.
   5. **Migrar el Mapa y las Alertas a la API** — **~20k**. Bloqueado hasta los puntos 1-2:
-     hasta que `deteccion` y `alerta` tengan filas no hay nada real que enseñar. Cuando se
-     migre cada una, quitarla de `PANTALLAS_CON_MOCK` (`frontend/src/lib/navigation.ts`) y
-     el aviso de la interfaz desaparece solo. Los componentes `DiffBlock` y `ArticleHistory`
-     están sin usar a propósito, esperando a ese momento; no borrarlos.
+     hasta que `deteccion` (con clasificación real, no el centinela del ADR 0009) y `alerta`
+     tengan filas no hay nada real que enseñar. Cuando se migre cada una, quitarla de
+     `PANTALLAS_CON_MOCK` (`frontend/src/lib/navigation.ts`) y el aviso de la interfaz
+     desaparece solo. Los componentes `DiffBlock` y `ArticleHistory` están sin usar a
+     propósito, esperando a ese momento; no borrarlos.
   - Pendiente transversal: **`docs/eipd.md` sigue en esqueleto** — **~25k**. Es lo único de
     seguridad que queda sin desarrollar; tiene material real que documentar (modelo de
     suscriptores de la 6.4) pero no se puede cerrar hasta que exista el flujo de alta y baja,

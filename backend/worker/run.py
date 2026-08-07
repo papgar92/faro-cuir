@@ -19,10 +19,13 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.database import SessionLocal
 from app.ingest.boe import BoeIngestError, SumarioNoDisponible
+from app.llm.ollama import ProveedorOllama
+from app.llm.provider import VERSION_PROMPT
 from app.models.fuente import Fuente, TipoFuente
 from app.pipeline import prefiltro
 from app.security.url_guard import UrlGuardError
 from app.security.xml_safe import XmlSafeError
+from app.services import extraccion as servicio_extraccion
 from app.services import ingesta
 from app.services import prefiltro as servicio_prefiltro
 
@@ -126,6 +129,14 @@ def main(argv: list[str] | None = None) -> int:
         # añadiría una ventana en la que hay normas ingeridas que nadie ha mirado todavía.
         resumen = servicio_prefiltro.aplicar(session, documento_id=resultado.documento_id)
 
+        # Etapa 2, acoplada a la misma pasada por la misma razón: sin esto habría una ventana
+        # con normas relevantes y nadie las habría mirado. A diferencia del prefiltro, esta
+        # etapa sí toca red y LLM (Ollama local, ADR 0008) y puede tardar; es aceptable en un
+        # worker cron diario, no lo sería en una petición HTTP.
+        resumen_extraccion = servicio_extraccion.aplicar(
+            session, ProveedorOllama(), documento_id=resultado.documento_id
+        )
+
     if resultado.creado:
         logger.info(
             "Ingerido %s (%s items, %s normas nuevas) sha256=%s -> %s",
@@ -162,6 +173,13 @@ def main(argv: list[str] | None = None) -> int:
         resumen.relevantes,
         resumen.solo_por_contexto,
         resumen.descartadas,
+    )
+    logger.info(
+        "Extracción (prompt %s): %s pendientes, %s extraídas, %s fallidas.",
+        VERSION_PROMPT,
+        resumen_extraccion.evaluadas,
+        resumen_extraccion.extraidas,
+        resumen_extraccion.fallidas,
     )
     return 0
 
