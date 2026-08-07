@@ -333,15 +333,27 @@ Lo que ya existe y **no** hay que rehacer: extractor completo (`services/extracc
 contra Ollama real y Postgres real (ver el bloque de abajo). Las filas que produce hoy están
 en un estado centinela (`clasificacion=indeterminado`, ADR 0009) a la espera del clasificador.
 
+**El mecanismo del gold set ya está montado** (`tests/gold_set/`: `esquema.py` con el
+Pydantic que valida cada caso, `casos/*.json` uno por documento, `README.md` con el formato) —
+lo que falta es el contenido, no la infraestructura. Hoy hay 3 casos de arranque, todos del
+mismo día (`BOE-S-2023-51`, 2023-03-01, ya ingerido): el positivo conocido (Ley 4/2023), un
+negativo trivial (Real Decreto de política agraria) y un negativo difícil (Ley Orgánica de
+salud sexual y reproductiva — mismo emisor, mismo día, temática cercana pero fuera de
+alcance). `test_gold_set_prefiltro.py` los evalúa contra `pipeline.prefiltro.evaluar`; los 3
+pasan, pero **3 casos no miden recall, solo prueban que el mecanismo funciona** — no repetir
+la trampa de afirmar una cifra con esto.
+
 Lo que falta, en este orden:
 
-1. Traer y etiquetar 150-200 documentos históricos (incluir la reforma madrileña de 2023,
-   reformas rechazadas, y muchos negativos). Lo caro es el etiquetado humano, no el código —
-   hazlo por tandas, apartando candidatos aunque no se etiqueten todos de una sesión.
+1. Traer y etiquetar 150-200 documentos históricos más (incluir la reforma madrileña de 2023,
+   reformas rechazadas, y muchos negativos, con el mismo formato JSON que ya hay en
+   `casos/`). Lo caro es el etiquetado humano, no el código — hazlo por tandas.
 2. Con eso, medir por fin el recall real del prefiltro léxico (`pipeline/prefiltro.py`), que
    hoy solo se ha demostrado que funciona, no que tenga buen recall (aviso de S1, sigue en pie).
 3. Solo entonces, clasificador por diff (~25k, commit aparte): sin gold set no hay con qué
-   comprobar si una regla clasifica bien o mal.
+   comprobar si una regla clasifica bien o mal. Cuando exista, rellenar
+   `clasificacion_esperada` (ya está en el esquema, en `null` a propósito) y añadir el test
+   que lo compruebe.
 
 **Después:** auditoría real de las 17 fuentes autonómicas (~45k, pártelo) y panel de revisión
 con autenticación (~35k).
@@ -540,11 +552,13 @@ con autenticación (~35k).
 - **Siguiente (por orden sugerido).** El coste es contexto estimado para hacer la tarea
   entera *con verificación real*, no solo escribir el código. **Recalibrado a la baja** tras
   medir S1: casi todo cabe en una sesión.
-  1. **Gold set** (`tests/gold_set/`) — **~35k, y aun así pártelo**. Sin él la parte de IA no es
-     evaluable. No recortarlo. Lo caro no es el código sino traer y etiquetar 150-200
-     documentos históricos —eso no lo acelera el contexto—; hazlo por tandas. **Ha subido de
+  1. **Gold set** (`tests/gold_set/`) — **~30k** (bajado de 35k: el mecanismo de carga y el
+     test ya están montados, solo queda etiquetar). Sin él la parte de IA no es evaluable. No
+     recortarlo. Lo caro no es el código sino traer y etiquetar 150-200 documentos
+     históricos más —eso no lo acelera el contexto—; hazlo por tandas, con el mismo formato
+     JSON que ya hay en `casos/` (3 casos de arranque, ver bloque de arriba). **Ha subido de
      prioridad:** ahora es también lo único que puede medir el recall del prefiltro, que hoy
-     está sin medir. Empieza apartando documentos candidatos aunque no toque todavía.
+     está sin medir.
   2. **Clasificador por diff** — **~25k, commit aparte**. Depende del gold set para poder
      evaluarse, no solo escribirse. Su "cola de trabajo" ya existe sin flag nuevo: las
      `deteccion` con `clasificacion=indeterminado AND origen=heuristica AND
