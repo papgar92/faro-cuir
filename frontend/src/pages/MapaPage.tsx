@@ -2,7 +2,9 @@ import { useState } from "react";
 import { REGIONS } from "../api/mocks";
 import { ClassificationBadge } from "../components/ClassificationBadge/ClassificationBadge";
 import { DemoDataNotice } from "../components/DemoDataNotice/DemoDataNotice";
+import { CCAA_PATHS } from "../components/MapaCCAA/ccaa-paths";
 import { MapaCCAA } from "../components/MapaCCAA/MapaCCAA";
+import { Manifiesto } from "../components/Manifiesto/Manifiesto";
 import { RegionDetailPanel } from "../components/RegionDetailPanel/RegionDetailPanel";
 import { TopAlertsRanking } from "../components/TopAlertsRanking/TopAlertsRanking";
 import { ESTADO_MAPA_META, type EstadoMapa } from "../lib/classification";
@@ -25,9 +27,16 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
   const [pinned, setPinned] = useState<string | null>(null);
   const activeCode = hover ?? pinned;
   const activeRegion = activeCode ? REGIONS[activeCode] : null;
+  // Territorio dibujado en el mapa del que no hay ninguna fila. Hoy son Ceuta y
+  // Melilla. Sin esta rama, pulsarlas no hacía absolutamente nada y quedaba como
+  // un fallo de la interfaz en vez de como lo que es: un hueco de cobertura.
+  const activeSinFuente =
+    activeCode && !activeRegion ? CCAA_PATHS.find((p) => p.code === activeCode) : undefined;
 
   return (
     <main className="mx-auto max-w-[1360px] px-7 pb-2 pt-7">
+      <Manifiesto />
+
       <DemoDataNotice
         que="El estado de cada comunidad"
         depende="las detecciones validadas por comunidad (deteccion)"
@@ -37,9 +46,11 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_372px]">
         <section className="rounded border border-line bg-surface px-5 pb-2 pt-5">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
-            <h1 className="font-serif text-2xl font-bold tracking-tight text-ink">
+            {/* h2 y no h1: el h1 de la página es el titular del manifiesto, que va
+                antes. Dos h1 en la misma pantalla rompen el orden para un lector. */}
+            <h2 className="font-serif text-2xl font-bold tracking-tight text-ink">
               Estado de los derechos por comunidad autónoma
-            </h1>
+            </h2>
             <span className="text-xs text-ink-3">Ventana de evaluación: últimos 90 días</span>
           </div>
           <p className="mt-2 max-w-[64ch] text-sm text-ink-2">
@@ -52,6 +63,20 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
             {ESTADOS_LEYENDA.map((estado) => (
               <ClassificationBadge key={estado} meta={ESTADO_MAPA_META[estado]} />
             ))}
+            {/* Ceuta y Melilla se dibujan pero no tienen fuente en docs/fuentes.md.
+                Un gris igual al de "estable" diría que se han mirado y están bien. */}
+            <span className="flex items-center gap-1.5 text-xs text-ink-2">
+              <span
+                aria-hidden="true"
+                className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
+                style={{
+                  // Misma trama que el patrón SVG del mapa, con los mismos tokens.
+                  backgroundImage:
+                    "repeating-linear-gradient(45deg, var(--color-line-2) 0 1.4px, var(--color-surface-2) 1.4px 5px)",
+                }}
+              />
+              Sin fuente vigilada
+            </span>
             <span className="ml-auto font-mono text-xs text-ink-3">color + símbolo + texto</span>
           </div>
 
@@ -63,9 +88,11 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
             onPick={(code) => setPinned((prev) => (prev === code ? null : code))}
           />
 
-          <div className="flex items-center justify-between px-0.5 pb-3.5 pt-1.5 font-mono text-xs text-ink-3">
-            <span>Comunidad seleccionada: {activeRegion?.name ?? "ninguna"}</span>
-            <span>Geometría: IGN · CC BY 4.0</span>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-0.5 pb-3.5 pt-1.5 font-mono text-xs text-ink-3">
+            <span>
+              Comunidad seleccionada: {activeRegion?.name ?? activeSinFuente?.name ?? "ninguna"}
+            </span>
+            <span>Geometría: IGN · CC BY 4.0 · proyección cónica equivalente</span>
           </div>
         </section>
 
@@ -76,6 +103,21 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
               onGoArchivo={onGoArchivo}
               onGoTimeline={() => onGoTimeline(activeRegion.name)}
             />
+          ) : activeSinFuente ? (
+            <div className="p-5">
+              <h3 className="font-serif text-lg font-bold text-ink">{activeSinFuente.name}</h3>
+              <p className="mt-0.5 text-xs uppercase tracking-wide text-ink-3">Ciudad autónoma</p>
+              <p className="mt-3 text-sm leading-relaxed text-ink-2">
+                Faro Cuir todavía <strong className="font-semibold text-ink">no vigila</strong> el
+                boletín oficial de {activeSinFuente.name}. Aparece en el mapa porque el mapa tiene
+                que estar completo, y con trama porque aquí no hay nada medido: no significa que no
+                pase nada, significa que nadie está mirando.
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-ink-2">
+                Las fuentes confirmadas y las que quedan por auditar están en{" "}
+                <code className="font-mono text-[13px] text-ink">docs/fuentes.md</code>.
+              </p>
+            </div>
           ) : (
             <TopAlertsRanking regions={REGIONS} />
           )}
