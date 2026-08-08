@@ -1522,22 +1522,33 @@ abierta, hay que reiniciarla.
 - **`evaluador`** — corre el gold set y reporta recall **desglosado por eje** (7.3),
   enumerando los falsos negativos uno a uno. Un número agregado no sirve: lo que importa es
   qué se escapó y por qué eje debería haber entrado.
-- **`jurista-lgtbi`** — **creado el 2026-08-08, el único de los cuatro que existe ya.**
-  Analiza normas de los tres niveles (estatal, autonómico, provincial/local) desde el derecho
-  antidiscriminatorio y produce **reglas candidatas para el clasificador (7.6)**, informes de
-  apoyo al etiquetado del gold set y material para el gate humano.
-  **No clasifica, y eso es el diseño y no una limitación.** Lo pidió el humano como "agente que
-  analice documentos y diga si hay avance o retroceso"; así formulado contradice las reglas de
-  oro 2 y 3 y los ADR 0002 y 0004 — la CHECK `origenclasificacion` hace que el veredicto de un
-  modelo no sea ni representable en el esquema. La conversión que resuelve la necesidad sin
-  romper nada: **el conocimiento jurídico se materializa en reglas escritas y versionadas, no
-  en juicios ejecutados en el pipeline.** Ante "¿por qué el sistema dice que esto es un
-  retroceso?", la respuesta sigue siendo "por la regla R-014 sobre este fragmento archivado".
-  Tiene prohibido explícitamente etiquetar el gold set: si lo etiquetara él, el sistema se
-  mediría contra sí mismo. Solo lectura, más `WebFetch`/`WebSearch` para consultar normas.
+- **`jurista-lgtbi`** — analiza normas de los tres niveles (estatal, autonómico,
+  provincial/local) desde el derecho antidiscriminatorio. Produce **reglas candidatas para el
+  clasificador (7.6)** en el formato que 7.6 necesita, e informes de apoyo al etiquetado y al
+  gate humano. Aporta el conocimiento de dominio que no estaba escrito en ningún sitio: los
+  instrumentos por nivel (con las **bases de subvención** como vector local), diez vectores de
+  retroceso ordenados por lo silenciosos que son, y la lista de **lo que parece cambio y no lo
+  es** — que es de donde saldrían los falsos positivos del clasificador.
+
+  **Sí señala "posible retroceso, a verificar"; no emite veredictos.** La diferencia no es de
+  grado, es de naturaleza: una hipótesis va dirigida a una persona y **muere cuando esa persona
+  decide**; un veredicto se persiste, se publica y hay que poder defenderlo ante un tercero sin
+  ejecutar nuestro código. El proyecto ya tenía ese concepto en dos sitios —el estado
+  `sospecha` (7.2) y el umbral de recall alto de 7.6—, así que señalar para que alguien mire
+  encaja; lo que no cabe es que eso llegue a `deteccion` o a la API, y la CHECK
+  `origenclasificacion` lo hace cumplir.
+
+  **El riesgo que se diseñó en contra es el anclaje.** Si quien revisa lee "posible retroceso"
+  antes que el artículo, ya no lo juzga: lo confirma, y el gate humano (regla 4) se vacía. Por
+  eso el orden del informe es fijo —**texto citado → pregunta → hipótesis → qué la refutaría**—
+  y el último punto es obligatorio siempre. Eso convierte la señal de ancla en lista de
+  comprobación. También tiene prohibido etiquetar el gold set: si lo etiquetara él, el sistema
+  se mediría contra sí mismo.
 
 Ninguno de los cuatro escribe código. Su salida es un informe para la sesión principal o para
 el humano.
 
-**Estado real:** `.claude/agents/` no existía hasta el 2026-08-08. Solo está creado
-`jurista-lgtbi`; los otros tres siguen siendo especificación, no ficheros.
+**Estado: los cuatro creados el 2026-08-08.** `.claude/agents/` no existía hasta entonces —
+los tres primeros llevaban desde la revisión del 2026-08-07 descritos aquí como si existieran,
+y eran solo especificación. Ojo: **los subagentes se cargan al arrancar**, así que hay que
+reiniciar la sesión para poder usarlos.
