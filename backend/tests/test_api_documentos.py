@@ -22,7 +22,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.documentos import get_session
 from app.database import Base
 from app.main import app
-from app.models.fuente import FormatoFuente, Fuente, TipoFuente
+from app.models.fuente import AmbitoTerritorial, FormatoFuente, Fuente, TipoFuente
 from app.services import ingesta
 from app.services import prefiltro as servicio_prefiltro
 
@@ -46,6 +46,9 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
         fuente = Fuente(
             nombre="Boletín Oficial del Estado",
             tipo=TipoFuente.BOE,
+            # El BOE es la fuente estatal. NOT NULL sin valor por defecto a propósito
+            # (ADR 0014): un ámbito por defecto colaría un territorio inventado.
+            ambito_territorial=AmbitoTerritorial.ESTATAL,
             ccaa=None,
             formato=FormatoFuente.API,
             url_base="https://www.boe.es/datosabiertos/api/boe/sumario/",

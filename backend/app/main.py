@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from app.api.cobertura import router as cobertura_router
 from app.api.documentos import router as documentos_router
 from app.api.health import router as health_router
 from app.security.headers import SecurityHeadersMiddleware
@@ -23,3 +24,4 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(health_router)
 app.include_router(documentos_router)
+app.include_router(cobertura_router)

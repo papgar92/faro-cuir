@@ -24,7 +24,7 @@ from app.database import Base
 from app.llm.provider import ProveedorGuionizado
 from app.models.deteccion import Clasificacion, Deteccion, OrigenClasificacion
 from app.models.documento import Documento, EstadoPipeline
-from app.models.fuente import FormatoFuente, Fuente, TipoFuente
+from app.models.fuente import AmbitoTerritorial, FormatoFuente, Fuente, TipoFuente
 from app.models.norma import EstadoPrefiltro, Norma
 from app.services import extraccion as servicio
 
@@ -64,6 +64,9 @@ def documento(session: Session) -> Documento:
     fuente = Fuente(
         nombre="BOE",
         tipo=TipoFuente.BOE,
+        # El BOE es la fuente estatal. NOT NULL sin valor por defecto a propósito
+        # (ADR 0014): un ámbito por defecto colaría un territorio inventado en silencio.
+        ambito_territorial=AmbitoTerritorial.ESTATAL,
         ccaa=None,
         formato=FormatoFuente.API,
         url_base="https://www.boe.es/datosabiertos/api/boe/sumario/",

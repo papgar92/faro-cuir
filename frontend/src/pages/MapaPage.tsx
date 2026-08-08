@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { obtenerCobertura } from "../api/client";
 import { REGIONS } from "../api/mocks";
+import { useRecurso } from "../api/useRecurso";
 import { ClassificationBadge } from "../components/ClassificationBadge/ClassificationBadge";
 import { DemoDataNotice } from "../components/DemoDataNotice/DemoDataNotice";
 import { CCAA_PATHS } from "../components/MapaCCAA/ccaa-paths";
@@ -32,6 +34,15 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
   // un fallo de la interfaz en vez de como lo que es: un hueco de cobertura.
   const activeSinFuente =
     activeCode && !activeRegion ? CCAA_PATHS.find((p) => p.code === activeCode) : undefined;
+
+  // Cobertura real de fuentes (ADR 0014). Una sola petición para todas las comunidades y no
+  // una por selección: son 61 filas agregadas en la base, así que traerlo entero cuesta menos
+  // que ir pidiéndolo cada vez que el ratón pasa por encima de una comunidad.
+  const coberturaEstado = useRecurso((signal) => obtenerCobertura(signal), []);
+  const coberturaPorCodigo =
+    coberturaEstado.fase === "listo"
+      ? new Map(coberturaEstado.datos.por_ccaa.map((c) => [c.ccaa_codigo, c]))
+      : undefined;
 
   return (
     <main className="mx-auto max-w-[1360px] px-7 pb-2 pt-7">
@@ -100,6 +111,7 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
           {activeRegion ? (
             <RegionDetailPanel
               region={activeRegion}
+              cobertura={coberturaPorCodigo?.get(activeRegion.code)}
               onGoArchivo={onGoArchivo}
               onGoTimeline={() => onGoTimeline(activeRegion.name)}
             />

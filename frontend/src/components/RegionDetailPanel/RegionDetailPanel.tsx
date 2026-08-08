@@ -1,15 +1,29 @@
+import type { CoberturaCcaaApi } from "../../api/client";
 import type { RegionSummary } from "../../api/mocks";
 import { COLOR_CLASSES, ESTADO_MAPA_META } from "../../lib/classification";
 import { ClassificationBadge } from "../ClassificationBadge/ClassificationBadge";
+import { CoberturaCcaa } from "../CoberturaCcaa/CoberturaCcaa";
 
 interface RegionDetailPanelProps {
   region: RegionSummary;
+  /**
+   * Cobertura real de fuentes de esta comunidad (ADR 0014). `undefined` mientras la petición
+   * está en vuelo o si la API no responde: en ese caso no se pinta el bloque, en vez de
+   * pintar ceros. Un cero inventado aquí diría "no vigilamos nada", que es una afirmación
+   * distinta de "todavía no lo sé".
+   */
+  cobertura?: CoberturaCcaaApi;
   onGoArchivo: () => void;
   onGoTimeline: () => void;
 }
 
 /** Resumen de la comunidad activa (hover o pin) en el sidebar del mapa. */
-export function RegionDetailPanel({ region, onGoArchivo, onGoTimeline }: RegionDetailPanelProps) {
+export function RegionDetailPanel({
+  region,
+  cobertura,
+  onGoArchivo,
+  onGoTimeline,
+}: RegionDetailPanelProps) {
   const meta = ESTADO_MAPA_META[region.state];
   const colors = COLOR_CLASSES[meta.color];
   const hasChange = Boolean(region.title);
@@ -32,11 +46,12 @@ export function RegionDetailPanel({ region, onGoArchivo, onGoTimeline }: RegionD
             {region.alerts}
           </dd>
         </div>
-        <div className="flex items-baseline justify-between gap-3 border-b border-line py-2.5">
-          <dt className="text-xs text-ink-2">Documentos vigilados</dt>
-          <dd className="m-0 font-mono text-sm text-ink">{region.sources}</dd>
-        </div>
       </dl>
+
+      {/* Cobertura real, medida contra la tabla `fuente`. Va justo debajo de las cifras
+          inventadas y encima del "último cambio" a propósito: es lo único de este panel que
+          no es una maqueta, y da la escala de lo que el resto todavía no puede afirmar. */}
+      <CoberturaCcaa cobertura={cobertura} />
 
       <div className="mt-4">
         <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">

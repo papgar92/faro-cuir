@@ -121,3 +121,36 @@ export function obtenerDocumento(
 ): Promise<DocumentoDetalleApi> {
   return pedir<DocumentoDetalleApi>(`/api/documentos/${id}`, signal);
 }
+
+// --- Cobertura de fuentes (ADR 0014) ---------------------------------------------------
+//
+// Espejo de `backend/app/schemas/cobertura.py`. Es el único endpoint de la API que publica
+// un hueco en vez de un dato: cuántos boletines oficiales existen frente a cuántos se están
+// leyendo de verdad. `conocidas` y `vigiladas` van siempre juntas a propósito — un solo
+// número dejaría leer "8 fuentes" como si fueran ocho fuentes vigiladas.
+
+export type AmbitoTerritorial = "estatal" | "autonomico" | "provincial" | "local";
+
+export interface CoberturaNivelApi {
+  ambito: AmbitoTerritorial;
+  conocidas: number;
+  vigiladas: number;
+}
+
+export interface CoberturaCcaaApi {
+  ccaa_codigo: string;
+  ccaa: string;
+  niveles: CoberturaNivelApi[];
+  conocidas: number;
+  vigiladas: number;
+}
+
+export interface CoberturaApi {
+  conocidas: number;
+  vigiladas: number;
+  por_ccaa: CoberturaCcaaApi[];
+}
+
+export function obtenerCobertura(signal?: AbortSignal): Promise<CoberturaApi> {
+  return pedir<CoberturaApi>("/api/cobertura", signal);
+}

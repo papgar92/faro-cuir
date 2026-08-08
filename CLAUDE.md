@@ -808,10 +808,34 @@ revisión con autenticación (~35k).
     confirmadas**. La de Barcelona lleva una advertencia que puede descartarla: hay indicios
     de que su XML solo está el día de publicación, lo que impediría reingerir histórico y
     chocaría con la idempotencia por `sha256`.
-  - **Lo que falta y es lo siguiente de esta línea:** `fuente` necesita `ambito_territorial`
-    (estatal|autonomico|provincial|local) y `provincia` + migración, sembrar las 43 con
-    `activa=false`, y el desglose por nivel al pinchar una CCAA en el mapa (que es como lo
-    pidió el humano: agrupado, sin obligar a ampliar el mapa). **~20k.**
+  - ~~**Lo que falta:** modelo, migración y desglose~~ — **HECHO en la misma sesión.**
+    - `fuente` gana `ambito_territorial`, `provincia` y `ccaa_codigo`. El ámbito es un **eje
+      independiente de `tipo`** y por eso columna aparte: el caso que lo justifica son las 7
+      CCAA uniprovinciales, donde una sola fuente es a la vez `boletin_autonomico` y la vía
+      por la que publican sus ayuntamientos. `ccaa_codigo` (ISO 3166-2:ES) existe porque
+      cruzar por el nombre visible es como se consiguen los fallos silenciosos: "Euskadi" en
+      la interfaz y "País Vasco" en la auditoría no cruzan, y el desglose no falla — enseña
+      cero. Hay un test que cruza los códigos sembrados contra los del mapa.
+    - **`formato` pasa a nullable.** No es relajar por comodidad: de los 43 se conoce nombre y
+      URL, no el formato. Poner "html" en 43 filas porque es lo más probable sería inventarlo
+      (regla 8) y quedaría indistinguible de un dato auditado. NULL = "no comprobado".
+    - **Migración escrita a mano, no autogenerada.** Tocaba dos CHECK, así que era justo la
+      ocasión de que el autogenerate volviera a proponer borrar CHECKs ajenas por quinta vez.
+      A mano el problema no puede ni presentarse. **Verificado con `psql` tras aplicar: 12
+      CHECK, y `origenclasificacion` sigue viva.**
+    - `GET /api/cobertura`: agrega en SQL y publica `conocidas` y `vigiladas` **siempre
+      juntas**. Un único número dejaría leer "8 fuentes" como ocho fuentes vigiladas.
+    - `CoberturaCcaa` en el panel de la comunidad, como lo pidió el humano: agrupado al
+      seleccionar, sin obligar a ampliar el mapa. Hoy dice, para todas, "0 de N". **Está bien
+      que lo diga**: el proyecto denuncia decisiones tomadas en silencio, así que no puede
+      tener su propia cobertura en silencio. Sustituye a la fila "Documentos vigilados", que
+      era un mock (`"BOJA · Parlamento"`).
+    - **Regresión propia, encontrada y arreglada:** `ambito_territorial` es NOT NULL sin valor
+      por defecto, y eso rompió 4 fixtures y un INSERT en SQL crudo (36 tests en rojo). No se
+      arregló poniéndole un default al modelo —colaría un territorio inventado en silencio—
+      sino declarando el ámbito en cada fixture.
+    - **250 tests en verde**, ruff y mypy limpios. Verificado en navegador: Andalucía 0 de 8,
+      Castilla y León 0 de 9, y Madrid —uniprovincial— **no inventa un nivel provincial**.
   - **V1 no se mueve de fecha.** Entra la estructura y **un** BOP de punta a punta; los 42
     restantes son hoja de ruta declarada. Y antes de activar el segundo, repetir la medición
     del ADR 0011 sobre el primero: el cuello de botella no es la descarga, es la cola del LLM

@@ -192,8 +192,9 @@ def test_el_historico_de_versiones_no_se_puede_alterar(operacion: str) -> None:
         with engine.begin() as conexion:  # type: ignore[attr-defined]
             conexion.execute(
                 text(
-                    "INSERT INTO fuente (nombre, tipo, formato, url_base, activa) "
-                    "VALUES ('tmp-test', 'boe', 'api', 'https://x', true)"
+                    "INSERT INTO fuente "
+                    "(nombre, tipo, ambito_territorial, formato, url_base, activa) "
+                    "VALUES ('tmp-test', 'boe', 'estatal', 'api', 'https://x', true)"
                 )
             )
             conexion.execute(

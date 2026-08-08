@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.database import Base
 from app.models.documento import Documento, EstadoPipeline
-from app.models.fuente import FormatoFuente, Fuente, TipoFuente
+from app.models.fuente import AmbitoTerritorial, FormatoFuente, Fuente, TipoFuente
 from app.security import hashing
 from app.services import ingesta
 
@@ -48,6 +48,9 @@ def fuente_boe(session: Session) -> Fuente:
     fuente = Fuente(
         nombre="Boletín Oficial del Estado",
         tipo=TipoFuente.BOE,
+        # El BOE es la fuente estatal. NOT NULL sin valor por defecto a propósito
+        # (ADR 0014): un ámbito por defecto colaría un territorio inventado en silencio.
+        ambito_territorial=AmbitoTerritorial.ESTATAL,
         ccaa=None,
         formato=FormatoFuente.API,
         url_base="https://www.boe.es/datosabiertos/api/boe/sumario/",
