@@ -658,6 +658,47 @@ Dos cosas, siempre:
      tests, migración si toca y verificación en navegador o curl- ronda los **15-30k**. Si te
      sale más de 50k, sospecha de la estimación antes que del alcance. -->
 
+### ⇨ PLAN A V1 — pedido por el humano el 2026-08-08, fecha objetivo **2026-08-22**
+
+Dos semanas. Lo que sigue es el recorte que hace que quepa; si el humano quiere otro, manda él.
+
+**Qué es V1, en una frase:** el pipeline entero funcionando de punta a punta **sobre el BOE**,
+con su recall medido, su clasificación auditable, su gate humano y su canal de difusión. No es
+"más fuentes": es que lo que hay esté cerrado y demostrable. Coincide con la sección 1 — el
+tribunal puntúa el rigor, no el número de features.
+
+**Dentro de V1** (en orden; el coste es el de la lista de "Siguiente", ya recalibrado):
+
+| # | Tarea | ~Coste | Por qué es imprescindible |
+|---|---|---|---|
+| 1 | 0.b vocabulario + `sospecha` | 15k | Define qué se etiqueta. Va antes del gold set o se etiqueta dos veces. |
+| 2 | 0.c worker descarga el día entero | 15k | Implementa el ADR 0011. Sin esto la fase 2 no existe. |
+| 3 | Gold set **recortado a 60-80 documentos** | 20k | Ver el aviso de abajo. |
+| 4 | Clasificador por diff | 25k | Es la etapa que falta para que el pipeline llegue al final. |
+| 5 | Offsets en la extracción | 20k | Regla de oro 9. No es opcional, es una regla no negociable. |
+| 6 | Panel de revisión con autenticación | 35k | Regla de oro 4: sin gate humano no se puede emitir **ninguna** alerta. |
+| 7 | Migrar Mapa y Alertas a la API | 20k | Es lo que quita el cartel de "datos de ejemplo" de la portada. |
+| 8 | Canal pull (RSS/Atom) + ADR 0010 | 15k | Difusión sin lista de suscriptores, y simplifica la EIPD en vez de complicarla. |
+| 9 | `docs/eipd.md` | 25k | Único hueco de seguridad sin desarrollar. Se puede cerrar en cuanto exista el 8. |
+
+**Fuera de V1, y son recortes conscientes:**
+- **Auditoría de las 17 fuentes autonómicas (~45k).** Es el recorte grande y el que más
+  tiempo libera. La sección 8 ya autoriza documentar el resto como hoja de ruta, y frente al
+  tribunal compra menos que tener el pipeline entero cerrado sobre el BOE.
+- **Provincias y localidades en el mapa.** Ver el estado del backlog más abajo: hace falta
+  geometría nueva y, sobre todo, no hay dato provincial que pintar.
+- **Difusión** (GitHub público, LinkedIn, asociaciones). Es post-V1 y son acciones del humano,
+  no del agente.
+
+**El riesgo real del plazo no es el código, es el etiquetado a mano del gold set.** Por eso
+baja de 150-200 documentos a 60-80: es lo que cabe en dos semanas de trabajo humano a ratos.
+**Consecuencia que hay que escribir y no maquillar:** con 60-80 documentos el recall se puede
+medir, pero con un intervalo de confianza ancho. Se publica el número **con su intervalo y con
+el tamaño de la muestra**, nunca el número solo. Ampliar el corpus es lo primero que se hace
+después de V1.
+
+---
+
 ### ⇨ EMPIEZA AQUÍ (próxima sesión)
 
 **Orden obligatorio, y ha cambiado con la revisión de 2026-08-07.** El gold set sigue siendo
@@ -733,7 +774,64 @@ revisión con autenticación (~35k).
 ---
 
 - **Semana actual:** S1 / backend y seguridad — en curso. Repo arrancado el **2026-08-04**.
-- **Hecho en S1 (último trabajo): medido el volumen de la fase 2 y fijado su umbral (ADR
+- **Hecho en S1 (último trabajo, 2026-08-08): segunda versión del frontend — mapa real y
+  texto reivindicativo. Cuatro puntos del backlog del humano (sección 12) cerrados.**
+  - **La geometría del mapa se genera, ya no se hereda.** `frontend/scripts/generar_mapa.py`
+    lee el TopoJSON del IGN que ya estaba versionado en `_design-export/data/` y emite
+    `ccaa-paths.ts`. Los tres defectos que reportó el humano —Canarias mal colocada, sin
+    zoom, sin ciudades autónomas— eran **defectos de proyección**, y una proyección no se
+    arregla moviendo números a mano en un fichero de 58 KB. Ahora se cambia el script y se
+    vuelve a ejecutar. **No lo importa nada en tiempo de ejecución y no corre en el build.**
+  - Cuatro decisiones cartográficas, todas escritas en el encabezado del script: proyección
+    **cónica equivalente de Albers** (conserva superficie — en un mapa donde el color es el
+    dato, una proyección que agrande unas comunidades sesga la lectura antes de la leyenda);
+    **Canarias en recuadro a la misma escala** que la península, con el recuadro
+    dimensionado a partir de las islas y no al revés (hay un guardarraíl que aborta la
+    generación si el inset pisa la península: la que cede es la caja, nunca la escala);
+    **Ceuta y Melilla en su posición real** con un anillo de tamaño constante en pantalla
+    como objetivo de ratón y teclado —miden 19 y 12 km², su polígono real es menos de un
+    píxel—; y **Gibraltar excluido** a propósito, con el motivo escrito: no tiene boletín
+    que vigilar.
+  - **Zoom y desplazamiento** (`useZoomMapa.ts`): botones, doble clic, arrastre y teclado
+    (`+`, `−`, `0`, flechas), hasta ×12, sobre el `viewBox` y no con `transform: scale()`
+    para que los objetivos de foco sigan siendo los `<path>`. **No captura la rueda del
+    ratón** a propósito: un mapa embebido que se traga el scroll de la página es una trampa
+    de usabilidad conocida. La vista se recorta al lienzo, así que no se puede arrastrar
+    hasta un rectángulo vacío sin saber volver.
+  - **Texto reivindicativo** (`components/Manifiesto/`), primer punto del backlog y el único
+    que era contenido y no código. Resuelve la tensión de frente en vez de esquivarla: el
+    proyecto **es** reivindicativo, el sistema **no opina** (reglas 2 y 3). La reivindicación
+    está en por qué existe la herramienta; la neutralidad, en lo que la herramienta afirma.
+    Por eso "Lo que no hace" tiene el mismo peso visual que el resto y no va en letra pequeña
+    al pie. **Sin una sola cifra**, y hay una comprobación que falla si aparece alguna: no hay
+    ni un dato del pipeline todavía.
+  - **Ceuta y Melilla se pintan con trama, no con un gris.** No tienen fuente en
+    `docs/fuentes.md`, así que no tienen estado. Pintarlas del gris de "estable" habría dicho
+    que se han mirado y están bien. La trama es la convención de "sin datos" y además
+    sobrevive a la impresión y a la visión de color reducida. Al seleccionarlas, el panel
+    lateral dice literalmente que nadie está mirando ahí; antes no pasaba nada al pulsarlas.
+    **Esto es una decisión de alcance que el humano tiene pendiente: ver el aviso más abajo.**
+  - **Dos fallos reales encontrados al verificar, que ningún test unitario habría visto:**
+    (1) `Entidad` estaba definida dentro del render, así que era un tipo nuevo en cada pasada
+    y React desmontaba el subárbol — **se perdía el foco del teclado** justo al enfocar una
+    comunidad, porque enfocarla cambia el estado del padre. Pasa a función plana. (2) `onFocus`
+    fijaba el resaltado pero no había `onBlur`: salir del mapa con el tabulador dejaba el panel
+    mostrando la última comunidad como si estuviera fijada, sin forma de soltarla sin ratón.
+  - De paso: `/favicon.ico` devolvía **404 en cada carga**. Icono en línea como data URI en
+    `index.html` (las franjas de la bandera trans, los mismos colores del encabezado): sin
+    fichero binario y sin petición extra.
+  - **Verificado en navegador de verdad**: 37 comprobaciones sobre el DOM real contra el
+    frontend servido por Vite —proyección, posiciones relativas (Ceuta al sur de Andalucía,
+    Melilla al este de Ceuta), Canarias dentro de su marco, Gibraltar ausente, topes del zoom,
+    relación de aspecto, teclado, arrastre que no selecciona lo de debajo, consola sin
+    errores—. `tsc` y `vite build` limpios. **Backend sin tocar en esta sesión.**
+  - Tolerancia de simplificación en 0,18 px: por debajo no se gana detalle porque el límite
+    lo pone la cuantización del propio TopoJSON (~200 m), no el algoritmo. 72 KB, 6.053
+    vértices, 19 entidades.
+  - **Sin ADR**: los números 0010, 0012 y 0013 están reservados en la sección 9 y esto es
+    cartografía de frontend, no arquitectura. Las decisiones viven en el encabezado del
+    script, que es donde se van a leer cuando alguien quiera cambiarlas.
+- **Hecho en S1: medido el volumen de la fase 2 y fijado su umbral (ADR
   0011). Tarea 0.a cerrada.**
   - `backend/scripts/medir_fase2.py` — script de medición, **no es código de producción y
     nadie del pipeline lo importa**. Está en el repo y no en el scratchpad porque sus números
@@ -1029,11 +1127,28 @@ revisión con autenticación (~35k).
     porque el documento hace falta igualmente (la fecha, el hash y el sello son suyos). Si
     algún día hay muchos documentos ingeridos, lo que se queda corto primero es que
     `GET /api/documentos/{id}` devuelva las ~250 normas de golpe, no la pantalla.
-  - Sección 12: el backlog del humano sigue **sin tocar salvo un punto**, que ha caído de
-    paso: el ancla muerta `#fuente` de "Datos / navegación" ya apunta al texto real. El
-    mapa (Canarias, zoom, provincias, Ceuta y Melilla), el texto reivindicativo y la
-    difusión siguen pendientes tal cual se pidieron. La entrada del backlog **no** se ha
-    editado: el backlog es del humano.
+  - Sección 12, estado del backlog del humano tras la sesión del **2026-08-08**. La entrada
+    de la sección 12 **no** se edita: el backlog es del humano y se anota aquí.
+    - ~~Ancla muerta `#fuente`~~ — hecha antes.
+    - ~~Texto reivindicativo~~ — hecho (`components/Manifiesto/`).
+    - ~~Canarias mal renderizada~~ — hecha. Ya no es un offset manual: se proyecta.
+    - ~~Mapa ampliable (zoom)~~ — hecho, hasta ×12.
+    - ~~Faltan las ciudades autónomas~~ — hecha. Con la salvedad de alcance de abajo.
+    - **Provincias y localidades — NO hecho, y hay que decidirlo, no solo programarlo.**
+      Dos motivos, ninguno es pereza: (1) el TopoJSON que hay en el repo **solo trae CCAA**,
+      así que hace falta geometría nueva de fuente oficial y la regla de oro 8 prohíbe
+      inventar límites; (2) más importante, **no hay dato provincial que pintar**: en España
+      legislan el Estado y las CCAA, las provincias no tienen competencia normativa, así que
+      un mapa provincial sería resolución cartográfica sin nada detrás. El zoom, que es lo
+      que el humano pedía para "afinar", ya está. **Preguntar antes de invertir en esto.**
+    - Difusión (GitHub, LinkedIn, asociaciones) — pendiente, y sigue fuera del backlog
+      automático por la regla de la sección 13.3.
+  - **Decisión de alcance pendiente para el humano: Ceuta y Melilla.** El mapa ya las dibuja
+    porque un mapa de España sin ellas está mal, pero **no están en el alcance vigilado**: la
+    sección 1 dice "17 CCAA + BOE" y `docs/fuentes.md` no las incluye. Hoy salen con trama de
+    "sin fuente vigilada", que es honesto y no cuesta nada. Las dos opciones son añadir BOCCE
+    y BOME a `docs/fuentes.md` (2 fuentes más que auditar, ~5k) o dejarlas declaradas como
+    hueco de cobertura. **No se decide sin el humano porque cambia el alcance del proyecto.**
 - **Último cierre:** `pip-audit` en CI (rompe el job ante un CVE, transitivas incluidas) y
   las variables del LLM documentadas en `.env.example` — donde se dice explícitamente que la
   ausencia de clave de API **no es un olvido**. La primera ejecución de la auditoría encontró
