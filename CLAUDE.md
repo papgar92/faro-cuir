@@ -1179,8 +1179,25 @@ revisión con autenticación (~35k).
   - La verificación en navegador se hace con `npx playwright` (ya disponible, con chromium
     descargado). Los guiones de comprobación viven en el scratchpad de la sesión, no en el
     repo: si hacen falta otra vez, se reescriben, son treinta líneas.
-- **Deuda conocida:** `tests/test_health.py` necesita un Postgres accesible; en local falla
-  con 503 si no está levantado el `docker compose`. No es regresión de S1.
+- ~~**Deuda conocida:** `tests/test_health.py` necesita un Postgres accesible~~ — **resuelta
+  el 2026-08-08.** No era un fallo del código: la aplicación respondía correctamente que no
+  alcanzaba la base, y el test lo traducía a `assert 503 == 200`, un rojo que acusa al código
+  de algo que no ha hecho. Un rojo permanente que todo el mundo sabe saltar deja de avisar de
+  nada. Ahora **se salta con el motivo y el remedio escritos** si no hay Postgres alcanzable,
+  y se exige el 200 si lo hay. Se añadió además el test que faltaba y que es el que de verdad
+  importa en un healthcheck: que **degrada a 503** cuando no puede leer — un endpoint que
+  devolviera 200 siempre pasaría el test antiguo, y de este healthcheck cuelgan el
+  `depends_on: service_healthy` del compose y la exención del limitador.
+  Dos detalles medidos, no supuestos: la sonda de disponibilidad lleva `connect_timeout` (sin
+  él tardaba **4 minutos** en decidir saltar, porque fuera de docker `DATABASE_URL` apunta a
+  `db`, que no resuelve), y el test de degradación también (conectar al puerto 1 en Windows
+  tarda **130 s** en reintentos de SYN en vez de recibir un RST). 134 s → 5,4 s.
+- **Cómo se ejecuta la suite, y no es indiferente:** el entorno de referencia es **el
+  contenedor**, que es lo que corre el CI: `docker compose exec backend python -m pytest`
+  (243 en verde, 11 s). Desde el host, `backend/.venv-local/` (gitignored) sirve para todo lo
+  que no toca la base, pero **`DATABASE_URL` apunta a `db`**, que solo resuelve dentro de la
+  red de compose, así que los tests de base de datos se saltan. No los des por pasados por
+  haberlos visto en verde en el host.
 
 ---
 

@@ -9,6 +9,9 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+# Entorno de conveniencia para ejecutar la suite desde el host sin Docker. NO es el
+# entorno de referencia: el de referencia es el contenedor, que es lo que corre el CI.
+.venv-local/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
