@@ -1522,6 +1522,22 @@ abierta, hay que reiniciarla.
 - **`evaluador`** — corre el gold set y reporta recall **desglosado por eje** (7.3),
   enumerando los falsos negativos uno a uno. Un número agregado no sirve: lo que importa es
   qué se escapó y por qué eje debería haber entrado.
+- **`jurista-lgtbi`** — **creado el 2026-08-08, el único de los cuatro que existe ya.**
+  Analiza normas de los tres niveles (estatal, autonómico, provincial/local) desde el derecho
+  antidiscriminatorio y produce **reglas candidatas para el clasificador (7.6)**, informes de
+  apoyo al etiquetado del gold set y material para el gate humano.
+  **No clasifica, y eso es el diseño y no una limitación.** Lo pidió el humano como "agente que
+  analice documentos y diga si hay avance o retroceso"; así formulado contradice las reglas de
+  oro 2 y 3 y los ADR 0002 y 0004 — la CHECK `origenclasificacion` hace que el veredicto de un
+  modelo no sea ni representable en el esquema. La conversión que resuelve la necesidad sin
+  romper nada: **el conocimiento jurídico se materializa en reglas escritas y versionadas, no
+  en juicios ejecutados en el pipeline.** Ante "¿por qué el sistema dice que esto es un
+  retroceso?", la respuesta sigue siendo "por la regla R-014 sobre este fragmento archivado".
+  Tiene prohibido explícitamente etiquetar el gold set: si lo etiquetara él, el sistema se
+  mediría contra sí mismo. Solo lectura, más `WebFetch`/`WebSearch` para consultar normas.
 
-Ninguno de los tres escribe código. Su salida es un informe para la sesión principal o para
+Ninguno de los cuatro escribe código. Su salida es un informe para la sesión principal o para
 el humano.
+
+**Estado real:** `.claude/agents/` no existía hasta el 2026-08-08. Solo está creado
+`jurista-lgtbi`; los otros tres siguen siendo especificación, no ficheros.
