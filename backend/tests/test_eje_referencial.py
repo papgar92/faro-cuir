@@ -54,6 +54,38 @@ XML_CON_ANALISIS = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
+# Códigos ISO 3166-2:ES de las 17 comunidades autónomas. Los mismos que usa el mapa del
+# frontend (`ccaa-paths.ts`), a propósito: si algún día divergen, el desglose de cobertura de la
+# interfaz dejaría de cruzar con la watchlist y no fallaría — enseñaría cero.
+CCAA = {
+    "AN",
+    "AR",
+    "AS",
+    "CB",
+    "CL",
+    "CM",
+    "CN",
+    "CT",
+    "EX",
+    "GA",
+    "IB",
+    "MC",
+    "MD",
+    "NC",
+    "PV",
+    "RI",
+    "VC",
+}
+
+
+def _watchlist_real():  # type: ignore[no-untyped-def]
+    """La watchlist versionada del proyecto, o salta si `config/` no está montado."""
+    real = Path("/config/watchlist.json")
+    if not real.is_file():  # pragma: no cover - fuera de docker
+        pytest.skip("config/ no está montado en este entorno")
+    return cargar(real)
+
+
 @pytest.fixture
 def lista_de_prueba(tmp_path: Path):  # type: ignore[no-untyped-def]
     """Watchlist propia, para no atar los tests al contenido de `config/watchlist.json`.
@@ -195,14 +227,43 @@ class TestWatchlist:
         Sin este test, un error de sintaxis al añadir una norma vigilada no se descubriría
         hasta la siguiente pasada del worker en producción.
         """
-        real = Path("/config/watchlist.json")
-        if not real.is_file():  # pragma: no cover - fuera de docker
-            pytest.skip("config/ no está montado en este entorno")
-        lista = cargar(real)
+        lista = _watchlist_real()
         assert lista.version
         assert lista.normas
         # La norma central del ámbito no puede faltar: es el positivo conocido del gold set.
         assert lista.contiene("BOE-A-2023-5366")
+
+    def test_cubre_las_17_comunidades(self) -> None:
+        """Auditoría de cobertura, cerrada el 2026-08-08 verificando una a una contra boe.es.
+
+        **Este es el test que convierte la watchlist en algo auditable.** Sin él, que falte la
+        ley de una comunidad entera no se distingue de que esa comunidad no tenga ley — y esas
+        dos cosas se parecen mucho mirando el fichero, pero una es un agujero de cobertura y la
+        otra es un dato. Cada una de las 17 tiene que estar en un sitio o en el otro.
+        """
+        lista = _watchlist_real()
+        con_ley = {n.ambito for n in lista.normas if n.ambito and n.ambito != "estatal"}
+        sin_ley = set(lista.sin_ley)
+
+        assert not (con_ley & sin_ley), "una comunidad no puede tener ley y no tenerla"
+        faltan = CCAA - con_ley - sin_ley
+        assert not faltan, f"comunidades sin auditar: {sorted(faltan)}"
+        sobran = (con_ley | sin_ley) - CCAA
+        assert not sobran, f"códigos que no son de ninguna comunidad: {sorted(sobran)}"
+
+    def test_asturias_y_castilla_y_leon_siguen_sin_ley(self) -> None:
+        """Verificado el 2026-08-08: son las dos únicas comunidades sin ley autonómica LGTBI.
+
+        Este test **está pensado para fallar algún día**, y ese día será una buena noticia:
+        Asturias aprobó un anteproyecto el 2026-03-09. Cuando se publique, hay que añadir su
+        `BOE-A` a `normas` y quitarla de `_sin_ley_autonomica`, y este test lo recuerda.
+        """
+        assert set(_watchlist_real().sin_ley) == {"AS", "CL"}
+
+    def test_no_hay_normas_sin_ambito(self) -> None:
+        """Sin ámbito no se puede comprobar la cobertura, y el test de arriba se volvería ciego."""
+        huerfanas = [n.identificador for n in _watchlist_real().normas if not n.ambito]
+        assert not huerfanas, huerfanas
 
 
 class TestEjeReferencialEnElPrefiltro:

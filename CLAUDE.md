@@ -822,16 +822,29 @@ revisión con autenticación (~35k).
   - **La watchlist falla ruidosamente** si falta, está vacía o trae un identificador con
     formato inválido. Vacía no rompe nada: apaga el eje en silencio, que es el fallo que había
     que hacer imposible.
-  - **13 normas verificadas una a una contra el BOE**: 4 estatales y **9 autonómicas de 7
-    comunidades**. En la primera versión solo estaban las 4 estatales porque se dio por hecho
-    —mal— que las autonómicas usaban identificadores de su propio boletín.
-    **Corrección verificada el 2026-08-08: las leyes autonómicas se publican TAMBIÉN en el BOE
-    y tienen su propio `BOE-A`.** No hace falta aprender el esquema de cada boletín autonómico
-    para vigilar sus leyes; eso desbloqueó la parte más valiosa de la lista sin trabajo nuevo.
-    Dos trampas que salieron al verificar y que están anotadas: **desfase de año** (la Ley
-    8/2017 de Andalucía es `BOE-A-2018-1549`) y **números de ley repetidos entre comunidades**
-    (Murcia y Baleares tienen las dos una "Ley 8/2016", con tres días de diferencia). Cruzar
-    por número de ley habría fallado en ambos.
+  - **AUDITORÍA DE LAS 17 CCAA CERRADA. 21 normas verificadas una a una contra boe.es**: 4
+    estatales y **17 leyes de 15 comunidades**. En la primera versión solo estaban las 4
+    estatales porque se dio por hecho —mal— que las autonómicas usaban identificadores de su
+    propio boletín. **Corrección verificada: las leyes autonómicas se publican TAMBIÉN en el
+    BOE y tienen su propio `BOE-A`.** No hace falta auditar el esquema de identificación de
+    ningún boletín autonómico para vigilar sus leyes.
+  - **Asturias y Castilla y León son las dos únicas CCAA sin ley autonómica LGTBI**, y eso está
+    **verificado, no es un hueco de la auditoría**. Van en `_sin_ley_autonomica` con su motivo,
+    porque "no está en la lista" y "no existe la norma" se parecen mucho mirando el fichero y
+    son cosas distintas. Asturias aprobó un **anteproyecto el 2026-03-09**; hay un test que
+    falla cuando eso cambie, y ese día será una buena noticia.
+  - **Tres trampas encontradas al verificar, las tres romperían cualquier atajo:** **desfase de
+    año** (Ley 8/2017 de Andalucía → `BOE-A-2018-1549`; 18/2018 de Aragón → `BOE-A-2019-2712`;
+    23/2018 valenciana → `BOE-A-2019-281`), **números de ley repetidos entre comunidades**
+    (Murcia y Baleares tienen las dos una "Ley 8/2016", con tres días de diferencia), y por
+    tanto **cruzar por número de ley en vez de por identificador habría fallado**.
+  - **`PATRON_IDENTIFICADOR` admite ahora minúscula en la letra del medio.** Al auditar apareció
+    que el BOE indexa documentos de boletines autonómicos como `DOG-g-2015-90667` o
+    `BON-n-2017-90393`. Hoy la watchlist solo usa `BOE-A`, pero rechazar ese formato haría que
+    el día que se ingieran boletines autonómicos el eje dejara de cruzar **en silencio**.
+  - **Test de cobertura de las 17**: cada comunidad tiene que estar o en `normas` o en
+    `_sin_ley_autonomica`, sin solaparse y sin sobrar códigos. Es lo que convierte la watchlist
+    en algo auditable en vez de una lista que crece a ojo.
   - **Limitación del eje, escrita en el propio fichero porque es donde duele:** lee el
     `<analisis>` del BOE, así que **no ve un decreto u orden autonómica que modifique la ley de
     su comunidad** — eso no llega al BOE. Es exactamente el retroceso de rango bajo de la

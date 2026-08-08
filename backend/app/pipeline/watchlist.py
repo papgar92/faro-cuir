@@ -2,12 +2,11 @@
 
 Módulo **puro**: no toca la base de datos ni la red. Solo lee un fichero versionado del repo.
 
-Sobre el formato, que tiene una explicación y no es un descuido: `config/watchlist.json` está
-escrito en **JSON, que es un subconjunto válido de YAML**, y se parsea con el `json` de la
-biblioteca estándar. El nombre lo fija CLAUDE.md sección 4 y la prohibición de dependencias
-nuevas para la watchlist la fija la sección 3; escribir un parser propio de YAML en un
-proyecto de seguridad sería peor que cualquiera de las dos cosas. Si algún día entra PyYAML,
-el fichero sigue siendo válido sin tocarlo.
+Formato JSON leído con la biblioteca estándar: CLAUDE.md sección 3 prohíbe dependencias nuevas
+para la watchlist. JSON no admite comentarios, así que cada entrada lleva un campo `nota` — que
+además es mejor que un comentario, porque la justificación viaja *con* el dato y se puede
+validar y mostrar. (El fichero se llamó `.yaml` un rato, conteniendo JSON; se renombró porque
+una extensión que miente sobre su contenido es peor que cualquiera de los dos formatos.)
 
 **El identificador se valida antes de cruzarlo y nunca se usa para construir una URL**
 (CLAUDE.md 6.10): lo que sale de un documento externo es dato, jamás una instrucción.
@@ -18,16 +17,24 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-# Identificador de norma tal como lo publica el BOE: BOE-A-2023-5366. Se acepta un prefijo de
-# boletín de 2 a 6 letras para dejar sitio a los autonómicos sin abrir la puerta a cualquier
-# cosa. **Anclado por los dos extremos**: sin el ancla final, "BOE-A-2023-5366/../../etc" pasa
-# la validación, y aunque hoy ese valor no se use para construir ninguna ruta, la garantía de
-# 6.10 tiene que estar en el validador y no en la buena costumbre de quien lo consuma.
-PATRON_IDENTIFICADOR = re.compile(r"^[A-Z]{2,6}-[A-Z]-\d{4}-\d{1,7}$")
+# Identificador de norma tal como lo publica el BOE: BOE-A-2023-5366.
+#
+# La letra del medio admite **minúscula**, y no es una relajación gratuita: al auditar las 17
+# CCAA (2026-08-08) apareció que el BOE también indexa documentos de boletines autonómicos con
+# identificadores del tipo `DOG-g-2015-90667` (Diario Oficial de Galicia) o `BON-n-2017-90393`
+# (Boletín Oficial de Navarra), con la letra central en minúscula. Hoy la watchlist solo usa
+# `BOE-A`, pero rechazar esos formatos significaría que el día que se ingieran boletines
+# autonómicos el eje dejaría de cruzar **en silencio** — que es el modo de fallo que este
+# módulo existe para evitar.
+#
+# **Anclado por los dos extremos**: sin el ancla final, "BOE-A-2023-5366/../../etc" pasa la
+# validación, y aunque hoy ese valor no se use para construir ninguna ruta, la garantía de 6.10
+# tiene que estar en el validador y no en la buena costumbre de quien lo consuma.
+PATRON_IDENTIFICADOR = re.compile(r"^[A-Z]{2,6}-[A-Za-z]-\d{4}-\d{1,7}$")
 
 # Rutas donde buscar, en orden. Dentro de docker el repo no está montado entero (solo
 # `backend/`), así que `config/` se monta aparte en `/config`; fuera de docker se resuelve
@@ -53,12 +60,20 @@ class NormaVigilada:
     identificador: str
     titulo: str
     nota: str
+    # "estatal" o el código ISO 3166-2:ES de la comunidad ("MD", "CT"...). Permite comprobar la
+    # cobertura por comunidad, que es lo que convierte esta lista en algo auditable: sin él, que
+    # falte la ley de una CCAA entera no se distingue de que esa CCAA no tenga ley.
+    ambito: str = ""
 
 
 @dataclass(frozen=True)
 class Watchlist:
     version: str
     normas: tuple[NormaVigilada, ...]
+    # Comunidades que NO tienen ley autonómica, con el motivo. **Es información, no un hueco.**
+    # Sin esto, "Castilla y León no está en la lista" se lee igual que un olvido de la auditoría;
+    # con esto se lee como lo que es: verificado, y no hay norma que vigilar.
+    sin_ley: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_indice", {n.identificador for n in self.normas})
@@ -118,6 +133,7 @@ def cargar(ruta: Path | None = None) -> Watchlist:
                 identificador=identificador,
                 titulo=entrada.get("titulo", ""),
                 nota=entrada.get("nota", ""),
+                ambito=entrada.get("ambito", ""),
             )
         )
 
@@ -131,7 +147,11 @@ def cargar(ruta: Path | None = None) -> Watchlist:
     if len(set(identificadores)) != len(identificadores):
         raise WatchlistNoDisponible(f"{destino}: hay identificadores repetidos")
 
-    return Watchlist(version=version, normas=tuple(normas))
+    return Watchlist(
+        version=version,
+        normas=tuple(normas),
+        sin_ley=datos.get("_sin_ley_autonomica", {}),
+    )
 
 
 @lru_cache(maxsize=1)

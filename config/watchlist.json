@@ -1,34 +1,42 @@
 {
-  "version": "2026.08.08.2",
+  "version": "2026.08.08.3",
 
   "_formato": [
-    "JSON con la biblioteca estandar, sin dependencias (CLAUDE.md seccion 3). El fichero se",
-    "llamaba .yaml y contenia JSON, lo que era una extension enganosa; se renombro a .json el",
-    "2026-08-08 y la seccion 4 se actualizo en consecuencia. JSON no admite comentarios, asi",
-    "que cada entrada lleva su campo 'nota': la justificacion viaja CON el dato, no encima."
+    "JSON con la biblioteca estandar, sin dependencias (CLAUDE.md seccion 3). JSON no admite",
+    "comentarios, asi que cada entrada lleva su campo 'nota': la justificacion viaja CON el",
+    "dato, no encima. Al cambiar esta lista hay que SUBIR 'version', o lo anterior no se",
+    "reevalua (worker.run --reprefiltrar lo hace solo al detectar el cambio de version)."
   ],
 
   "_como_funciona": [
     "Eje 2 del prefiltro (CLAUDE.md 7.3). Cualquier disposicion que MODIFIQUE o DEROGUE una de",
     "estas normas pasa el filtro por definicion, diga lo que diga su texto. Cubre el agujero",
     "estructural del diccionario: una instruccion que elimina un derecho no dice 'identidad de",
-    "genero', dice 'se modifica el epigrafe 4.3 del anexo II'.",
-    "Al cambiar esta lista hay que SUBIR 'version', o lo anterior no se reevalua."
+    "genero', dice 'se modifica el epigrafe 4.3 del anexo II'."
   ],
 
-  "_por_que_todos_los_identificadores_son_del_BOE": [
-    "Verificado el 2026-08-08, y resuelve el bloqueo que se habia anotado antes: LAS LEYES",
-    "AUTONOMICAS SE PUBLICAN TAMBIEN EN EL BOE y reciben su propio identificador BOE-A. No hace",
-    "falta aprender como identifica sus normas cada boletin autonomico para poder vigilar sus",
-    "leyes; hace falta para otra cosa (ver la limitacion de abajo).",
-    "Comprobado caso por caso contra boe.es: Madrid 2/2016 -> BOE-A-2016-6728, Catalunya",
-    "11/2014 -> BOE-A-2014-11990, Euskadi 14/2012 -> BOE-A-2012-9664, etc."
+  "_cobertura": [
+    "AUDITORIA COMPLETA DE LAS 17 CCAA, verificada una a una contra boe.es el 2026-08-08.",
+    "15 comunidades tienen ley LGTBI y/o trans; sus 17 leyes estan todas en esta lista.",
+    "ASTURIAS y CASTILLA Y LEON son las dos unicas que NO tienen ley autonomica. Eso esta",
+    "verificado, no es un hueco de la auditoria: no hay identificador que anotar porque no hay",
+    "norma. Asturias aprobo un ANTEPROYECTO el 2026-03-09; cuando se apruebe habra que anadirla.",
+    "--",
+    "Las leyes autonomicas se publican TAMBIEN en el BOE y reciben su propio identificador",
+    "BOE-A. Por eso no hizo falta aprender como identifica sus normas cada boletin autonomico.",
+    "--",
+    "Tres trampas encontradas al verificar, y las tres romperian cualquier atajo:",
+    "  1. DESFASE DE ANO. La Ley 8/2017 de Andalucia es BOE-A-2018-1549; la 18/2018 de Aragon",
+    "     es BOE-A-2019-2712; la 23/2018 valenciana es BOE-A-2019-281.",
+    "  2. NUMEROS DE LEY REPETIDOS entre comunidades. Murcia y Baleares tienen las dos una",
+    "     'Ley 8/2016', aprobadas con tres dias de diferencia. Son normas distintas.",
+    "  3. Cruzar por numero de ley en vez de por identificador habria fallado en los dos casos."
   ],
 
   "_limitacion_que_hay_que_tener_presente": [
-    "El eje referencial lee el bloque <analisis> del BOE. Eso significa que hoy detecta:",
-    "  - una norma ESTATAL que modifica cualquiera de estas, y",
-    "  - una LEY AUTONOMICA que modifica otra, porque tambien se republica en el BOE.",
+    "El eje referencial lee el bloque <analisis> del BOE. Hoy detecta:",
+    "  - una norma ESTATAL que modifique cualquiera de estas, y",
+    "  - una LEY AUTONOMICA que modifique otra, porque tambien se republica en el BOE.",
     "Y NO detecta:",
     "  - un DECRETO, ORDEN o INSTRUCCION autonomica que modifique la ley de su comunidad,",
     "    porque esas no llegan al BOE y su boletin autonomico todavia no se ingiere.",
@@ -40,87 +48,147 @@
   "normas": [
     {
       "identificador": "BOE-A-2023-5366",
+      "ambito": "estatal",
       "titulo": "Ley 4/2023, de 28 de febrero, para la igualdad real y efectiva de las personas trans y para la garantia de los derechos de las personas LGTBI",
-      "nota": "Estatal. La norma central del ambito. Verificada contra el propio repositorio: es el positivo conocido del gold set y el documento sobre el que se verifico el extractor de punta a punta."
+      "nota": "La norma central del ambito. Verificada contra el propio repositorio: es el positivo conocido del gold set y el documento sobre el que se verifico el extractor de punta a punta."
     },
     {
       "identificador": "BOE-A-2007-5585",
+      "ambito": "estatal",
       "titulo": "Ley 3/2007, de 15 de marzo, reguladora de la rectificacion registral de la mencion relativa al sexo de las personas",
-      "nota": "Estatal. Procedimiento de rectificacion registral, ambito documental de la seccion 5. Verificada contra el texto consolidado del BOE el 2026-08-08."
+      "nota": "Procedimiento de rectificacion registral, ambito documental de la seccion 5. Verificada contra el texto consolidado del BOE el 2026-08-08."
     },
     {
       "identificador": "BOE-A-2005-11364",
+      "ambito": "estatal",
       "titulo": "Ley 13/2005, de 1 de julio, por la que se modifica el Codigo Civil en materia de derecho a contraer matrimonio",
-      "nota": "Estatal. Matrimonio entre personas del mismo sexo. Verificada contra el BOE el 2026-08-08."
+      "nota": "Matrimonio entre personas del mismo sexo. Verificada contra el BOE el 2026-08-08."
     },
     {
       "identificador": "BOE-A-2006-16212",
+      "ambito": "estatal",
       "titulo": "Real Decreto 1030/2006, de 15 de septiembre, por el que se establece la cartera de servicios comunes del Sistema Nacional de Salud y el procedimiento para su actualizacion",
-      "nota": "Estatal. Donde se materializa el retroceso sanitario: quitar una prestacion de la cartera comun no necesita derogar ninguna ley de derechos. Verificada contra el BOE el 2026-08-08."
+      "nota": "Donde se materializa el retroceso sanitario: quitar una prestacion de la cartera comun no necesita derogar ninguna ley de derechos. Verificada contra el BOE el 2026-08-08."
     },
 
     {
+      "identificador": "BOE-A-2018-1549",
+      "ambito": "AN",
+      "titulo": "Ley 8/2017, de 28 de diciembre, para garantizar los derechos, la igualdad de trato y no discriminacion de las personas LGTBI y sus familiares en Andalucia",
+      "nota": "Andalucia. Ojo al desfase: Ley 8/2017 con identificador de 2018. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2019-2712",
+      "ambito": "AR",
+      "titulo": "Ley 18/2018, de 20 de diciembre, de igualdad y proteccion integral contra la discriminacion por razon de orientacion sexual, expresion e identidad de genero en la Comunidad Autonoma de Aragon",
+      "nota": "Aragon. Mismo desfase de ano: Ley 18/2018, identificador de 2019. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2016-6310",
+      "ambito": "IB",
+      "titulo": "Ley 8/2016, de 30 de mayo, para garantizar los derechos de lesbianas, gays, trans, bisexuales e intersexuales y para erradicar la LGTBI fobia (Illes Balears)",
+      "nota": "Illes Balears. Cuidado: hay DOS leyes 8/2016 en esta lista, esta y la de Murcia, aprobadas con tres dias de diferencia. Por eso se vigila por identificador y nunca por numero de ley. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2021-11382",
+      "ambito": "CN",
+      "titulo": "Ley 2/2021, de 7 de junio, de igualdad social y no discriminacion por razon de identidad de genero, expresion de genero y caracteristicas sexuales (Canarias)",
+      "nota": "Canarias. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2020-15880",
+      "ambito": "CB",
+      "titulo": "Ley 8/2020, de 11 de noviembre, de Garantia de Derechos de las Personas Lesbianas, Gais, Trans, Transgenero, Bisexuales e Intersexuales y No Discriminacion por Razon de Orientacion Sexual e Identidad de Genero (Cantabria)",
+      "nota": "Cantabria. Prohibe expresamente las terapias de conversion, que es uno de los puntos donde mas se ha intentado retroceder. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2022-12291",
+      "ambito": "CM",
+      "titulo": "Ley 5/2022, de 6 de mayo, de Diversidad Sexual y Derechos LGTBI en Castilla-La Mancha",
+      "nota": "Castilla-La Mancha. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2014-11990",
+      "ambito": "CT",
+      "titulo": "Ley 11/2014, de 10 de octubre, para garantizar los derechos de lesbianas, gays, bisexuales, transgeneros e intersexuales y para erradicar la homofobia, la bifobia y la transfobia (Catalunya)",
+      "nota": "Catalunya. Una de las mas citadas como modelo, y por eso una de las mas expuestas. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2019-281",
+      "ambito": "VC",
+      "titulo": "Ley 23/2018, de 29 de noviembre, de igualdad de las personas LGTBI (Comunitat Valenciana)",
+      "nota": "Comunitat Valenciana. Tercer caso de desfase de ano: Ley 23/2018, identificador de 2019. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2015-5015",
+      "ambito": "EX",
+      "titulo": "Ley 12/2015, de 8 de abril, de igualdad social de lesbianas, gais, bisexuales, transexuales, transgenero e intersexuales y de politicas publicas contra la discriminacion por orientacion sexual e identidad de genero en la Comunidad Autonoma de Extremadura",
+      "nota": "Extremadura. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2014-5488",
+      "ambito": "GA",
+      "titulo": "Ley 2/2014, de 14 de abril, por la igualdad de trato y la no discriminacion de lesbianas, gays, transexuales, bisexuales e intersexuales en Galicia",
+      "nota": "Galicia. Verificada el 2026-08-08."
+    },
+    {
       "identificador": "BOE-A-2016-6728",
+      "ambito": "MD",
       "titulo": "Ley 2/2016, de 29 de marzo, de Identidad y Expresion de Genero e Igualdad Social y no Discriminacion de la Comunidad de Madrid",
-      "nota": "Madrid. LA MAS IMPORTANTE DE LA LISTA despues de la estatal: es la unica que ya ha sufrido una reforma restrictiva consumada (Ley 17/2023, BOE-A-2024-10767), que es el caso que CLAUDE.md 7.8 pide expresamente para el gold set. Verificada el 2026-08-08."
+      "nota": "Madrid. LA MAS IMPORTANTE DE LA LISTA despues de la estatal: es la unica con una reforma restrictiva ya consumada (Ley 17/2023, BOE-A-2024-10767), que es el caso que CLAUDE.md 7.8 pide para el gold set y que ya esta en tests/gold_set/casos/. Verificada el 2026-08-08."
     },
     {
       "identificador": "BOE-A-2016-11096",
+      "ambito": "MD",
       "titulo": "Ley 3/2016, de 22 de julio, de Proteccion Integral contra LGTBIfobia y la Discriminacion por Razon de Orientacion e Identidad Sexual en la Comunidad de Madrid",
       "nota": "Madrid. La companera de la 2/2016; tambien reformada en 2023. Verificada el 2026-08-08."
     },
     {
-      "identificador": "BOE-A-2014-11990",
-      "titulo": "Ley 11/2014, de 10 de octubre, para garantizar los derechos de lesbianas, gays, bisexuales, transgeneros e intersexuales y para erradicar la homofobia, la bifobia y la transfobia",
-      "nota": "Catalunya. Una de las mas citadas como modelo, y por eso una de las mas expuestas. Verificada el 2026-08-08."
+      "identificador": "BOE-A-2016-6170",
+      "ambito": "MC",
+      "titulo": "Ley 8/2016, de 27 de mayo, de igualdad social de lesbianas, gais, bisexuales, transexuales, transgenero e intersexuales, y de politicas publicas contra la discriminacion por orientacion sexual e identidad de genero en la Region de Murcia",
+      "nota": "Murcia. La otra 'Ley 8/2016'; ver la nota de Illes Balears. Verificada el 2026-08-08."
     },
     {
-      "identificador": "BOE-A-2018-1549",
-      "titulo": "Ley 8/2017, de 28 de diciembre, para garantizar los derechos, la igualdad de trato y no discriminacion de las personas LGTBI y sus familiares en Andalucia",
-      "nota": "Andalucia. Ojo al desfase: es Ley 8/2017 pero su identificador del BOE es de 2018, porque el BOE la republico en enero. Cruzar por numero de ley en vez de por identificador habria fallado aqui. Verificada el 2026-08-08."
+      "identificador": "BOE-A-2017-8527",
+      "ambito": "NC",
+      "titulo": "Ley Foral 8/2017, de 19 de junio, para la igualdad social de las personas LGTBI+ (Navarra)",
+      "nota": "Navarra. Es 'Ley Foral' por el regimen foral, pero su identificador en el BOE es un BOE-A normal. Verificada el 2026-08-08."
     },
     {
       "identificador": "BOE-A-2024-4867",
+      "ambito": "PV",
       "titulo": "Ley 4/2024, de 15 de febrero, de no discriminacion por motivos de identidad de genero y de reconocimiento de los derechos de las personas trans (Euskadi)",
       "nota": "Euskadi. Es la VIGENTE: derogo a la Ley 14/2012. Verificada el 2026-08-08."
     },
     {
       "identificador": "BOE-A-2012-9664",
+      "ambito": "PV",
       "titulo": "Ley 14/2012, de 28 de junio, de no discriminacion por motivos de identidad de genero y de reconocimiento de los derechos de las personas transexuales (Euskadi)",
       "nota": "Euskadi. DEROGADA por la Ley 4/2024. Se mantiene vigilada a proposito: una norma derogada sigue apareciendo en las referencias de las que la citan o la reforman, y perder ese rastro seria perder el historico. No cuesta nada tenerla."
     },
     {
-      "identificador": "BOE-A-2019-2712",
-      "titulo": "Ley 18/2018, de 20 de diciembre, de igualdad y proteccion integral contra la discriminacion por razon de orientacion sexual, expresion e identidad de genero en la Comunidad Autonoma de Aragon",
-      "nota": "Aragon. Mismo desfase de ano que Andalucia: Ley 18/2018, identificador de 2019. Verificada el 2026-08-08."
-    },
-    {
-      "identificador": "BOE-A-2016-6170",
-      "titulo": "Ley 8/2016, de 27 de mayo, de igualdad social de lesbianas, gais, bisexuales, transexuales, transgenero e intersexuales, y de politicas publicas contra la discriminacion por orientacion sexual e identidad de genero en la Region de Murcia",
-      "nota": "Murcia. Verificada el 2026-08-08."
-    },
-    {
-      "identificador": "BOE-A-2016-6310",
-      "titulo": "Ley 8/2016, de 30 de mayo, para garantizar los derechos de lesbianas, gays, trans, bisexuales e intersexuales y para erradicar la LGTBI fobia (Illes Balears)",
-      "nota": "Illes Balears. Cuidado al leer la lista: hay DOS leyes 8/2016 aqui, esta y la de Murcia, aprobadas con tres dias de diferencia. Son normas distintas y por eso se vigilan por identificador y nunca por numero de ley. Verificada el 2026-08-08."
+      "identificador": "BOE-A-2022-3601",
+      "ambito": "RI",
+      "titulo": "Ley 2/2022, de 23 de febrero, de igualdad, reconocimiento a la identidad y expresion de genero y derechos de las personas trans y sus familiares en la Comunidad Autonoma de La Rioja",
+      "nota": "La Rioja. Verificada el 2026-08-08."
     }
   ],
 
+  "_sin_ley_autonomica": {
+    "AS": "Asturias. Verificado el 2026-08-08: no tiene ley autonomica LGTBI. El Consejo de Gobierno aprobo un ANTEPROYECTO el 2026-03-09 ('para la erradicacion de la discriminacion y para la igualdad real y efectiva de derechos de las personas lesbianas, gais, trans, bisexuales e intersexuales y sus familias'). Cuando se apruebe y se publique, anadir su BOE-A aqui y subir la version.",
+    "CL": "Castilla y Leon. Verificado el 2026-08-08: no tiene ley autonomica LGTBI, y a esta fecha no consta anteproyecto. Junto con Asturias, son las dos unicas comunidades sin este marco normativo."
+  },
+
   "_pendientes_de_verificar": [
-    "El metodo ya no es un misterio: buscar la ley en boe.es y copiar su identificador BOE-A.",
-    "Lo que falta es hacerlo, una por una, sin dar por bueno ningun identificador sin verlo.",
-    "REGLA DE ORO 8: un identificador inventado aqui NO falla ruidosamente. Simplemente no",
-    "cruza nunca con nada, y el eje referencial parece funcionar mientras deja pasar justo lo",
-    "que debia detectar. Es el peor tipo de error que puede tener este fichero.",
-    "--",
-    "CCAA con ley LGTBI/trans pendientes de verificar su identificador: Galicia, Canarias,",
-    "Extremadura, Navarra, Comunitat Valenciana, Cantabria, La Rioja, Asturias, Castilla y",
-    "Leon y Castilla-La Mancha.",
-    "--",
-    "Ademas, y no son autonomicas:",
+    "Las 17 CCAA estan cerradas. Lo que queda es estatal y sectorial:",
     "Ley Organica 2/2006 de Educacion y su modificacion por la LOMLOE (curriculo, coeducacion).",
     "Ley 15/2022 integral para la igualdad de trato y la no discriminacion.",
     "Ley 19/2007 contra la violencia, el racismo, la xenofobia y la intolerancia en el deporte.",
-    "Reglamento del Registro Civil y sus ordenes de desarrollo (modelos de asiento)."
+    "Reglamento del Registro Civil y sus ordenes de desarrollo (modelos de asiento).",
+    "--",
+    "REGLA DE ORO 8: un identificador inventado aqui NO falla ruidosamente. Simplemente no cruza",
+    "nunca con nada, y el eje referencial parece funcionar mientras deja pasar justo lo que",
+    "debia detectar. Es el peor error posible en este fichero. Verificar SIEMPRE contra boe.es."
   ]
 }
