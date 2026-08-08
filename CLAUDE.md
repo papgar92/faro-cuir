@@ -163,7 +163,7 @@ farocuir/                      # nombre canónico del proyecto; la carpeta local
 ├── run_agent.sh               # driver de sesiones (13.3)
 ├── config/
 │   ├── vocabulario.yaml       # eje léxico del prefiltro (hoy en pipeline/prefiltro.py)
-│   └── watchlist.yaml         # eje referencial: normas objetivo (7.3)
+│   └── watchlist.json         # eje referencial: normas objetivo (7.3)
 ├── docs/
 │   ├── adr/                   # Architecture Decision Records (0001-*.md, ...)
 │   ├── fuentes.md             # AUDITORÍA DE LAS 18 FUENTES (entregable clave)
@@ -474,7 +474,7 @@ directos aparecen. Los números que enseñan el corte: Ley 4/2023 → **43** té
 resolución de Sanidad → **3**. Fijar ese corte es la tarea 0.b, y **validarlo solo lo puede
 hacer el gold set**: no publiques un umbral numérico como si estuviera comprobado.
 
-**Eje 2 — referencial (NUEVO, prioritario).** `config/watchlist.yaml` con normas objetivo por
+**Eje 2 — referencial (NUEVO, prioritario).** `config/watchlist.json` con normas objetivo por
 identificador: Ley 4/2023, leyes trans autonómicas, reales decretos de cartera común de
 servicios del SNS, currículos educativos, normativa de documentación e identidad. **Cualquier
 disposición que modifique una norma de la watchlist pasa el filtro por definición, diga lo que
@@ -739,7 +739,7 @@ siguiente, y el ADR 0011 le ha cambiado el contenido:
   discrimina (una convocatoria de oposición cita la Ley 4/2023 en el temario). Hace falta
   contar términos directos. Ver el aviso con los números en 7.3, eje 1. **El corte no se
   puede validar hasta el gold set: déjalo escrito como provisional.**
-- Eje referencial mínimo: `config/watchlist.yaml` + parseo de
+- Eje referencial mínimo: `config/watchlist.json` + parseo de
   `analisis/referencias/anteriores/anterior` — la estructura ya está verificada y escrita en
   7.3, no hay que volver a descubrirla. Validar formato del identificador antes de cruzarlo
   y **nunca** usarlo para construir una URL (6.10).
@@ -815,20 +815,40 @@ revisión con autenticación (~35k).
   - **Sobre el título solo ya no se descarta nunca** (7.1). Una norma sin señal queda
     `pendiente`, esperando su texto íntegro.
   - **Eje referencial** (`pipeline/watchlist.py` + `pipeline/referencias.py`): parsea
-    `analisis/referencias/anteriores` y cruza contra `config/watchlist.yaml`. Distingue
+    `analisis/referencias/anteriores` y cruza contra `config/watchlist.json`. Distingue
     `MODIFICA` de `CITA`, que es lo que separa "toca la Ley 4/2023" de "la menciona en el
     temario de una oposición" — el falso positivo que el eje léxico produce a destajo.
     `posteriores` se ignora a propósito: son normas del futuro.
   - **La watchlist falla ruidosamente** si falta, está vacía o trae un identificador con
     formato inválido. Vacía no rompe nada: apaga el eje en silencio, que es el fallo que había
-    que hacer imposible. Arranca con **4 normas verificadas una a una contra el BOE**
-    (Ley 4/2023, Ley 3/2007, Ley 13/2005, RD 1030/2006). **Las autonómicas no están** y son
-    las que más importan: sus identificadores no son del BOE y hay que ver primero cómo
-    identifica sus normas cada boletín. Escrito en el propio fichero.
-  - **Formato:** `config/watchlist.yaml` es **JSON, subconjunto válido de YAML**, leído con la
-    stdlib, porque la sección 3 prohíbe dependencias nuevas para la watchlist y la 4 fija el
-    nombre. **Punto abierto para el humano:** si prefiere YAML de verdad con comentarios,
-    basta con autorizar PyYAML.
+    que hacer imposible.
+  - **13 normas verificadas una a una contra el BOE**: 4 estatales y **9 autonómicas de 7
+    comunidades**. En la primera versión solo estaban las 4 estatales porque se dio por hecho
+    —mal— que las autonómicas usaban identificadores de su propio boletín.
+    **Corrección verificada el 2026-08-08: las leyes autonómicas se publican TAMBIÉN en el BOE
+    y tienen su propio `BOE-A`.** No hace falta aprender el esquema de cada boletín autonómico
+    para vigilar sus leyes; eso desbloqueó la parte más valiosa de la lista sin trabajo nuevo.
+    Dos trampas que salieron al verificar y que están anotadas: **desfase de año** (la Ley
+    8/2017 de Andalucía es `BOE-A-2018-1549`) y **números de ley repetidos entre comunidades**
+    (Murcia y Baleares tienen las dos una "Ley 8/2016", con tres días de diferencia). Cruzar
+    por número de ley habría fallado en ambos.
+  - **Limitación del eje, escrita en el propio fichero porque es donde duele:** lee el
+    `<analisis>` del BOE, así que **no ve un decreto u orden autonómica que modifique la ley de
+    su comunidad** — eso no llega al BOE. Es exactamente el retroceso de rango bajo de la
+    sección 1, y el argumento más fuerte para priorizar la ingesta de boletines autonómicos.
+  - **Formato: `config/watchlist.json`, renombrado desde `.yaml`.** Era un `.yaml` que contenía
+    JSON —extensión engañosa— y se resolvió renombrando, no metiendo una dependencia. Sección 4
+    actualizada. Los `nota` por entrada hacen el papel de los comentarios y mejor: la
+    justificación viaja *con* el dato y se puede validar. **Decisión cerrada, no hace falta
+    PyYAML.**
+  - **El caso que faltaba en el gold set ya está**: `BOE-A-2024-10767`, la **reforma madrileña
+    de 2023** que CLAUDE.md 7.8 pedía expresamente. Verificada contra el BOE: suprime los
+    artículos 7, 24, 45 y 48 y los títulos X y XIV de la Ley 2/2016. Ejecutado contra la
+    watchlist real: solo con el título da `relevante` por el eje léxico; con el `<analisis>`,
+    por **los dos ejes**. Un detalle que salió al ejecutarlo: **`identidad de genero` NO cruza
+    en ese título** porque dice "Identidad **y Expresión** de Género" y la conjunción rompe la
+    secuencia. El léxico se salvó por otro término; podía no haberse salvado, y ahí se ve para
+    qué está el eje referencial.
   - **Dos fallos silenciosos encontrados y arreglados, y ninguno habría dado un rojo:**
     (1) la cola del extractor filtraba por `== RELEVANTE`, lo que habría dejado fuera todo lo
     marcado como sospecha sin aparecer en ningún recuento — equivale a descartarlo sin decirlo;

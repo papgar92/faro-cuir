@@ -56,12 +56,12 @@ XML_CON_ANALISIS = """<?xml version="1.0" encoding="UTF-8"?>
 
 @pytest.fixture
 def lista_de_prueba(tmp_path: Path):  # type: ignore[no-untyped-def]
-    """Watchlist propia, para no atar los tests al contenido de `config/watchlist.yaml`.
+    """Watchlist propia, para no atar los tests al contenido de `config/watchlist.json`.
 
     Ese fichero cambia cuando se añaden normas vigiladas, y un test que dependa de su
     contenido se rompería por un motivo que no tiene nada que ver con lo que comprueba.
     """
-    ruta = tmp_path / "watchlist.yaml"
+    ruta = tmp_path / "watchlist.json"
     ruta.write_text(
         json.dumps(
             {
@@ -195,7 +195,7 @@ class TestWatchlist:
         Sin este test, un error de sintaxis al añadir una norma vigilada no se descubriría
         hasta la siguiente pasada del worker en producción.
         """
-        real = Path("/config/watchlist.yaml")
+        real = Path("/config/watchlist.json")
         if not real.is_file():  # pragma: no cover - fuera de docker
             pytest.skip("config/ no está montado en este entorno")
         lista = cargar(real)

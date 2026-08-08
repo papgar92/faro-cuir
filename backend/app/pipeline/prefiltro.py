@@ -14,7 +14,7 @@ Dos ejes, **combinados con OR y jamás con AND** (7.3). Con AND, dos filtros de 
 convierten en uno de bajo recall:
 
 - **Eje léxico**: ~90 términos con variantes morfológicas y clínicas antiguas.
-- **Eje referencial**: la norma modifica o deroga algo de `config/watchlist.yaml`. Cubre el
+- **Eje referencial**: la norma modifica o deroga algo de `config/watchlist.json`. Cubre el
   agujero estructural del diccionario — una instrucción que elimina un derecho no dice
   "identidad de género", dice "se modifica el epígrafe 4.3 del anexo II".
 

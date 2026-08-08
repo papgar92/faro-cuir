@@ -38,7 +38,7 @@ eje léxico sobre el título detecta **1**.
 
 - **Eje léxico** (existía): ~90 términos, sin cambios en su lógica.
 - **Eje referencial** (nuevo): la disposición **modifica o deroga** una norma de
-  `config/watchlist.yaml`. Pasa el filtro por definición, diga lo que diga su texto.
+  `config/watchlist.json`. Pasa el filtro por definición, diga lo que diga su texto.
 - **Eje semántico**: hueco reservado, fuera de alcance (sección 8).
 
 Con AND, dos filtros de alto recall se convierten en uno de bajo recall. Nunca AND.
@@ -112,10 +112,28 @@ eso; el control está en el validador precisamente para que siga siendo cierto m
 - **`config/` se monta en los contenedores en solo lectura.** Vive a la altura del repo, no
   dentro de `backend/`, así que sin montaje el contenedor no la veía. Solo lectura porque un
   fichero de configuración que el proceso puede reescribir deja de ser configuración versionada.
-- **La watchlist arranca con 4 normas y eso es poco**, pero son 4 verificadas contra el BOE una
-  a una (Ley 4/2023, Ley 3/2007, Ley 13/2005 y RD 1030/2006). Las autonómicas, que son las que
-  más importan, **no están**: sus identificadores no son del BOE y hace falta ver primero cómo
-  identifica cada boletín autonómico sus normas. Está escrito en el propio fichero.
+- **La watchlist tiene 13 normas verificadas una a una contra el BOE**: 4 estatales y 9
+  autonómicas de 7 comunidades. La primera versión tenía solo las 4 estatales porque se dio por
+  hecho —mal— que las autonómicas usaban identificadores de su propio boletín.
+
+  **Corrección, verificada el 2026-08-08: las leyes autonómicas se publican también en el BOE y
+  reciben su propio identificador `BOE-A`.** No hace falta aprender el esquema de identificación
+  de cada boletín autonómico para vigilar sus leyes. Eso desbloquea la parte más valiosa de la
+  watchlist con el trabajo que ya estaba hecho.
+
+  Dos trampas que aparecieron al verificar y que están anotadas en el fichero: hay **desfase de
+  año** (la Ley 8/2017 de Andalucía es `BOE-A-2018-1549`, la 18/2018 de Aragón es
+  `BOE-A-2019-2712`) y hay **números de ley repetidos entre comunidades** (Murcia y Baleares
+  tienen las dos una "Ley 8/2016", aprobadas con tres días de diferencia). Cruzar por número de
+  ley en vez de por identificador habría fallado en ambos casos.
+
+- **Limitación del eje, y hay que tenerla presente porque es justo donde duele.** El eje lee el
+  `<analisis>` del BOE, así que detecta una norma estatal que modifique cualquiera de estas, y
+  una ley autonómica que modifique otra (porque se republica). **No detecta un decreto, orden o
+  instrucción autonómica que modifique la ley de su comunidad**, porque eso no llega al BOE y su
+  boletín todavía no se ingiere. Ese es exactamente el retroceso de rango bajo que define la
+  sección 1: es el argumento más fuerte para priorizar la ingesta de boletines autonómicos, y
+  por eso está escrito en el fichero de la watchlist y no solo en la hoja de ruta.
 - **El recall de ninguno de los dos ejes está medido.** Sigue en pie el aviso de S1: no publicar
   cifras de recall hasta el gold set.
 
@@ -123,10 +141,27 @@ eso; el control está en el validador precisamente para que siga siendo cierto m
 
 - 22 tests nuevos, incluido el caso que justifica el eje entero: una norma cuyo texto **no
   contiene ni un término del vocabulario** y que pasa por modificar la Ley 4/2023.
-- El fichero real `config/watchlist.yaml` se carga y valida en un test, para que un error de
+- El fichero real `config/watchlist.json` se carga y valida en un test, para que un error de
   sintaxis al añadir una norma no se descubra en la siguiente pasada del worker.
 - Migración aplicada y comprobada con `psql`: 12 CHECK, `estadoprefiltro` con los cuatro
   valores y `origenclasificacion` (ADR 0004) intacta.
-- **Sin verificar todavía:** el eje referencial no se ha ejecutado contra el `<analisis>` de un
-  documento descargado en vivo, porque el worker aún no descarga texto íntegro (tarea 0.c). El
-  XML del test reproduce la estructura verificada en el ADR 0011, pero eso no es lo mismo.
+- **Verificado contra el caso real que motiva el proyecto entero:** la reforma madrileña de 2023
+  (`BOE-A-2024-10767`, Ley 17/2023, que suprime los artículos 7, 24, 45 y 48 y los títulos X y
+  XIV de la Ley 2/2016 de Madrid). Ejecutado contra la watchlist real:
+
+  - solo con el título → `relevante`, eje léxico, términos `expresion de genero` y
+    `no discriminacion`;
+  - con el `<analisis>` → `relevante`, **los dos ejes**, cruzando `BOE-A-2016-6728`.
+
+  Un detalle que salió al ejecutarlo y que ilustra por qué hacía falta el eje referencial:
+  **`identidad de genero` NO cruza en ese título**, porque dice "Identidad **y Expresión** de
+  Género" y la conjunción rompe la secuencia. El léxico se salvó por otro término; podría no
+  haberse salvado.
+
+  Está incorporado al gold set como caso (`casos/boe-a-2024-10767.json`), que además era un caso
+  que CLAUDE.md 7.8 pedía expresamente y faltaba.
+
+- **Sigue sin verificarse:** el eje no se ha ejecutado contra el `<analisis>` de un documento
+  **descargado en vivo**, porque el worker aún no descarga texto íntegro (tarea 0.c). Las
+  referencias del caso de Madrid se construyeron a mano a partir de lo que publica el BOE, que
+  no es lo mismo que haberlas parseado del XML real.

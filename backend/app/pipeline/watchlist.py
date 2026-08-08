@@ -2,7 +2,7 @@
 
 Módulo **puro**: no toca la base de datos ni la red. Solo lee un fichero versionado del repo.
 
-Sobre el formato, que tiene una explicación y no es un descuido: `config/watchlist.yaml` está
+Sobre el formato, que tiene una explicación y no es un descuido: `config/watchlist.json` está
 escrito en **JSON, que es un subconjunto válido de YAML**, y se parsea con el `json` de la
 biblioteca estándar. El nombre lo fija CLAUDE.md sección 4 y la prohibición de dependencias
 nuevas para la watchlist la fija la sección 3; escribir un parser propio de YAML en un
@@ -33,8 +33,8 @@ PATRON_IDENTIFICADOR = re.compile(r"^[A-Z]{2,6}-[A-Z]-\d{4}-\d{1,7}$")
 # `backend/`), así que `config/` se monta aparte en `/config`; fuera de docker se resuelve
 # relativo al repositorio. Se puede forzar con WATCHLIST_PATH.
 _RUTAS = (
-    Path("/config/watchlist.yaml"),
-    Path(__file__).resolve().parents[3] / "config" / "watchlist.yaml",
+    Path("/config/watchlist.json"),
+    Path(__file__).resolve().parents[3] / "config" / "watchlist.json",
 )
 
 
@@ -83,7 +83,7 @@ def _localizar() -> Path:
         if ruta.is_file():
             return ruta
     raise WatchlistNoDisponible(
-        f"no se encuentra watchlist.yaml en: {[str(r) for r in candidatas]}"
+        f"no se encuentra watchlist.json en: {[str(r) for r in candidatas]}"
     )
 
 
