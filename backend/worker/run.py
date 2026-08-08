@@ -22,7 +22,7 @@ from app.ingest.boe import BoeIngestError, SumarioNoDisponible
 from app.llm.ollama import ProveedorOllama
 from app.llm.provider import VERSION_PROMPT
 from app.models.fuente import Fuente, TipoFuente
-from app.pipeline import prefiltro
+from app.pipeline import prefiltro, watchlist
 from app.security.url_guard import UrlGuardError
 from app.security.xml_safe import XmlSafeError
 from app.services import extraccion as servicio_extraccion
@@ -69,6 +69,37 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
     return args
 
 
+def _registrar_embudo(resumen: servicio_prefiltro.ResumenPrefiltro, *, reaplicado: bool) -> None:
+    """Escribe el embudo del prefiltro en el log, con sus cuatro escalones.
+
+    El embudo se registra siempre, incluso cuando no se ha creado nada: es la cifra que dice
+    cuánto trabajo se ahorra el extractor, y perderla en las reejecuciones dejaría el log sin
+    la única métrica interesante de esta etapa.
+
+    **Las cuatro cifras van juntas y ninguna se omite por ser cero.** El log anterior decía
+    "N relevantes, M descartadas" y con el estado `sospecha` (7.2) eso habría dejado fuera
+    justo el escalón nuevo: un embudo al que le falta un peldaño no cuadra, y quien lo lea
+    dará por hecho que las que faltan se descartaron. `pendientes` es hoy la cifra grande y
+    tiene que verse — significa "esperando su texto íntegro", que es la tarea 0.c, no que
+    nadie las quiera.
+    """
+    logger.info(
+        "Prefiltro%s (vocabulario %s, watchlist %s): %s evaluadas → %s relevantes, "
+        "%s sospechas, %s descartadas, %s pendientes de texto íntegro. "
+        "%s pasan solo por términos de contexto. Por eje: %s.",
+        " reaplicado" if reaplicado else "",
+        prefiltro.VERSION_VOCABULARIO,
+        watchlist.watchlist().version,
+        resumen.evaluadas,
+        resumen.relevantes,
+        resumen.sospechas,
+        resumen.descartadas,
+        resumen.pendientes,
+        resumen.solo_por_contexto,
+        resumen.por_eje or "ninguno",
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parsear_argumentos(argv)
     logging.basicConfig(
@@ -80,15 +111,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.reprefiltrar:
         with SessionLocal() as session:
             resumen = servicio_prefiltro.aplicar(session)
-        logger.info(
-            "Prefiltro reaplicado (vocabulario %s): %s evaluadas, %s relevantes "
-            "(%s solo por términos de contexto), %s descartadas.",
-            prefiltro.VERSION_VOCABULARIO,
-            resumen.evaluadas,
-            resumen.relevantes,
-            resumen.solo_por_contexto,
-            resumen.descartadas,
-        )
+        _registrar_embudo(resumen, reaplicado=True)
         return 0
 
     with SessionLocal() as session:
@@ -165,15 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     # El embudo se registra siempre, incluso cuando no se creó nada: es la cifra que dice
     # cuánto trabajo se ahorra el extractor, y perderla en las reejecuciones dejaría el log
     # sin la única métrica interesante de esta etapa.
-    logger.info(
-        "Prefiltro (vocabulario %s): %s evaluadas, %s relevantes (%s solo por términos de "
-        "contexto), %s descartadas.",
-        prefiltro.VERSION_VOCABULARIO,
-        resumen.evaluadas,
-        resumen.relevantes,
-        resumen.solo_por_contexto,
-        resumen.descartadas,
-    )
+    _registrar_embudo(resumen, reaplicado=False)
     logger.info(
         "Extracción (prompt %s): %s pendientes, %s extraídas, %s fallidas.",
         VERSION_PROMPT,

@@ -69,7 +69,16 @@ def _norma(documento: Documento, ident: str, titulo: str, **kwargs: object) -> N
     return Norma(documento_id=documento.id, identificador_oficial=ident, titulo=titulo, **kwargs)
 
 
-def test_marca_relevantes_y_descartadas(session: Session, documento: Documento) -> None:
+def test_marca_relevantes_y_deja_pendiente_lo_que_no_dispara(
+    session: Session, documento: Documento
+) -> None:
+    """Sobre el sumario **no se descarta nada** (CLAUDE.md 7.1).
+
+    Este test se llamaba `test_marca_relevantes_y_descartadas` y esperaba un descarte. Ya no:
+    esta etapa solo ha visto el título, y el título es lo que un retroceso silencioso puede
+    redactar de forma anodina. La norma sin señal queda `PENDIENTE` —esperando su texto
+    íntegro— que no es lo mismo que descartada y no se debe pintar igual.
+    """
     session.add_all(
         [
             _norma(documento, "BOE-A-1", "Ley para la igualdad de las personas trans y LGTBI"),
@@ -80,10 +89,29 @@ def test_marca_relevantes_y_descartadas(session: Session, documento: Documento) 
 
     resumen = servicio.aplicar(session, documento_id=documento.id)
 
-    assert (resumen.evaluadas, resumen.relevantes, resumen.descartadas) == (2, 1, 1)
+    assert (resumen.evaluadas, resumen.relevantes, resumen.pendientes) == (2, 1, 1)
+    assert resumen.descartadas == 0, "no se descarta sin haber leído el documento"
     normas = {n.identificador_oficial: n for n in session.scalars(select(Norma))}
     assert normas["BOE-A-1"].prefiltro_estado is EstadoPrefiltro.RELEVANTE
-    assert normas["BOE-A-2"].prefiltro_estado is EstadoPrefiltro.DESCARTADA
+    assert normas["BOE-A-2"].prefiltro_estado is EstadoPrefiltro.PENDIENTE
+
+
+def test_registra_que_eje_disparo(session: Session, documento: Documento) -> None:
+    """CLAUDE.md 7.2: se guarda qué eje disparó, no solo los términos.
+
+    Sin esto no se puede afinar un eje sin tocar el otro ni medir si el referencial aporta
+    algo o solo duplica al léxico, que es la pregunta que el gold set tendrá que contestar.
+    """
+    session.add(_norma(documento, "BOE-A-1", "Ley de identidad de género"))
+    session.commit()
+
+    resumen = servicio.aplicar(session, documento_id=documento.id)
+
+    norma = session.scalar(select(Norma))
+    assert norma is not None
+    assert norma.prefiltro_ejes == ["lexico"]
+    assert norma.prefiltro_directos == 1
+    assert resumen.por_eje == {"lexico": 1}
 
 
 def test_guarda_por_que_paso_y_con_que_vocabulario(session: Session, documento: Documento) -> None:
@@ -165,7 +193,10 @@ def test_cuenta_las_que_pasan_solo_por_terminos_de_contexto(
 
     resumen = servicio.aplicar(session, documento_id=documento.id)
 
-    assert resumen.relevantes == 2
+    # Una relevante (término directo) y una sospecha (solo contexto). **Las dos entran en la
+    # cola del extractor**; lo que cambia es el orden, no si se miran.
+    assert (resumen.relevantes, resumen.sospechas) == (1, 1)
+    assert resumen.descartadas == 0
     assert resumen.solo_por_contexto == 1
 
 

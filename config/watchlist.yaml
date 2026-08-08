@@ -1,0 +1,63 @@
+{
+  "version": "2026.08.08",
+
+  "_formato": [
+    "Esto es JSON, que es un subconjunto valido de YAML. Se parsea con el modulo `json` de",
+    "la biblioteca estandar porque CLAUDE.md seccion 3 dice: 'Sin dependencias nuevas para la",
+    "watchlist'. El nombre del fichero es .yaml porque es el que fija la seccion 4. Si algun",
+    "dia entra PyYAML en el proyecto, este fichero sigue siendo valido sin tocar una coma.",
+    "JSON no admite comentarios, asi que cada entrada lleva su campo 'nota': que es mejor,",
+    "porque la justificacion viaja con el dato y no encima de el."
+  ],
+
+  "_como_funciona": [
+    "Eje 2 del prefiltro (CLAUDE.md 7.3). Cualquier disposicion que MODIFIQUE o DEROGUE una",
+    "de estas normas pasa el filtro por definicion, diga lo que diga su texto. Cubre el",
+    "agujero estructural del diccionario: una instruccion que elimina un derecho no dice",
+    "'identidad de genero', dice 'se modifica el epigrafe 4.3 del anexo II'.",
+    "Al cambiar esta lista hay que SUBIR 'version', o lo anterior no se reevalua."
+  ],
+
+  "normas": [
+    {
+      "identificador": "BOE-A-2023-5366",
+      "titulo": "Ley 4/2023, de 28 de febrero, para la igualdad real y efectiva de las personas trans y para la garantia de los derechos de las personas LGTBI",
+      "nota": "La norma central del ambito. Verificada contra el propio repositorio: es el positivo conocido del gold set y el documento sobre el que se verifico el extractor de punta a punta."
+    },
+    {
+      "identificador": "BOE-A-2007-5585",
+      "titulo": "Ley 3/2007, de 15 de marzo, reguladora de la rectificacion registral de la mencion relativa al sexo de las personas",
+      "nota": "Procedimiento de rectificacion registral. Ambito documental de la seccion 5. Verificada contra el texto consolidado del BOE el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2005-11364",
+      "titulo": "Ley 13/2005, de 1 de julio, por la que se modifica el Codigo Civil en materia de derecho a contraer matrimonio",
+      "nota": "Matrimonio entre personas del mismo sexo. Verificada contra el BOE el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2006-16212",
+      "titulo": "Real Decreto 1030/2006, de 15 de septiembre, por el que se establece la cartera de servicios comunes del Sistema Nacional de Salud y el procedimiento para su actualizacion",
+      "nota": "Donde se materializa el retroceso sanitario: quitar una prestacion de la cartera comun no necesita derogar ninguna ley de derechos. Verificada contra el BOE el 2026-08-08."
+    }
+  ],
+
+  "_pendientes_de_verificar": [
+    "Estas normas SI deberian estar vigiladas y NO estan en la lista de arriba porque su",
+    "identificador no se ha comprobado todavia contra el BOE. Regla de oro 8: un identificador",
+    "inventado en este fichero no falla ruidosamente, simplemente NUNCA cruza con nada, y el",
+    "eje referencial parece funcionar mientras deja pasar justo lo que debia detectar.",
+    "--",
+    "Leyes trans y LGTBI autonomicas (las 17). Son las que mas importan y ninguna esta:",
+    "sus identificadores no son del BOE, asi que hace falta ver primero como identifica cada",
+    "boletin autonomico sus normas.",
+    "--",
+    "Ley Organica 2/2006 de Educacion y su modificacion por la LOMLOE: curriculo y",
+    "coeducacion.",
+    "--",
+    "Ley 19/2007 contra la violencia, el racismo, la xenofobia y la intolerancia en el deporte.",
+    "--",
+    "Ley 15/2022 integral para la igualdad de trato y la no discriminacion.",
+    "--",
+    "Reglamento del Registro Civil y sus ordenes de desarrollo (modelos de asiento)."
+  ]
+}

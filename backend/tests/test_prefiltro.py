@@ -52,16 +52,47 @@ TITULOS_QUE_DEBEN_DESCARTARSE = [
 
 @pytest.mark.parametrize("titulo", TITULOS_QUE_DEBEN_PASAR)
 def test_no_pierde_normas_relevantes(titulo: str) -> None:
+    """Lo que no puede fallar nunca: que una de estas se quede fuera de la cola del LLM.
+
+    Se comprueba `entra_en_la_cola` y no `relevante`. Con el estado `sospecha` (7.2) hay dos
+    estados que acaban pasando por el modelo, y exigir `RELEVANTE` a todas convertiría este
+    test en una comprobación del **umbral** —que está sin validar y es provisional— en vez de
+    una comprobación del **recall**, que es lo que aquí importa y lo que no se puede perder.
+    """
     resultado = prefiltro.evaluar(titulo)
-    assert resultado.relevante, f"FALSO NEGATIVO, que es el error caro: {titulo!r}"
+    assert resultado.entra_en_la_cola, f"FALSO NEGATIVO, que es el error caro: {titulo!r}"
     assert resultado.terminos, "si pasa el filtro debe decirse por qué"
 
 
 @pytest.mark.parametrize("titulo", TITULOS_QUE_DEBEN_DESCARTARSE)
-def test_descarta_lo_evidentemente_ajeno(titulo: str) -> None:
+def test_sobre_el_titulo_no_se_descarta_nunca(titulo: str) -> None:
+    """CLAUDE.md 7.1: **el descarte definitivo solo ocurre tras leer el documento completo.**
+
+    Este test cambió de sentido con el ADR 0011 y el cambio es la parte importante. Antes
+    exigía `DESCARTADA` sobre el título; ahora exige justo lo contrario, porque el título es
+    exactamente lo que un retroceso silencioso puede redactar de forma anodina: decidir sobre
+    él es decidir sobre lo que el redactor controla.
+
+    Que estos títulos no disparen nada sigue siendo correcto y se comprueba (`terminos == ()`).
+    Lo que ya no es correcto es cerrarles la puerta sin haber leído el texto.
+    """
     resultado = prefiltro.evaluar(titulo)
+    assert resultado.estado is EstadoPrefiltro.PENDIENTE
+    assert resultado.terminos == ()
+    assert not resultado.entra_en_la_cola, "sin señal no debe gastar una llamada al LLM todavía"
+
+
+@pytest.mark.parametrize("titulo", TITULOS_QUE_DEBEN_DESCARTARSE)
+def test_con_el_texto_integro_delante_si_se_descarta(titulo: str) -> None:
+    """La otra mitad del contrato: con el documento leído, descartar sí es legítimo.
+
+    Sin este test, el anterior se podría satisfacer con un prefiltro que no descarta nunca
+    nada, que es un filtro inútil disfrazado de prudente.
+    """
+    resultado = prefiltro.evaluar(titulo, texto_integro=titulo)
     assert resultado.estado is EstadoPrefiltro.DESCARTADA
     assert resultado.terminos == ()
+    assert resultado.ejes == ()
 
 
 class TestNormalizacion:
@@ -144,14 +175,21 @@ class TestAuditabilidad:
         assert resultado.version == prefiltro.VERSION_VOCABULARIO
 
     def test_distingue_lo_que_pasa_solo_por_terminos_genericos(self) -> None:
+        """Los dos entran en la cola; lo que cambia es el puesto.
+
+        Un título que solo dispara términos genéricos es exactamente el caso que 7.2 llama
+        `sospecha`: no hay con qué descartarlo, pero tampoco con qué ponerlo primero. **Ni uno
+        solo de estos casos se pierde** — que es la garantía que importa.
+        """
         solo_contexto = prefiltro.evaluar(
             "Orden por la que se actualiza la cartera de servicios comunes"
         )
-        assert solo_contexto.relevante
+        assert solo_contexto.estado is EstadoPrefiltro.SOSPECHA
+        assert solo_contexto.entra_en_la_cola, "sospecha NO es descarte: tiene que ir a la cola"
         assert solo_contexto.solo_por_contexto
 
         directo = prefiltro.evaluar("Orden sobre la identidad de género del alumnado")
-        assert directo.relevante
+        assert directo.estado is EstadoPrefiltro.RELEVANTE
         assert not directo.solo_por_contexto
 
 

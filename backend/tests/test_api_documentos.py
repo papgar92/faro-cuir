@@ -161,6 +161,9 @@ def test_el_prefiltro_aplicado_se_ve_en_la_api(client: TestClient, tmp_path: Pat
 
     normas = client.get(f"/api/documentos/{documento_id}").json()["normas"]
     for norma in normas:
-        assert norma["prefiltro_estado"] in {"relevante", "descartada"}
-        # Ya evaluadas: lista (vacia si se descarto), nunca None.
+        # Los cuatro estados de CLAUDE.md 7.2. `descartada` ya no puede salir de una pasada
+        # sobre el sumario (7.1), pero se admite aqui porque la API tiene que poder publicarlo
+        # cuando el worker evalue sobre el texto integro (tarea 0.c).
+        assert norma["prefiltro_estado"] in {"pendiente", "sospecha", "relevante", "descartada"}
+        # Ya evaluadas: lista (vacia si no disparo nada), nunca None.
         assert isinstance(norma["prefiltro_terminos"], list)

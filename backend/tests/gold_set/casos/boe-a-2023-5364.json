@@ -4,7 +4,10 @@
   "fecha_publicacion": "2023-03-01",
   "titulo": "Ley Orgánica 1/2023, de 28 de febrero, por la que se modifica la Ley Orgánica 2/2010, de 3 de marzo, de salud sexual y reproductiva y de la interrupción voluntaria del embarazo.",
   "organo_emisor": "Jefatura del Estado",
-  "es_relevante": false,
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
   "clasificacion_esperada": null,
-  "notas": "Negativo difícil, no un negativo trivial: publicada el mismo día que la Ley 4/2023, del mismo órgano, y también sobre derechos sexuales/reproductivos. No es competencia de este proyecto (aborto, no LGTBI+/trans) y hoy el prefiltro la descarta correctamente, pero es justo el tipo de título donde un vocabulario mal ajustado podría empezar a dar falsos positivos. Verificado contra la base de datos real (documento BOE-S-2023-51, ya ingerido)."
+  "notas": "Negativo difícil, no un negativo trivial: publicada el mismo día que la Ley 4/2023, del mismo órgano, y también sobre derechos sexuales/reproductivos. No es competencia de este proyecto (aborto, no LGTBI+/trans) y hoy el prefiltro la descarta correctamente, pero es justo el tipo de título donde un vocabulario mal ajustado podría empezar a dar falsos positivos. Verificado contra la base de datos real (documento BOE-S-2023-51, ya ingerido). MIGRADO al formato de 7.8 (tarea 0.b), y el cambio de etiqueta es lo interesante: pasa de 'no relevante' a SOSPECHA. Sobre el TEXTO INTEGRO —que es como manda etiquetar 7.8, no sobre el titulo— una ley de salud sexual y reproductiva contiene terminos del vocabulario de contexto. No hay con que descartarla sin leerla, y la guia del esquema es explicita: ante la duda, sospecha. Sospecha cuesta un puesto en la cola; descartada costaria perder la norma. Sigue sin ser competencia del proyecto."
 }

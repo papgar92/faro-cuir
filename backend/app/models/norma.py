@@ -49,7 +49,7 @@ class AmbitoNorma(enum.StrEnum):
 
 
 class EstadoPrefiltro(enum.StrEnum):
-    """Resultado de la etapa 1 del pipeline sobre una norma (CLAUDE.md sección 7).
+    """Resultado de la etapa 1 del pipeline sobre una norma (CLAUDE.md sección 7.2).
 
     Vive aquí y no en `pipeline/prefiltro.py` para que la dependencia vaya en la dirección
     correcta: el pipeline conoce el modelo, no al revés.
@@ -57,11 +57,48 @@ class EstadoPrefiltro(enum.StrEnum):
     `PENDIENTE` es un estado real, no un hueco: una norma ingerida antes de que existiera el
     prefiltro —o después de subir la versión del vocabulario— está sin evaluar, y eso no es
     lo mismo que estar descartada.
+
+    **Qué deciden estos estados cambió con el ADR 0011 y es fácil leerlo mal.** Ya no deciden
+    qué se descarga —se descarga el día entero— sino **qué entra en el LLM y en qué orden**.
+    Un día de BOE cuesta 10 s de red; una extracción cuesta 133,9 s. El caro es el modelo, así
+    que el prefiltro pasó de ser la puerta de la red a ser la puerta del LLM.
+
+    `SOSPECHA` no es "descárgalo para mirarlo": es "ya está descargado y mirado, y merece un
+    puesto en la cola del extractor, aunque sea el último". Nunca se descarta sin revisar.
     """
 
     PENDIENTE = "pendiente"
+    SOSPECHA = "sospecha"
     RELEVANTE = "relevante"
     DESCARTADA = "descartada"
+
+    @property
+    def entra_en_la_cola_del_extractor(self) -> bool:
+        """Si esta norma tiene que acabar pasando por el LLM.
+
+        Existe para que la cola del extractor no se escriba nunca como `== RELEVANTE`: eso fue
+        cierto hasta el ADR 0011 y ahora perdería en silencio todo lo marcado como sospecha,
+        que es justo lo que no se puede perder.
+        """
+        return self in (EstadoPrefiltro.SOSPECHA, EstadoPrefiltro.RELEVANTE)
+
+
+class EjePrefiltro(enum.StrEnum):
+    """Qué eje del prefiltro hizo pasar a una norma (CLAUDE.md sección 7.3).
+
+    Los ejes se combinan con **OR, nunca con AND**: con AND, dos filtros de alto recall se
+    convierten en uno de bajo recall, que es lo contrario de lo que busca este proyecto.
+
+    Se registra cuál disparó porque sin eso no se puede afinar un eje sin tocar los otros ni
+    medir si el referencial aporta algo o solo duplica al léxico.
+
+    El eje 3 (semántico por embeddings) está fuera de alcance a propósito (sección 8) y **su
+    valor no se declara aquí**: si no existe en el enum, no existe en la CHECK, y nadie puede
+    escribirlo por error antes de que el eje exista.
+    """
+
+    LEXICO = "lexico"
+    REFERENCIAL = "referencial"
 
 
 class Norma(Base):
@@ -133,9 +170,23 @@ class Norma(Base):
     # no se consulta por contenido, solo se lee junto a su fila; JSONB añadiría un tipo
     # específico del dialecto a cambio de nada.
     prefiltro_terminos: Mapped[list[str] | None] = mapped_column(JSON)
+    # Qué ejes dispararon (7.2: "se guarda además qué eje disparó, no solo los términos").
+    # Lista y no un valor único porque los ejes van en OR y pueden coincidir varios: que
+    # dispararan los dos es un dato distinto de que disparara uno. Lista vacía —no NULL— al
+    # descartar, mismo criterio que `prefiltro_terminos`.
+    prefiltro_ejes: Mapped[list[str] | None] = mapped_column(JSON)
+    # Cuántos términos DIRECTOS distintos se contaron. Se persiste porque es la magnitud que
+    # separa relevante de sospecha (7.3, eje 1) y **su corte está sin validar**: cuando el gold
+    # set permita calibrarlo hará falta el número real de cada norma ya evaluada para
+    # recalibrar sin volver a descargar y recontar cientos de documentos.
+    prefiltro_directos: Mapped[int | None] = mapped_column(Integer)
     # Versión del vocabulario con la que se evaluó. Es lo que permite saber qué normas hay
     # que reevaluar cuando el diccionario cambia.
     prefiltro_version: Mapped[str | None] = mapped_column(String(20))
+    # Ídem para la watchlist del eje referencial. Va aparte de `prefiltro_version` porque los
+    # dos ejes se afinan por separado, y compartir columna obligaría a reevaluarlo todo cada
+    # vez que cambia cualquiera de los dos.
+    prefiltro_version_watchlist: Mapped[str | None] = mapped_column(String(20))
     prefiltro_evaluado_en: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
 
     documento: Mapped[Documento] = relationship(back_populates="normas")

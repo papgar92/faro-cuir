@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from xml.etree.ElementTree import Element
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.llm.provider import LLMError, ProveedorLLM, extraer
@@ -103,22 +103,42 @@ def _recortar(texto: str, *, identificador: str) -> str:
     return texto[:MAX_CARACTERES_DOCUMENTO]
 
 
+# Estados que entran en la cola del LLM, **y el orden en que entran** (CLAUDE.md 7.2).
+# `RELEVANTE` primero, `SOSPECHA` después: las dos se extraen, pero una extracción cuesta
+# 133,9 s y si la pasada se corta a medias hay que haber gastado ese tiempo en lo más probable.
+_COLA = (EstadoPrefiltro.RELEVANTE, EstadoPrefiltro.SOSPECHA)
+
+
 def _pendientes(documento_id: int | None):  # type: ignore[no-untyped-def]
-    """Normas relevantes que aún no tienen ninguna `deteccion`.
+    """Normas en cola de extracción que aún no tienen ninguna `deteccion`.
+
+    **Antes esto era `== RELEVANTE`, y con el estado `sospecha` (7.2) eso pasó a ser un
+    filtro que pierde datos en silencio.** Una norma marcada como sospecha es una que el
+    prefiltro no ha sabido descartar; dejarla fuera de la cola equivale a descartarla, solo
+    que sin decirlo y sin que aparezca en ningún recuento. Es exactamente el falso negativo
+    que el proyecto no se puede permitir.
+
+    El orden no es cosmético: `RELEVANTE` antes que `SOSPECHA`. La extracción cuesta 133,9 s
+    por norma (ADR 0011), así que una pasada interrumpida tiene que haber gastado el tiempo en
+    lo más probable primero.
 
     No distingue "nunca se intentó" de "se intentó y falló": una extracción fallida (LLMError,
     fallo de red, control de seguridad) no deja fila, así que la norma vuelve a aparecer aquí
-    en la siguiente pasada del worker. Es el mismo criterio de idempotencia que el resto del
-    pipeline — sin necesidad de un estado de error aparte.
+    en la siguiente pasada. Mismo criterio de idempotencia que el resto del pipeline.
     """
     consulta = (
         select(Norma)
         .outerjoin(Deteccion, Deteccion.norma_id == Norma.id)
-        .where(Norma.prefiltro_estado == EstadoPrefiltro.RELEVANTE, Deteccion.id.is_(None))
+        .where(Norma.prefiltro_estado.in_(_COLA), Deteccion.id.is_(None))
     )
     if documento_id is not None:
         consulta = consulta.where(Norma.documento_id == documento_id)
-    return consulta.order_by(Norma.id)
+    # `case` y no un ORDER BY sobre el texto del estado: alfabéticamente "sospecha" va antes
+    # que "relevante", que es justo al revés de lo que hace falta.
+    return consulta.order_by(
+        case({estado: indice for indice, estado in enumerate(_COLA)}, value=Norma.prefiltro_estado),
+        Norma.id,
+    )
 
 
 def aplicar(

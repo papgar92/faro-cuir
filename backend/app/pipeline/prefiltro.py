@@ -1,26 +1,43 @@
-"""Etapa 1 del pipeline: prefiltro léxico sobre los títulos del sumario (CLAUDE.md sección 7).
+"""Etapa 1 del pipeline: prefiltro de tres ejes (CLAUDE.md secciones 7.2 y 7.3).
 
-Decide de qué normas merece la pena descargar el texto completo. Va antes que el extractor
-porque es lo que evita gastar una llamada al LLM (y una descarga) en las ~250 normas diarias
-del BOE que no tienen nada que ver con el objeto del proyecto.
+**Qué decide este filtro cambió con el ADR 0011 y es lo primero que hay que entender.** Ya no
+decide qué se descarga —se descarga el día entero, porque un día de BOE cuesta 10 s de red—
+sino **qué entra en el LLM y en qué orden**, porque una extracción cuesta 133,9 s. El prefiltro
+dejó de ser la puerta de la red y pasó a ser la puerta del modelo.
 
-**Ajustado a recall máximo, no a precisión.** La regla del proyecto es explícita: mejor 50
-falsos positivos que 1 falso negativo. Un falso positivo cuesta una descarga y una llamada al
-extractor; un falso negativo es una norma que recorta un derecho y que el sistema no llegó a
-mirar nunca. No son errores comparables, así que el filtro no se equilibra: se sesga.
+**Ajustado a recall máximo, no a precisión.** Mejor 50 falsos positivos que 1 falso negativo:
+un falso positivo cuesta un puesto en la cola; un falso negativo es una norma que recorta un
+derecho y que el sistema no llegó a mirar nunca. No son errores comparables, así que el filtro
+no se equilibra: se sesga.
 
-De ahí tres decisiones:
+Dos ejes, **combinados con OR y jamás con AND** (7.3). Con AND, dos filtros de alto recall se
+convierten en uno de bajo recall:
 
-- **Solo se mira el título** (más el órgano emisor). Es lo único que trae el sumario, y bajar
-  al texto completo es justo lo que este filtro decide. Un título del BOE es informativo:
-  el legislador está obligado a describir en él lo que la norma hace.
-- **No hay lista negra ni exclusiones.** Nada descarta a una norma que ya ha coincidido.
-  Cualquier regla de "esto en realidad no cuenta" es una vía para perder verdaderos positivos.
-- **Se registra qué término hizo saltar la norma.** Sin eso el filtro es una caja negra y no
-  se puede auditar ni afinar: no se sabe qué parte del ruido viene de qué palabra.
+- **Eje léxico**: ~90 términos con variantes morfológicas y clínicas antiguas.
+- **Eje referencial**: la norma modifica o deroga algo de `config/watchlist.yaml`. Cubre el
+  agujero estructural del diccionario — una instrucción que elimina un derecho no dice
+  "identidad de género", dice "se modifica el epígrafe 4.3 del anexo II".
 
-El módulo es **puro**: no toca la base de datos ni la red. Persistir el resultado es trabajo
-de `services/prefiltro.py`.
+El eje 3 (semántico por embeddings) está fuera de alcance a propósito (sección 8).
+
+## El corte de términos directos, y por qué no puede hacer daño
+
+Al evaluarse sobre el **texto íntegro** en vez del título, el eje léxico cambia de calibración
+por completo: sobre 200.000 caracteres, la *presencia* de un término no discrimina —una
+convocatoria de oposición cita la Ley 4/2023 en el temario— así que hay que contar **cuántos**
+términos directos distintos aparecen.
+
+Ese corte **está sin validar y solo lo puede validar el gold set**. Por eso está construido de
+forma que equivocarse salga barato: el umbral separa `RELEVANTE` de `SOSPECHA`, **nunca decide
+un descarte**. Una norma con un solo término directo entra igualmente en la cola del extractor,
+solo que la última. Si el umbral está mal, el coste es latencia; nunca un falso negativo.
+
+Y sobre el título solo —sin texto íntegro— **no se descarta jamás** (7.1): el título es
+exactamente lo que un retroceso silencioso puede redactar de forma anodina, así que decidir
+sobre él es decidir sobre lo que el redactor controla.
+
+El módulo es **puro**: no toca la base de datos ni la red. Persistir es trabajo de
+`services/prefiltro.py`.
 """
 
 from __future__ import annotations
@@ -30,12 +47,34 @@ import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
 
-from app.models.norma import EstadoPrefiltro
+from app.models.norma import EjePrefiltro, EstadoPrefiltro
+from app.pipeline.referencias import ReferenciaAnterior
+from app.pipeline.watchlist import Watchlist
 
 # Versión del vocabulario. Se guarda junto a cada resultado para que una norma evaluada con
 # un diccionario viejo sea reconocible y se pueda reevaluar. Súbela SIEMPRE que cambien los
-# términos: sin eso, "esta norma se descartó" deja de ser una afirmación comprobable.
-VERSION_VOCABULARIO = "2026.08.06"
+# términos o el umbral: sin eso, "esta norma se descartó" deja de ser comprobable.
+VERSION_VOCABULARIO = "2026.08.08"
+
+# Cuántos términos DIRECTOS distintos hacen falta, sobre el texto íntegro, para que una norma
+# entre como RELEVANTE en vez de como SOSPECHA.
+#
+# **PROVISIONAL. No publiques este número como si estuviera comprobado.** Sale de los cuatro
+# documentos que se midieron en el ADR 0011 y cuatro documentos no calibran nada:
+#
+#     Ley 4/2023 (positivo conocido) ......... 43 términos
+#     LO 1/2023 (negativo difícil) ........... 11
+#     Ley 3/2023 de Empleo (negativo) ......... 9
+#     Resolución de Sanidad (negativo) ........ 3
+#
+# Ojo, que es una trampa fácil: esos cuatro números son de **todos** los términos, directos y
+# de contexto, mientras que aquí se cuentan solo los directos. No son directamente
+# comparables, así que el 8 no es "el punto medio entre 11 y 43" — es un valor de arranque
+# puesto para que el sistema funcione mientras no haya con qué calibrarlo.
+#
+# Lo único que sostiene esta elección es que **no puede causar un falso negativo** (ver el
+# encabezado). Validarlo es trabajo del gold set.
+UMBRAL_DIRECTOS_RELEVANTE = 8
 
 
 class Categoria(StrEnum):
@@ -198,20 +237,38 @@ class ResultadoPrefiltro:
     # Términos del vocabulario que han coincidido, en el orden en que se escriben en el
     # diccionario. Vacío si se descarta.
     terminos: tuple[str, ...]
+    # Qué ejes dispararon. Vacío si se descarta. Lista y no valor único porque van en OR y
+    # pueden coincidir los dos, y saber que coincidieron ambos es un dato distinto.
+    ejes: tuple[EjePrefiltro, ...]
+    # Términos DIRECTOS distintos contados. Es la magnitud del corte, y se expone para poder
+    # recalibrarlo con el gold set sin recontar 436 documentos.
+    directos: int
+    # Normas de la watchlist que esta disposición modifica o deroga.
+    referencias_watchlist: tuple[str, ...]
     version: str
+    version_watchlist: str | None
 
     @property
     def relevante(self) -> bool:
         return self.estado is EstadoPrefiltro.RELEVANTE
 
     @property
+    def entra_en_la_cola(self) -> bool:
+        """Si acabará pasando por el LLM. **Esto y no `relevante` es la cola del extractor.**
+
+        `relevante` sigue existiendo porque hay código y tests que preguntan por él, pero
+        filtrar la cola por `relevante` perdería en silencio todo lo marcado como sospecha.
+        """
+        return self.estado.entra_en_la_cola_del_extractor
+
+    @property
     def solo_por_contexto(self) -> bool:
         """True si pasó únicamente por términos genéricos.
 
-        Es la métrica que dice cuánto ruido está metiendo la lista de contexto, y por tanto
-        qué se puede afinar sin tocar el recall de los términos directos.
+        Mide cuánto ruido mete la lista de contexto, y por tanto qué se puede afinar sin tocar
+        el recall de los términos directos.
         """
-        return self.relevante and all(
+        return bool(self.terminos) and all(
             _VOCABULARIO_NORMALIZADO[_normalizar(t)][1] is Categoria.CONTEXTO for t in self.terminos
         )
 
@@ -228,22 +285,94 @@ def _contiene(texto_normalizado: str, termino_normalizado: str) -> bool:
     return re.search(patron, texto_normalizado) is not None
 
 
-def evaluar(titulo: str, *, organo_emisor: str | None = None) -> ResultadoPrefiltro:
-    """Aplica el prefiltro al título de una norma.
+def evaluar(
+    titulo: str,
+    *,
+    organo_emisor: str | None = None,
+    texto_integro: str | None = None,
+    referencias: tuple[ReferenciaAnterior, ...] = (),
+    lista: Watchlist | None = None,
+) -> ResultadoPrefiltro:
+    """Aplica los dos ejes del prefiltro y decide el estado.
 
-    El órgano emisor entra en el texto examinado porque a veces es donde está la señal: una
-    resolución de la «Dirección General de Igualdad y Diversidad» puede tener un título
-    puramente administrativo. Añadirlo solo puede subir el recall, que es lo que se busca.
+    `texto_integro=None` significa **fase 1**: solo se ha visto el sumario. En ese caso el
+    resultado nunca puede ser `DESCARTADA` (CLAUDE.md 7.1) — como mucho `PENDIENTE`, que es
+    "sigue esperando a que alguien lea el documento". El título es exactamente lo que un
+    retroceso silencioso puede redactar de forma anodina.
+
+    El órgano emisor entra siempre en el texto examinado porque a veces es donde está la
+    señal: una resolución de la «Dirección General de Igualdad y Diversidad» puede tener un
+    título puramente administrativo. Añadirlo solo puede subir el recall.
     """
-    texto = _normalizar(f"{titulo} {organo_emisor or ''}")
+    sobre_texto_integro = texto_integro is not None
+    base = texto_integro if sobre_texto_integro else titulo
+    texto = _normalizar(f"{base} {organo_emisor or ''}")
 
     coincidencias = tuple(
         original
         for normalizado, (original, _) in _VOCABULARIO_NORMALIZADO.items()
         if _contiene(texto, normalizado)
     )
+    directos = sum(
+        1
+        for termino in coincidencias
+        if _VOCABULARIO_NORMALIZADO[_normalizar(termino)][1] is Categoria.DIRECTO
+    )
+
+    # --- Eje 2: referencial. Se evalúa aunque el léxico no dispare; van en OR. --------------
+    tocadas: tuple[str, ...] = ()
+    if lista is not None:
+        tocadas = tuple(
+            referencia.identificador
+            for referencia in referencias
+            # `es_modificativa` es lo que separa "toca esta norma" de "la cita en el temario".
+            if referencia.es_modificativa and lista.contiene(referencia.identificador)
+        )
+
+    ejes: list[EjePrefiltro] = []
+    if coincidencias:
+        ejes.append(EjePrefiltro.LEXICO)
+    if tocadas:
+        ejes.append(EjePrefiltro.REFERENCIAL)
+
+    version_watchlist = lista.version if lista is not None else None
+
+    def resultado(estado: EstadoPrefiltro) -> ResultadoPrefiltro:
+        descarta = estado in (EstadoPrefiltro.DESCARTADA, EstadoPrefiltro.PENDIENTE)
+        return ResultadoPrefiltro(
+            estado=estado,
+            # Al descartar se guarda lista vacía y no los términos: no hubo ninguno. Y al
+            # quedar pendiente tampoco se guardan, porque todavía no es un veredicto.
+            terminos=() if descarta else coincidencias,
+            ejes=() if descarta else tuple(ejes),
+            directos=directos,
+            referencias_watchlist=tocadas,
+            version=VERSION_VOCABULARIO,
+            version_watchlist=version_watchlist,
+        )
+
+    # --- Decisión. El orden importa y es el de la fuerza de la señal. -----------------------
+    if tocadas:
+        # Modificar una norma de la watchlist pasa el filtro **por definición, diga lo que
+        # diga su texto** (7.3). No se compara con el umbral léxico: son ejes distintos.
+        return resultado(EstadoPrefiltro.RELEVANTE)
 
     if not coincidencias:
-        return ResultadoPrefiltro(EstadoPrefiltro.DESCARTADA, (), VERSION_VOCABULARIO)
+        # Sin señal de ningún eje. Solo se puede descartar habiendo leído el documento.
+        return resultado(
+            EstadoPrefiltro.DESCARTADA if sobre_texto_integro else EstadoPrefiltro.PENDIENTE
+        )
 
-    return ResultadoPrefiltro(EstadoPrefiltro.RELEVANTE, coincidencias, VERSION_VOCABULARIO)
+    if not sobre_texto_integro:
+        # Fase 1: el título sirve para priorizar, nunca para descartar. Un término directo en
+        # el título es señal fuerte —así se encontró la Ley 4/2023— y el umbral de conteo no
+        # se aplica aquí: ningún título contiene ocho términos distintos.
+        return resultado(EstadoPrefiltro.RELEVANTE if directos else EstadoPrefiltro.SOSPECHA)
+
+    # Fase 2, sobre el texto íntegro: el conteo separa el que regula del que solo cita.
+    # **Por debajo del umbral no se descarta, se pospone.**
+    return resultado(
+        EstadoPrefiltro.RELEVANTE
+        if directos >= UMBRAL_DIRECTOS_RELEVANTE
+        else EstadoPrefiltro.SOSPECHA
+    )

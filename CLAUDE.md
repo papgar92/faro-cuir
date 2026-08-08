@@ -722,6 +722,14 @@ Resultado: **la fase 2 se descarga entera, sin umbral** (4,3 MB y 10 s por día 
 prefiltro pasa de ser la puerta de la red a ser la puerta del LLM (133,9 s por extracción, o
 sea ~16 h de CPU si se le mandara el día entero). Ver 7.1 y el ADR.
 
+~~**0.b — Cerrar el vocabulario del prefiltro**~~ — **HECHA el 2026-08-08. ADR 0012 escrito.**
+Los seis puntos cerrados: estado `sospecha` + migración, eje léxico recalibrado para texto
+íntegro, eje referencial con watchlist, registro de ejes, ADR 0012 y los 3 casos del gold set
+migrados al formato de 7.8. Ver el bloque de "Hecho en S1" más abajo. **Lo siguiente es la
+0.c**, que ahora es el bloqueo real: 435 normas esperan su texto íntegro.
+
+<!-- Contenido original de la tarea, conservado porque explica el porqué de cada pieza:
+
 **0.b — Cerrar el vocabulario del prefiltro (~15k, subido de 12k).** Sigue siendo lo
 siguiente, y el ADR 0011 le ha cambiado el contenido:
 - Añadir el estado `sospecha` (migración + CHECK, ojo al autogenerate) **con el significado
@@ -738,6 +746,15 @@ siguiente, y el ADR 0011 le ha cambiado el contenido:
 - Registro de qué eje disparó cada evaluación.
 - ADR 0012. (El 0011 ya está escrito.)
 - Migrar los 3 casos del gold set al formato de 7.8.
+-->
+
+**0.c — El worker descarga el día entero (~15k). ES LO SIGUIENTE Y AHORA ES EL BLOQUEO.**
+Implementa el ADR 0011 en `worker/run.py` y `services/`. Con pausa entre descargas y tope por
+ejecución (6.2), y el archivo con sello (6.5) aplicándose a cada cuerpo. Cuando exista, el
+prefiltro recibe `texto_integro` y `referencias` —los dos parámetros ya están en
+`prefiltro.evaluar`, no hay que tocar el pipeline— y las 435 pendientes se resuelven en
+relevante / sospecha / descartada. **Hasta entonces no hay nada que medir**: el gold set
+etiqueta sobre texto íntegro y el sistema todavía no lo tiene.
 
 **1 — Gold set (`tests/gold_set/`), ~30k, y pártelo.** Ya con el formato definitivo de 7.8:
 `prefiltro_esperado` con los cuatro estados, `ejes_esperados`, y etiquetado sobre **texto
@@ -786,6 +803,58 @@ revisión con autenticación (~35k).
 ---
 
 - **Semana actual:** S1 / backend y seguridad — en curso. Repo arrancado el **2026-08-04**.
+- **Hecho en S1 (último trabajo, 2026-08-08): TAREA 0.b CERRADA. Prefiltro de dos ejes,
+  estado `sospecha` y formato definitivo del gold set. ADR 0012 escrito.**
+  - **El umbral léxico está construido para que equivocarse salga barato, y es lo más
+    importante de esta tarea.** `UMBRAL_DIRECTOS_RELEVANTE = 8` separa `relevante` de
+    `sospecha` y **nunca decide un descarte**: los dos estados entran en la cola del LLM, solo
+    cambia el orden. Si el umbral está mal —y no se puede validar hasta el gold set— el coste
+    es latencia, jamás un falso negativo. El 8 **no sale de una calibración**: los cuatro
+    números del ADR 0011 contaban todos los términos y aquí se cuentan solo los directos, así
+    que no son comparables. Está escrito como provisional en el código; no lo cites como dato.
+  - **Sobre el título solo ya no se descarta nunca** (7.1). Una norma sin señal queda
+    `pendiente`, esperando su texto íntegro.
+  - **Eje referencial** (`pipeline/watchlist.py` + `pipeline/referencias.py`): parsea
+    `analisis/referencias/anteriores` y cruza contra `config/watchlist.yaml`. Distingue
+    `MODIFICA` de `CITA`, que es lo que separa "toca la Ley 4/2023" de "la menciona en el
+    temario de una oposición" — el falso positivo que el eje léxico produce a destajo.
+    `posteriores` se ignora a propósito: son normas del futuro.
+  - **La watchlist falla ruidosamente** si falta, está vacía o trae un identificador con
+    formato inválido. Vacía no rompe nada: apaga el eje en silencio, que es el fallo que había
+    que hacer imposible. Arranca con **4 normas verificadas una a una contra el BOE**
+    (Ley 4/2023, Ley 3/2007, Ley 13/2005, RD 1030/2006). **Las autonómicas no están** y son
+    las que más importan: sus identificadores no son del BOE y hay que ver primero cómo
+    identifica sus normas cada boletín. Escrito en el propio fichero.
+  - **Formato:** `config/watchlist.yaml` es **JSON, subconjunto válido de YAML**, leído con la
+    stdlib, porque la sección 3 prohíbe dependencias nuevas para la watchlist y la 4 fija el
+    nombre. **Punto abierto para el humano:** si prefiere YAML de verdad con comentarios,
+    basta con autorizar PyYAML.
+  - **Dos fallos silenciosos encontrados y arreglados, y ninguno habría dado un rojo:**
+    (1) la cola del extractor filtraba por `== RELEVANTE`, lo que habría dejado fuera todo lo
+    marcado como sospecha sin aparecer en ningún recuento — equivale a descartarlo sin decirlo;
+    (2) "hay que reevaluar" se preguntaba por `estado == PENDIENTE`, y con `pendiente`
+    convertido en estado de espera eso habría reevaluado 435 normas **en cada pasada**,
+    rompiendo la idempotencia del worker sin que nadie se enterara. Ahora se pregunta por
+    `prefiltro_evaluado_en` y por las dos versiones.
+  - **Migración escrita a mano otra vez.** Tocaba `estadoprefiltro`, que es exactamente la
+    CHECK que el autogenerate propone borrar. Verificado con `psql`: **12 CHECK, los cuatro
+    estados dentro y `origenclasificacion` intacta**.
+  - **Gold set migrado al formato de 7.8** y con validación de coherencia: un caso que diga
+    `descartada` con ejes esperados no carga. El caso difícil (LO 1/2023) **cambia de etiqueta**
+    a `sospecha`: sobre texto íntegro no hay con qué descartarlo, y la guía es explícita —ante
+    la duda, sospecha—. `test_gold_set_prefiltro.py` reescrito para **no fingir que mide** lo
+    que no puede: compara etiquetas hechas sobre texto íntegro contra una evaluación hecha
+    sobre el título, así que solo comprueba el límite superior del recall. Hay un test que
+    **falla a propósito cuando el corpus pase de 30 casos** para recordar que antes de publicar
+    ninguna cifra hace falta la 0.c.
+  - **281 tests** (22 nuevos del eje referencial), ruff y mypy limpios. Verificado sobre las
+    436 normas reales: **1 relevante (Ley 4/2023, eje léxico, 2 directos), 435 pendientes, 0
+    descartadas**, y segunda pasada **0 evaluadas** — idempotencia real, que es justo lo que
+    se habría roto.
+  - **Lo que esto deja visible:** el pipeline está ahora honestamente bloqueado en la **0.c**.
+    435 normas esperan su texto íntegro; hasta que el worker lo descargue no se descarta ni se
+    promociona nada. Es mucho mejor que el "435 descartadas" de antes, que afirmaba un
+    veredicto que nadie había emitido.
 - **Hecho en S1 (último trabajo, 2026-08-08): la capa local entra en alcance. ADR 0014 y
   auditoría provincial escritas; falta el código.**
   - **Corrección de un error mío que conviene no repetir:** al humano se le dijo que las
