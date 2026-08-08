@@ -67,8 +67,20 @@ etiquetar 150-200 documentos a mano, o se etiquetan dos veces. Ver "EMPIEZA AQU�
 ## 1. Qué es esto
 
 **Faro Cuir** es un sistema de vigilancia normativa que monitoriza a diario los boletines
-oficiales y parlamentos autonómicos españoles (17 CCAA + BOE) para detectar cambios legislativos
-que afecten a los derechos del colectivo LGTBI+, con foco especial en las personas trans.
+oficiales españoles en **tres niveles de administración** para detectar cambios normativos que
+afecten a los derechos del colectivo LGTBI+, con foco especial en las personas trans:
+
+- **Estatal:** BOE (1 fuente).
+- **Autonómico:** 17 boletines/diarios oficiales.
+- **Local:** **43 Boletines Oficiales de la Provincia** (ADR 0014, decidido el 2026-08-08).
+
+**61 fuentes en total.** La capa local se vigila por el BOP y no municipio a municipio porque
+una ordenanza municipal **no entra en vigor si no se publica íntegra en el BOP** (Ley 5/2002,
+`BOE-A-2002-6467`): el municipio no es una fuente, es un emisor que publica en la fuente
+provincial. Eso convierte 8.131 municipios en 43 boletines. Ver `docs/fuentes.md`.
+
+**Registradas ≠ vigiladas:** el guardarraíl de la sección 8 (máximo 5 fuentes integradas en la
+primera iteración) sigue en pie y con 61 fuentes importa más, no menos.
 
 Detecta el **retroceso silencioso**: no la reforma que sale en prensa, sino la instrucción de
 rango bajo publicada un martes de agosto que desmonta un derecho sin titulares.
@@ -774,6 +786,36 @@ revisión con autenticación (~35k).
 ---
 
 - **Semana actual:** S1 / backend y seguridad — en curso. Repo arrancado el **2026-08-04**.
+- **Hecho en S1 (último trabajo, 2026-08-08): la capa local entra en alcance. ADR 0014 y
+  auditoría provincial escritas; falta el código.**
+  - **Corrección de un error mío que conviene no repetir:** al humano se le dijo que las
+    provincias «no tienen competencia normativa». Falso. Los municipios tienen **potestad
+    reglamentaria** (art. 4 Ley 7/1985): ordenanzas, reglamentos, acuerdos de pleno y **bases
+    y convocatorias de subvenciones**, que es la forma más barata de desfinanciar a una
+    asociación sin titular. Es la capa que **más** encaja con la tesis de la sección 1.
+  - **El hallazgo que lo hace tratable:** una ordenanza municipal no entra en vigor si no se
+    publica íntegra en el BOP (Ley 5/2002, `BOE-A-2002-6467`). No hay que vigilar 8.131
+    municipios: hay que vigilar **43 boletines**.
+  - `docs/fuentes.md` con las **43 filas provinciales**, nombre y URL **verificados** contra
+    el directorio oficial del Punto de Acceso General. Las columnas de integración (formato,
+    OCR, licencia) siguen `TODO(verificar)`: se separa a propósito lo comprobado de lo
+    supuesto, y ninguna fila los mezcla.
+  - **La lista trae su propia comprobación**, no solo el recuento: el reparto por CCAA cuadra
+    con la división provincial y **43 + 7 uniprovinciales = 50 provincias**. Si algún día deja
+    de sumar, la lista se ha roto. Las 7 sin BOP no son un hueco: su boletín autonómico hace
+    ese papel y ya estaba en alcance.
+  - Tres candidatas con indicios de formato estructurado (Huesca, Cáceres, Barcelona), **no
+    confirmadas**. La de Barcelona lleva una advertencia que puede descartarla: hay indicios
+    de que su XML solo está el día de publicación, lo que impediría reingerir histórico y
+    chocaría con la idempotencia por `sha256`.
+  - **Lo que falta y es lo siguiente de esta línea:** `fuente` necesita `ambito_territorial`
+    (estatal|autonomico|provincial|local) y `provincia` + migración, sembrar las 43 con
+    `activa=false`, y el desglose por nivel al pinchar una CCAA en el mapa (que es como lo
+    pidió el humano: agrupado, sin obligar a ampliar el mapa). **~20k.**
+  - **V1 no se mueve de fecha.** Entra la estructura y **un** BOP de punta a punta; los 42
+    restantes son hoja de ruta declarada. Y antes de activar el segundo, repetir la medición
+    del ADR 0011 sobre el primero: el cuello de botella no es la descarga, es la cola del LLM
+    a 133,9 s por extracción.
 - **Hecho en S1 (último trabajo, 2026-08-08): segunda versión del frontend — mapa real y
   texto reivindicativo. Cuatro puntos del backlog del humano (sección 12) cerrados.**
   - **La geometría del mapa se genera, ya no se hereda.** `frontend/scripts/generar_mapa.py`
