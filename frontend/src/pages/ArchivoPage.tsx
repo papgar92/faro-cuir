@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { DocumentoDetalleApi, NormaApi } from "../api/client";
-import { listarDocumentos, obtenerDocumento } from "../api/client";
+import { entraEnLaCola, listarDocumentos, obtenerDocumento } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
+import { HuellaArchivo } from "../components/HuellaArchivo/HuellaArchivo";
 import { PrefiltroBadge } from "../components/PrefiltroBadge/PrefiltroBadge";
 import { acortarHash, formatearFecha, formatearSelloTiempo } from "../lib/formato";
 import type { SeleccionNorma } from "../lib/navigation";
@@ -49,7 +50,17 @@ function FilaNorma({ norma, onVerFicha }: { norma: NormaApi; onVerFicha: () => v
             {norma.organo_emisor ?? "Órgano emisor no informado"}
           </span>
           <span className="mt-1.5 block">
-            <PrefiltroBadge estado={norma.prefiltro_estado} terminos={norma.prefiltro_terminos} />
+            <PrefiltroBadge
+              estado={norma.prefiltro_estado}
+              terminos={norma.prefiltro_terminos}
+              ejes={norma.prefiltro_ejes}
+            />
+          </span>
+          {/* La huella va en la lista y no solo en la ficha: que el archivo sea verificable
+              es una propiedad de TODO lo ingerido, incluidas las 412 normas descartadas, y
+              enseñarla solo en las interesantes daría a entender lo contrario. */}
+          <span className="mt-1 block">
+            <HuellaArchivo archivo={norma.texto_archivado} />
           </span>
         </span>
       </button>
@@ -138,7 +149,10 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
     if (!documento) return [];
     const aguja = normalizar(busqueda.trim());
     return documento.normas.filter((norma) => {
-      if (soloRelevantes && norma.prefiltro_estado !== "relevante") return false;
+      // `entraEnLaCola` y no `=== "relevante"`: con la comparación directa, este filtro
+      // escondía las normas en `sospecha`, que son las que el prefiltro **no ha sabido
+      // descartar**. Esconder justo esas es el falso negativo que el proyecto no se permite.
+      if (soloRelevantes && !entraEnLaCola(norma.prefiltro_estado)) return false;
       if (!aguja) return true;
       return (
         normalizar(norma.titulo).includes(aguja) ||
@@ -153,10 +167,17 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
   // petición extra para contar lo que ya tenemos delante.
   const embudo = useMemo(() => {
     const normas = documento?.normas ?? [];
+    // Los CUATRO escalones, y ninguno se omite por ser cero. El embudo anterior contaba
+    // relevantes y pendientes, así que las sospechas quedaban fuera y quien lo leyera daría
+    // por hecho que las que faltaban se habían descartado. Mismo criterio que el log del
+    // worker: un embudo al que le falta un peldaño no cuadra.
     return {
       total: normas.length,
       relevantes: normas.filter((n) => n.prefiltro_estado === "relevante").length,
+      sospechas: normas.filter((n) => n.prefiltro_estado === "sospecha").length,
+      descartadas: normas.filter((n) => n.prefiltro_estado === "descartada").length,
       pendientes: normas.filter((n) => n.prefiltro_estado === "pendiente").length,
+      enCola: normas.filter((n) => entraEnLaCola(n.prefiltro_estado)).length,
     };
   }, [documento]);
 
@@ -251,13 +272,16 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
                     checked={soloRelevantes}
                     onChange={(evento) => setSoloRelevantes(evento.target.checked)}
                   />
-                  Solo las que pasan el prefiltro
+                  Solo las que entran en la cola
                 </label>
                 {/* El embudo es la métrica de la etapa 1: cuántas normas se ahorra el
-                    extractor. Se enseña siempre, no solo cuando hay resultados. */}
+                    extractor. Se enseña siempre, no solo cuando hay resultados, y con los
+                    cuatro escalones — el que falta se lee como un descarte. */}
                 <span className="font-mono text-xs text-ink-3">
-                  {embudo.relevantes} de {embudo.total} pasan el prefiltro
-                  {embudo.pendientes > 0 && ` · ${embudo.pendientes} sin evaluar`}
+                  {embudo.enCola} de {embudo.total} entran en la cola
+                  {embudo.sospechas > 0 && ` (${embudo.relevantes} + ${embudo.sospechas} sospecha)`}
+                  {embudo.descartadas > 0 && ` · ${embudo.descartadas} descartadas`}
+                  {embudo.pendientes > 0 && ` · ${embudo.pendientes} sin texto íntegro`}
                 </span>
               </div>
               <p aria-live="polite" className="m-0 mt-2 font-mono text-xs text-ink-3">

@@ -3,6 +3,7 @@ import type { DocumentoDetalleApi, NormaApi } from "../api/client";
 import { obtenerDocumento } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
 import { IntegrityPanel } from "../components/IntegrityPanel/IntegrityPanel";
+import { HuellaArchivo } from "../components/HuellaArchivo/HuellaArchivo";
 import { PrefiltroBadge } from "../components/PrefiltroBadge/PrefiltroBadge";
 import { formatearFecha } from "../lib/formato";
 import type { SeleccionNorma } from "../lib/navigation";
@@ -130,13 +131,20 @@ function Ficha({
               />
               <MetaRow label="Rango" value={norma.rango ?? <Pendiente que="el rango" />} />
               <MetaRow
-                label="Prefiltro léxico"
+                // Ya no es solo léxico: desde el ADR 0012 hay un eje referencial, y desde la
+                // tarea 0.c dispara sobre datos reales. La etiqueta mentía.
+                label="Prefiltro"
                 value={
                   <PrefiltroBadge
                     estado={norma.prefiltro_estado}
                     terminos={norma.prefiltro_terminos}
+                    ejes={norma.prefiltro_ejes}
                   />
                 }
+              />
+              <MetaRow
+                label="Archivo verificable"
+                value={<HuellaArchivo archivo={norma.texto_archivado} completo />}
               />
               <MetaRow label="Ámbito" value={norma.ambito ?? <Pendiente que="el ámbito" />} />
               <MetaRow

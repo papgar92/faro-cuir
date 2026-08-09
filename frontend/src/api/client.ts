@@ -41,9 +41,56 @@ export interface NormaApi {
    * lista vacía cuando se evaluó y no coincidió nada.
    */
   prefiltro_terminos: string[] | null;
+  /**
+   * Qué eje disparó (7.3). `referencial` significa que esta norma **modifica una norma
+   * vigilada**, diga lo que diga su texto: es el caso silencioso, y merece verse.
+   */
+  prefiltro_ejes: EjePrefiltro[] | null;
+  /** Términos directos distintos. Es la magnitud que separa `relevante` de `sospecha`. */
+  prefiltro_directos: number | null;
+  /**
+   * Prueba de archivo del texto íntegro. `null` mientras la fase 2 no lo haya descargado —
+   * que no es lo mismo que "no existe", y la interfaz no debe pintarlo igual.
+   */
+  texto_archivado: TextoArchivadoApi | null;
 }
 
-export type EstadoPrefiltro = "pendiente" | "relevante" | "descartada";
+/**
+ * La huella de lo que se archivó. Espejo de `TextoArchivado` (CLAUDE.md 6.5).
+ *
+ * Se enseña en la interfaz, no solo se guarda: el proyecto afirma «el día X esta norma decía
+ * esto», y esa afirmación no vale nada si quien la lee no puede comprobarla. Con el hash y la
+ * fecha delante, cualquiera descarga el texto de la fuente y contrasta.
+ */
+export interface TextoArchivadoApi {
+  sha256: string;
+  sello_tiempo: string;
+  url_original: string;
+}
+
+/**
+ * Los CUATRO estados de 7.2. `sospecha` faltaba aquí hasta el 2026-08-09 y el tipo declaraba
+ * imposible un valor que el backend lleva emitiendo desde la tarea 0.b — hoy hay 23 normas en
+ * ese estado sobre datos reales.
+ *
+ * No es un valor más de la lista. `relevante` y `sospecha` **entran las dos en la cola del
+ * extractor**: la diferencia entre ellas es de orden en la cola, no de cobertura. Cualquier
+ * comparación `=== "relevante"` para decidir si una norma "pasa" pierde las sospechas en
+ * silencio, que es exactamente el falso negativo que el proyecto no se puede permitir. Usa
+ * `entraEnLaCola`.
+ */
+export type EstadoPrefiltro = "pendiente" | "sospecha" | "relevante" | "descartada";
+
+export type EjePrefiltro = "lexico" | "referencial";
+
+/**
+ * Si una norma acaba pasando por el extractor. Espejo de la propiedad
+ * `EstadoPrefiltro.entra_en_la_cola_del_extractor` del backend, que existe por el mismo
+ * motivo: para que la cola no se escriba nunca como `=== "relevante"`.
+ */
+export function entraEnLaCola(estado: EstadoPrefiltro): boolean {
+  return estado === "relevante" || estado === "sospecha";
+}
 
 /** Un documento ingerido. Espejo de `DocumentoResumen`. */
 export interface DocumentoApi {

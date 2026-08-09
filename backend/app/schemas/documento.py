@@ -13,6 +13,28 @@ import datetime
 from pydantic import BaseModel, ConfigDict
 
 
+class TextoArchivado(BaseModel):
+    """La prueba de archivo del texto íntegro de una norma (CLAUDE.md 6.5, ADR 0005 y 0015).
+
+    Se publica entero y a propósito. El proyecto afirma «el día X esta norma decía esto», y esa
+    afirmación **no vale nada si quien la lee no puede comprobarla**: con el `sha256` y el
+    `sello_tiempo` delante, cualquiera puede descargar el texto de la fuente oficial, calcular
+    el hash y contrastarlo. Publicar la garantía sin publicar la huella sería pedir que se
+    fíen, que es justo lo contrario de lo que hace esta herramienta.
+
+    `null` significa que el cuerpo aún no se ha descargado (cola de la fase 2), no que no
+    exista. Es una distinción que la interfaz debe respetar.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    sha256: str
+    sello_tiempo: datetime.datetime
+    # La URL de la que se descargó, para que la verificación se pueda repetir sin adivinar de
+    # dónde salió. `ruta_almacen` sigue sin publicarse: es una ruta del servidor.
+    url_original: str
+
+
 class NormaResumen(BaseModel):
     """Una norma tal y como se lista en la API pública."""
 
@@ -36,6 +58,17 @@ class NormaResumen(BaseModel):
     # Términos del vocabulario que la hicieron pasar. Lista vacía si se descartó, null si
     # todavía no se ha evaluado — la misma distinción que guarda la tabla.
     prefiltro_terminos: list[str] | None
+    # Qué eje disparó (7.3): `lexico`, `referencial`, o los dos. Se publica por el mismo
+    # motivo que los términos: sin él, "esta norma pasó" no se puede auditar desde fuera. Y
+    # es lo único que distingue una norma que pasó porque su texto habla del colectivo de una
+    # que pasó porque **modifica una norma vigilada diga lo que diga su texto** — que es el
+    # caso silencioso, el que justifica el proyecto entero.
+    prefiltro_ejes: list[str] | None
+    # Cuántos términos directos distintos se contaron. Es la magnitud que separa `relevante`
+    # de `sospecha` (umbral de 7.3), así que sin ella el estado no se puede contrastar.
+    prefiltro_directos: int | None
+    # El texto íntegro archivado, con su huella. `null` mientras la fase 2 no lo haya bajado.
+    texto_archivado: TextoArchivado | None
 
 
 class DocumentoResumen(BaseModel):

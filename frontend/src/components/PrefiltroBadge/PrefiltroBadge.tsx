@@ -1,4 +1,4 @@
-import type { EstadoPrefiltro } from "../../api/client";
+import type { EjePrefiltro, EstadoPrefiltro } from "../../api/client";
 
 /**
  * Estado del prefiltro léxico de una norma (ADR 0007).
@@ -15,6 +15,15 @@ const META: Record<EstadoPrefiltro, { etiqueta: string; glifo: string; clases: s
     glifo: "◉",
     clases: "border-ink-3 bg-surface-2 text-ink",
   },
+  // Cuarto estado (7.2). Entra en la cola del extractor **igual que `relevante`**: la
+  // diferencia es de turno, no de cobertura, y por eso se pinta como un peldaño intermedio y
+  // no como un descarte suave. Que se lea "entra en la cola" y no "dudosa" es deliberado —
+  // "dudosa" invita a ignorarla, y el proyecto entero existe para no ignorar estas.
+  sospecha: {
+    etiqueta: "Entra en la cola",
+    glifo: "◐",
+    clases: "border-line-2 bg-inset text-ink-2",
+  },
   descartada: {
     etiqueta: "Descartada",
     glifo: "○",
@@ -27,15 +36,28 @@ const META: Record<EstadoPrefiltro, { etiqueta: string; glifo: string; clases: s
   },
 };
 
+// El eje referencial merece nombre propio en la interfaz. Una norma que pasa por él lo hace
+// porque **modifica una norma vigilada**, aunque su texto no mencione al colectivo: es
+// justamente el retroceso silencioso que el léxico no ve. Enseñar solo los términos dejaría
+// esas normas con la insignia vacía y pareciendo un falso positivo.
+const EJES: Record<EjePrefiltro, string> = {
+  lexico: "léxico",
+  referencial: "referencial",
+};
+
 interface PrefiltroBadgeProps {
   estado: EstadoPrefiltro;
   /** Términos que la hicieron pasar; se muestran para que la decisión sea auditable. */
   terminos?: string[] | null;
+  /** Qué ejes dispararon (7.3). Sin esto, una norma que pasa solo por el eje referencial
+   *  aparecería sin ningún término y parecería un fallo. */
+  ejes?: EjePrefiltro[] | null;
 }
 
-export function PrefiltroBadge({ estado, terminos }: PrefiltroBadgeProps) {
+export function PrefiltroBadge({ estado, terminos, ejes }: PrefiltroBadgeProps) {
   const meta = META[estado];
   const coincidencias = terminos ?? [];
+  const disparados = ejes ?? [];
 
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -45,6 +67,19 @@ export function PrefiltroBadge({ estado, terminos }: PrefiltroBadgeProps) {
         <span aria-hidden="true">{meta.glifo}</span>
         {meta.etiqueta}
       </span>
+      {disparados.map((eje) => (
+        <span
+          key={eje}
+          title={
+            eje === "referencial"
+              ? "Modifica una norma de la lista vigilada, diga lo que diga su texto"
+              : "Su texto contiene vocabulario del proyecto"
+          }
+          className="rounded border border-line-2 px-1 py-0.5 font-mono text-[10.5px] text-ink-3"
+        >
+          eje {EJES[eje]}
+        </span>
+      ))}
       {coincidencias.map((termino) => (
         // El término exacto, no un recuento: "pasó por 2 términos" no es auditable,
         // "pasó por «lgtbi» y «personas trans»" sí.

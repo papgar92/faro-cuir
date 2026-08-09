@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.database import SessionLocal
 from app.models.documento import Documento, TipoDocumento
+from app.models.norma import Norma
 from app.schemas.documento import DocumentoDetalle, DocumentoResumen
 
 router = APIRouter(prefix="/api", tags=["documentos"])
@@ -59,8 +60,13 @@ def obtener_documento(documento_id: int, session: Session = Depends(get_session)
     documento = session.scalar(
         # selectinload en vez de dejar que el ORM cargue las normas una a una: un sumario
         # del BOE trae ~250 normas, y sin esto serían ~250 consultas por petición.
+        #
+        # El segundo nivel es igual de obligatorio desde el ADR 0015: publicar la huella del
+        # texto archivado obliga a tocar `norma.documento_texto`, y sin encadenar el
+        # `selectinload` volverían las ~250 consultas por la puerta de atrás — una por norma,
+        # esta vez para su cuerpo.
         select(Documento)
-        .options(selectinload(Documento.normas))
+        .options(selectinload(Documento.normas).selectinload(Norma.documento_texto))
         .where(Documento.id == documento_id)
     )
     if documento is None:
