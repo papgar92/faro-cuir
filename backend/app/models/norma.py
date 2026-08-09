@@ -218,6 +218,26 @@ class Norma(Base):
     prefiltro_version_texto: Mapped[str | None] = mapped_column(String(20))
     prefiltro_evaluado_en: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # --- Etapa 4 del pipeline: catálogo de reglas (ADR 0016) -------------------------------
+    # Con qué versión de `pipeline/reglas.py` se pasó el catálogo por esta norma, y cuándo.
+    # Existe por lo mismo que `prefiltro_version_texto`, y hace falta aquí y no en `deteccion`
+    # por un caso que no tiene fila donde apuntarse: **la norma que se evaluó y no disparó
+    # ninguna regla**. Sin esta columna, esa norma no se distingue de una sin evaluar, y cada
+    # pasada volvería a leer y parsear su cuerpo del almacén — 652 ficheros hoy — para llegar
+    # otra vez a la misma nada. Es el mismo fallo silencioso que rompió la idempotencia del
+    # prefiltro al llegar el estado `sospecha`, y por eso se resuelve igual: preguntando por la
+    # versión y por la fecha, nunca por el estado.
+    #
+    # Son **dos** versiones y no una, con el mismo criterio que el prefiltro guarda por
+    # separado la del vocabulario, la de la watchlist y la del texto: los spans de evidencia
+    # son offsets sobre el texto derivado, así que un cambio en `texto_plano` los mueve todos
+    # aunque el catálogo de reglas no se haya tocado. Con una sola columna, ese cambio dejaría
+    # detecciones apuntando a rangos desplazados del archivo y nada las marcaría como
+    # reevaluables.
+    reglas_version: Mapped[str | None] = mapped_column(String(20))
+    reglas_version_texto: Mapped[str | None] = mapped_column(String(20))
+    reglas_evaluado_en: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+
     # Las dos relaciones necesitan `foreign_keys` explícito porque hay dos FK a la misma tabla
     # (ADR 0015). `documento_texto` no tiene `back_populates`: desde el cuerpo no se navega a
     # la norma, y declarar la vuelta solo añadiría una segunda forma de decir lo mismo.

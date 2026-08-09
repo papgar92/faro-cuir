@@ -99,6 +99,17 @@ class Deteccion(Base):
     # la pregunta "¿por qué esto es un retroceso?" hay que poder señalar la regla, no un
     # número de confianza.
     regla_aplicada: Mapped[str | None] = mapped_column(String(100), index=True)
+    # Los **spans de evidencia** que 7.6 exige junto a `regla_aplicada`, más la versión del
+    # catálogo y de la derivación del texto sobre la que se midieron. Va en una columna propia
+    # y no dentro de `extraccion_json` por un motivo de fondo: son dos procedencias distintas.
+    # `extraccion_json` es lo que dijo el modelo; esto es lo que dice el archivo. Mezclarlas
+    # dejaría de poder contestarse "¿esto lo afirma el LLM o lo afirma el BOE?", que es la
+    # pregunta que separa este proyecto de uno que publica lo que le sale del modelo.
+    #
+    # Es nullable porque el extractor inserta antes de que exista veredicto (ADR 0009), y una
+    # detección derivada de reglas puede existir con `extraccion_json` a NULL y esta llena: son
+    # las dos caras y ninguna implica la otra.
+    evidencia_json: Mapped[dict[str, Any] | None] = mapped_column(_JSON_PORTABLE)
 
     severidad: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     confianza: Mapped[float] = mapped_column(nullable=False, default=0.0)

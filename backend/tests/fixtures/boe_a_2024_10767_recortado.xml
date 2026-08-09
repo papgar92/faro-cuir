@@ -1,0 +1,54 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  RECORTE DEL DOCUMENTO REAL, no un ejemplo escrito a mano.
+
+  Origen: BOE-A-2024-10767 (Ley 17/2023 de la Comunidad de Madrid, la reforma que CLAUDE.md 7.8
+  señala como el caso más importante del gold set), tal y como está archivado en el almacén con
+  su sha256 y su sello. El documento completo son 61 KB y el texto derivado 44.526 caracteres;
+  aquí se conservan **verbatim** los trece párrafos que importan y se quita el resto:
+
+  - Los DOCE párrafos con una construcción operativa de supresión. El ADR 0016 recogió diez en
+    su sondeo a mano; el catálogo de reglas encuentra dos más («Se suprime el apartado 2 del
+    artículo 8» y «Se suprime el siguiente texto del apartado 2 del artículo 36»), y por eso
+    están los doce y no los diez del ADR.
+  - UN párrafo que NO es una supresión y lo parece: «Ninguna persona podrá ser presionada para
+    ocultar, suprimir o negar su condición sexual», que es redacción *nueva* del artículo 4. Es
+    el falso positivo que separa buscar el lema de buscar la construcción operativa, y sin él
+    este fichero no probaría nada interesante.
+
+  El bloque <analisis> es también el real: `MODIFICA BOE-A-2016-6728`, que está en
+  config/watchlist.json y es lo que hace que dispare R-SUP-001 y no R-SUP-002.
+
+  Existe como fixture porque `backend/data/` está en .gitignore: sin esto, la verificación que
+  el ADR 0016 exige solo correría en la máquina donde está el almacén, nunca en CI.
+-->
+<documento>
+  <metadatos>
+    <identificador>BOE-A-2024-10767</identificador>
+  </metadatos>
+  <analisis>
+    <referencias>
+      <anteriores>
+        <anterior referencia="BOE-A-2016-6728">
+          <palabra codigo="270">MODIFICA</palabra>
+          <texto>el título, el preámbulo y determinados preceptos; y SUPRIME los arts. 7, 24 y 45, 48 y los títulos X y XIV de la Ley 2/2016, de 29 de marzo</texto>
+        </anterior>
+      </anteriores>
+    </referencias>
+  </analisis>
+  <texto>
+    <p>Dos. Los apartados 1 y 8 del artículo 1 quedan suprimidos.</p>
+    <p>Tres. Los apartados 1, 2 y 3 del artículo 3 quedan suprimidos.</p>
+    <p>1. Ninguna persona podrá ser presionada para ocultar, suprimir o negar su condición sexual, ni su transexualidad, con independencia de la fase en que se encuentre, siempre con respeto a la libertad personal, las leyes, las resoluciones judiciales, y tomando en consideración los informes de los servicios médicos.</p>
+    <p>Siete. Se suprime el artículo 7.</p>
+    <p>Siete bis. Se suprime el apartado 2 del artículo 8 de la Ley 2/2016, de 29 de marzo, de Identidad y Expresión de Género e Igualdad Social y no Discriminación de la Comunidad de Madrid.</p>
+    <p>Ocho. Queda suprimido el apartado 2 del artículo 9.</p>
+    <p>Diez. Queda suprimido el apartado 2 del artículo 11 sobre descentralización y desconcentración de los centros y servicios.</p>
+    <p>Dieciséis. El artículo 24 queda suprimido.</p>
+    <p>Dieciocho. Se suprime el siguiente texto del apartado 2 del artículo 36:</p>
+    <p>Veinte. El Título X queda suprimido.</p>
+    <p>Veintidós. El artículo 45 queda suprimido.</p>
+    <p>Veintitrés. El artículo 48 queda suprimido.</p>
+    <p>Veinticuatro. Se suprime el Título XIV y se sustituye el Título XIII, que tendrá la siguiente rúbrica e incluirá un artículo 49 con la siguiente redacción:</p>
+  </texto>
+</documento>

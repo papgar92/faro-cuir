@@ -22,9 +22,10 @@ from app.ingest.boe import BoeIngestError, SumarioNoDisponible
 from app.llm.ollama import ProveedorOllama
 from app.llm.provider import VERSION_PROMPT
 from app.models.fuente import Fuente, TipoFuente
-from app.pipeline import prefiltro, texto, watchlist
+from app.pipeline import prefiltro, reglas, texto, watchlist
 from app.security.url_guard import UrlGuardError
 from app.security.xml_safe import XmlSafeError
+from app.services import clasificacion as servicio_clasificacion
 from app.services import extraccion as servicio_extraccion
 from app.services import ingesta, texto_integro
 from app.services import prefiltro as servicio_prefiltro
@@ -72,11 +73,21 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
             "por ejecución, así que un atasco grande se vacía en varias pasadas."
         ),
     )
+    parser.add_argument(
+        "--reclasificar",
+        action="store_true",
+        help=(
+            "No ingiere nada: vuelve a pasar el catálogo de reglas (ADR 0016) por las normas "
+            "con cuerpo archivado que estén sin evaluar o evaluadas con una versión anterior "
+            "del catálogo o de la derivación del texto. Es lo que hay que lanzar después de "
+            "tocar una regla. No toca la red ni el LLM."
+        ),
+    )
     args = parser.parse_args(argv)
-    # `--fuente` deja de ser obligatorio porque ni `--reprefiltrar` ni `--fase2` ingieren; se
-    # sigue exigiendo para todo lo demás, que sí necesita saber de dónde descargar.
-    if not (args.reprefiltrar or args.fase2) and args.fuente is None:
-        parser.error("--fuente es obligatorio salvo con --reprefiltrar o --fase2")
+    # `--fuente` deja de ser obligatorio porque ninguno de los tres modos de mantenimiento
+    # ingiere; se sigue exigiendo para todo lo demás, que sí necesita saber de dónde descargar.
+    if not (args.reprefiltrar or args.fase2 or args.reclasificar) and args.fuente is None:
+        parser.error("--fuente es obligatorio salvo con --reprefiltrar, --fase2 o --reclasificar")
     return args
 
 
@@ -135,6 +146,27 @@ def _registrar_fase2(resumen: texto_integro.ResumenFase2) -> None:
     )
 
 
+def _registrar_clasificacion(resumen: servicio_clasificacion.ResumenClasificacion) -> None:
+    """Escribe el resultado del catálogo de reglas, con el desglose por regla.
+
+    `con_veredicto` es y debe ser una cifra pequeña —7 de 652 documentos en el corpus de tres
+    días—, así que el desglose por regla es lo único que dice si el catálogo sigue vivo.
+    `obsoletos` no se omite nunca aunque sea cero: significa veredictos que el catálogo actual
+    ya no sostiene y que **no se retiran solos**, así que quien lee el log tiene que enterarse.
+    """
+    logger.info(
+        "Clasificación (reglas %s, texto %s): %s evaluadas → %s con veredicto, "
+        "%s ilegibles, %s veredictos obsoletos. Por regla: %s.",
+        reglas.VERSION_REGLAS,
+        texto.VERSION_TEXTO_PLANO,
+        resumen.evaluadas,
+        resumen.con_veredicto,
+        resumen.ilegibles,
+        resumen.obsoletos,
+        resumen.por_regla or "ninguna",
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parsear_argumentos(argv)
     logging.basicConfig(
@@ -168,6 +200,14 @@ def main(argv: list[str] | None = None) -> int:
             resumen = servicio_prefiltro.aplicar(session, almacen_root=settings.almacen_root)
         _registrar_fase2(resumen_fase2)
         _registrar_embudo(resumen, reaplicado=True)
+        return 0
+
+    if args.reclasificar:
+        with SessionLocal() as session:
+            resumen_clasificacion = servicio_clasificacion.aplicar(
+                session, almacen_root=settings.almacen_root
+            )
+        _registrar_clasificacion(resumen_clasificacion)
         return 0
 
     with SessionLocal() as session:
@@ -233,6 +273,18 @@ def main(argv: list[str] | None = None) -> int:
             documento_id=resultado.documento_id,
         )
 
+        # Etapa 4 (ADR 0016): el catálogo de reglas sobre el texto archivado. Va **después**
+        # del extractor y no antes por una sola razón: así puede contar cuántos de los
+        # punteros que el modelo citó quedan corroborados por el archivo. El veredicto no
+        # depende de eso —las reglas leen el texto, no la extracción— pero el diagnóstico sí,
+        # y es lo único que puede contestar si el modelo ve supresiones que las reglas no ven.
+        # Es barato: ni red ni LLM, solo leer del almacén.
+        resumen_clasificacion = servicio_clasificacion.aplicar(
+            session,
+            almacen_root=settings.almacen_root,
+            documento_id=resultado.documento_id,
+        )
+
     if resultado.creado:
         logger.info(
             "Ingerido %s (%s items, %s normas nuevas) sha256=%s -> %s",
@@ -272,6 +324,7 @@ def main(argv: list[str] | None = None) -> int:
         resumen_extraccion.fallidas,
         resumen_extraccion.punteros,
     )
+    _registrar_clasificacion(resumen_clasificacion)
     return 0
 
 
