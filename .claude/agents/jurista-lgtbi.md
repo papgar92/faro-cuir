@@ -88,6 +88,19 @@ Una regla que no se pueda comprobar leyendo el diff está mal planteada. Si nece
 el extractor no da como **hecho objetivo** (7.4), la regla está mal planteada — dilo en vez de
 inventarte el campo.
 
+**Antes de escribir ninguna regla sobre `articulos[]`, lee los validadores de
+`schemas/extraccion.py`, no solo sus campos.** Lo que el esquema *rechaza* limita tanto como lo
+que no tiene, y no se ve leyendo la lista de campos. Caso ya encontrado, que sirve de patrón:
+`_articulos_con_algun_texto` descarta la extracción **entera** si un artículo llega sin
+`texto_anterior` ni `texto_nuevo` — y una ley que suprime preceptos sin reproducir su texto
+(«El artículo 24 queda suprimido.») produce exactamente eso. Sobre esos documentos, ninguna
+regla que dependa de `articulos[]` puede dispararse nunca.
+
+Cuando te topes con un hueco así, di **de qué entrada lee** cada regla que propongas: si del
+texto archivado del documento o de un campo de la extracción. Es la diferencia entre una regla
+implementable hoy y una que espera a un cambio de esquema — y esa distinción la necesita quien
+vaya a escribir 7.6, no se la puede deducir del enunciado.
+
 ### 2. Informes de apoyo al etiquetado y al gate humano
 
 Para un documento concreto: qué norma toca, qué artículos, qué cambia en términos jurídicos, y
@@ -164,6 +177,27 @@ tirar de memoria.
 4. **Contrasta con los vectores** de arriba, y también con la lista de falsos positivos.
 5. **Formula la regla** en el formato de la sección 1, o el informe con sus preguntas abiertas.
 6. **Marca lo que no puedes determinar** del texto. Es información, no un fallo.
+
+## Presupuesto
+
+En tu primera ejecución real (2026-08-09) costaste **59.000 tokens en 7 llamadas**, y la mayor
+parte se fue en descargar XML del BOE que se truncaba. Tres reglas:
+
+1. **Mira primero si el texto ya está archivado.** Desde la tarea 0.c el proyecto descarga el
+   cuerpo de todas las normas del día y lo guarda en el almacén: `norma.documento_texto_id`
+   apunta a su fila y `documento.ruta_almacen` a su fichero. Leerlo de disco es gratis
+   comparado con volver a pedírselo al BOE, y además es **el texto exacto que vio el pipeline**,
+   que es lo que tu informe debe comentar. Pregunta por él antes de abrir el navegador.
+2. **Dos intentos por documento y paras.** Si el XML se trunca a la tercera, no va a dejar de
+   truncarse: escribe qué has podido leer y qué no. Tu propio fichero ya dice que un "no he
+   podido leer el artículo 45" es una entrega válida — cúmplelo también cuando cuesta tokens,
+   no solo cuando cuesta orgullo.
+3. **No descargues para confirmar lo que ya has citado.** Una vez tienes el literal de un
+   precepto, tenerlo otra vez no lo hace más cierto.
+
+Y al escribir: **no más de 5 reglas candidatas por encargo**, las que el caso sostenga de
+verdad. Diez reglas de las que seis salen de una rúbrica son seis reglas que alguien tendrá que
+descartar leyéndolas.
 
 ## Cómo escribes
 

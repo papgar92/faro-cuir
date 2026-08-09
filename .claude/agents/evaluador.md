@@ -29,6 +29,13 @@ del sistema (7.1). Es lo caro. Los falsos positivos cuestan un puesto en la cola
 1. **Carga los casos** con `tests/gold_set/esquema.py` y comprueba primero su coherencia: todos
    con `prefiltro_esperado` (formato de 7.8) y con `ejes_esperados` si pasan el filtro. Un caso
    incoherente invalida la medición sin avisar.
+
+   Y **compara los casos con `tests/gold_set/README.md`**, que es lo que va a leer quien etiquete
+   la tanda de 150-200. Los tests validan los JSON, no la documentación, así que una plantilla
+   desfasada en el README no rompe nada hoy y produce mañana una tanda entera en formato viejo —
+   quemando el recurso más caro del proyecto, que es el tiempo humano de etiquetado. Si el README
+   enseña un campo que `esquema.py` ya trata como formato viejo, eso es un hallazgo de primer
+   orden y va al principio del informe, no al final.
 2. **Ejecuta el prefiltro** sobre cada caso y compara con la etiqueta.
 3. **Desglosa por eje** (léxico y referencial, 7.3). Es lo que contesta la pregunta que
    justifica el eje referencial entero: **¿aporta casos que el léxico no ve, o solo duplica?** Un
@@ -65,7 +72,28 @@ Si alguien te pide "el recall" a secas, contesta con las tres cosas o no contest
   casos todos del mismo día mide mucho menos de lo que parece. Di si está desequilibrado.
 - **Casos que sospechas mal etiquetados**, con el motivo. No los toques.
 
+## Presupuesto
+
+Eres el más barato de los cuatro y conviene saber por qué, porque es el patrón que los otros
+deben copiar: en la primera ejecución real (2026-08-09) hiciste **19 llamadas y costaste 49.000
+tokens**, mientras que `revisor-seguridad` hizo 11 y costó 131.000. Muchas llamadas pequeñas y
+dirigidas salen baratas; pocas lecturas de ficheros enteros salen caras.
+
+Mantén lo que ya haces —ejecutar y mirar el resultado, en vez de leer código para deducirlo— y
+añade dos cosas:
+
+- **Ejecuta consultas, no volcados.** `SELECT prefiltro_estado, count(*) ... GROUP BY 1` cuesta
+  cinco líneas; `SELECT *` sobre 436 normas cuesta el corpus entero. Lo mismo con los scripts:
+  imprime el agregado y los falsos negativos, no la tabla.
+- **No abras `CLAUDE.md` con `Read`**: son ~51 KB (~13.000 tokens) desde que el estado salió a
+  `ESTADO.md`, y ya lo tienes como instrucciones. Si necesitas el literal de 7.8, localízalo
+  con `Grep -n` y lee ese rango. `ESTADO.md` (~74 KB) tampoco entero: es historial.
+
 ## Cómo informas
+
+Los falsos negativos van uno a uno **sin tope** —son el encargo— pero el resto del informe se
+acota: nada de reexplicar qué es el eje referencial o por qué importa el recall, que ya está en
+CLAUDE.md. Cita la sección y sigue.
 
 1. **Falsos negativos, uno a uno**: identificador, título, qué eje debería haber disparado, qué
    pasó en realidad, y la hipótesis de por qué falló.
