@@ -53,6 +53,7 @@ from app.models.documento import Documento
 from app.models.norma import Norma
 from app.pipeline.prefiltro import VERSION_VOCABULARIO, ResultadoPrefiltro, evaluar
 from app.pipeline.prefiltro import _normalizar as normalizar
+from app.pipeline.texto import texto_plano
 from app.security import url_guard, xml_safe
 from app.security.url_guard import UrlGuardError
 from app.security.xml_safe import XmlSafeError
@@ -127,18 +128,6 @@ def _dispara_umbral_bajo(medida: Medida) -> bool:
 def _patrones_en(titulo: str) -> list[str]:
     normalizado = normalizar(titulo)
     return [patron for patron in PATRONES_ESTRUCTURALES if normalizar(patron) in normalizado]
-
-
-def _texto_plano(raiz: Element) -> str:
-    """Mismo criterio que `services/extraccion._texto_plano`: el articulado vive en `<texto>`.
-
-    Se duplica en vez de importarse porque aquí se mide el documento entero tal cual llega,
-    sin el recorte a `MAX_CARACTERES_DOCUMENTO` que aplica el extractor: lo que interesa es el
-    tamaño real, no el que cabe en el modelo.
-    """
-    cuerpo = raiz.find("./texto")
-    objetivo = cuerpo if cuerpo is not None else raiz
-    return " ".join(f.strip() for f in objetivo.itertext() if f.strip())
 
 
 def _analisis(raiz: Element, medida: Medida) -> None:
@@ -226,7 +215,7 @@ def medir(*, limite: int | None, pausa: float, client: httpx.Client | None = Non
             medidas.append(medida)
             continue
 
-        texto = _texto_plano(raiz)
+        texto = texto_plano(raiz)
         medida.ok = True
         medida.caracteres_texto = len(texto)
         (

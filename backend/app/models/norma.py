@@ -121,8 +121,23 @@ class Norma(Base):
     identificador_oficial: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     titulo: Mapped[str] = mapped_column(Text, nullable=False)
     # También añadido: la URL del texto completo que publica el sumario. Es lo que el pipeline
-    # descargará (vía url_guard) solo para las normas que pasen el prefiltro léxico.
+    # descarga vía `url_guard` en la fase 2 — para **todas** las normas del día, no solo para
+    # las que pasan el prefiltro: el umbral de la fase 2 es cero desde el ADR 0011.
     url_texto: Mapped[str | None] = mapped_column(String(1000))
+
+    # --- Fase 2: dónde está archivado el cuerpo de esta norma (ADR 0015) -------------------
+    # NULL mientras no se haya descargado, y esa condición **es** la cola de trabajo de la
+    # fase 2: `documento_texto_id IS NULL AND url_texto IS NOT NULL`. Se escribe como consulta
+    # y no como estado nuevo a propósito — un estado habría que mantenerlo sincronizado, y una
+    # consulta sobre la FK no puede desincronizarse de la realidad que describe.
+    #
+    # Ojo con la dirección de la lectura: esto NO es "el documento de esta norma" (eso es
+    # `documento_id`, el sumario del que salió), es "el documento crudo que contiene su texto
+    # íntegro". Son dos hechos distintos, de dos descargas distintas y con dos sellos de
+    # tiempo distintos, y por eso son dos columnas.
+    documento_texto_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documento.id", ondelete="RESTRICT"), index=True
+    )
 
     # Nulos hasta que el extractor los determine. Al ingerir un sumario solo tenemos el
     # título; deducir el rango o el ámbito de él a ojo sería justo el tipo de invención que
@@ -187,9 +202,39 @@ class Norma(Base):
     # dos ejes se afinan por separado, y compartir columna obligaría a reevaluarlo todo cada
     # vez que cambia cualquiera de los dos.
     prefiltro_version_watchlist: Mapped[str | None] = mapped_column(String(20))
+    # Con qué versión de `pipeline/texto.texto_plano` se derivó el cuerpo evaluado, o NULL si
+    # se evaluó **solo sobre el título** (fase 1). Es la tercera versión que se guarda por
+    # fila, junto al vocabulario y la watchlist, y hace dos trabajos que ninguna otra columna
+    # puede hacer:
+    #
+    # 1. **Dispara la reevaluación cuando llega el cuerpo.** Una norma evaluada sobre título
+    #    tiene las mismas versiones de vocabulario y watchlist que una evaluada sobre texto
+    #    íntegro; sin esta columna, la que quedó en `pendiente` seguiría en `pendiente` para
+    #    siempre después de descargar su cuerpo, porque nada la marcaría como reevaluable.
+    # 2. **Impide dar por bueno un recall que no lo es.** El gold set se etiqueta sobre texto
+    #    íntegro (7.8): comparar contra una evaluación hecha sobre el título es un límite
+    #    superior, no una medición. Con esta columna se puede separar una cosa de la otra en
+    #    una consulta, en vez de tener que acordarse.
+    prefiltro_version_texto: Mapped[str | None] = mapped_column(String(20))
     prefiltro_evaluado_en: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
 
-    documento: Mapped[Documento] = relationship(back_populates="normas")
+    # Las dos relaciones necesitan `foreign_keys` explícito porque hay dos FK a la misma tabla
+    # (ADR 0015). `documento_texto` no tiene `back_populates`: desde el cuerpo no se navega a
+    # la norma, y declarar la vuelta solo añadiría una segunda forma de decir lo mismo.
+    documento: Mapped[Documento] = relationship(
+        back_populates="normas", foreign_keys=[documento_id]
+    )
+    documento_texto: Mapped[Documento | None] = relationship(foreign_keys=[documento_texto_id])
+
+    @property
+    def texto_archivado(self) -> Documento | None:
+        """El mismo objeto que `documento_texto`, con el nombre que usa la API pública.
+
+        Existe para que el esquema de salida pueda llamarlo por lo que **significa** —el texto
+        de esta norma, archivado y con huella— sin que el nombre interno (que dice de qué
+        columna cuelga) se convierta en contrato público.
+        """
+        return self.documento_texto
 
 
 class VersionNorma(Base):

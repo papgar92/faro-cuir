@@ -22,6 +22,21 @@ class Settings(BaseSettings):
     # hash sin sal que sería reversible con un diccionario de direcciones.
     suscriptor_pepper: str | None = None
 
+    # --- Fase 2 de la ingesta: descarga del texto íntegro (ADR 0011 y 0015) ---------------
+    # Los dos frenos que exige la 6.2, y ninguno es decorativo: la fase 2 pide un documento
+    # por norma, y un sumario del BOE trae del orden de 250.
+    #
+    # La pausa es la misma con la que se hizo la medición del ADR 0011 (436 normas, 0 errores
+    # contra el BOE): no se baja sin volver a medir. Es cortesía con una fuente pública y freno
+    # propio a la vez — sin ella, un bucle sobre el día entero es indistinguible de un ataque.
+    fase2_pausa_segundos: float = 0.3
+    # Tope por ejecución. Con 250 normas/día y este tope, un día normal cabe entero y el
+    # atasco acumulado se drena en varias pasadas en vez de en una ráfaga de miles de
+    # peticiones. **Es un tope, no una cuota**: lo que no entra hoy sigue en cola y entra
+    # mañana, porque la cola es una consulta (`documento_texto_id IS NULL`) y no un estado que
+    # haya que reponer.
+    fase2_max_por_ejecucion: int = 500
+
     # --- LLM (ADR 0008) -----------------------------------------------------------------
     # Ollama en local por defecto: sin clave, sin coste y sin cuota. La URL es nuestra, no
     # viene de ninguna fuente externa; ver la nota sobre url_guard en `llm/ollama.py`.

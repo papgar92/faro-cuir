@@ -157,7 +157,9 @@ def test_el_prefiltro_aplicado_se_ve_en_la_api(client: TestClient, tmp_path: Pat
     documento_id = client.get("/api/documentos").json()[0]["id"]
 
     with next(app.dependency_overrides[get_session]()) as sesion:  # type: ignore[misc]
-        servicio_prefiltro.aplicar(sesion, documento_id=documento_id)
+        # Las normas de esta fixture no tienen cuerpo archivado, así que el prefiltro no llega
+        # a abrir el almacén; `tmp_path` está aquí para satisfacer la firma, no porque se lea.
+        servicio_prefiltro.aplicar(sesion, almacen_root=tmp_path, documento_id=documento_id)
 
     normas = client.get(f"/api/documentos/{documento_id}").json()["normas"]
     for norma in normas:

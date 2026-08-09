@@ -1,15 +1,25 @@
-"""Etapa 2 del pipeline: descarga el texto de las normas relevantes y extrae hechos (CLAUDE.md
-sección 7 y ADR 0009).
+"""Etapa 3 del pipeline: extrae hechos del texto ya archivado (CLAUDE.md sección 7, ADR 0009).
 
 Separado de `llm/provider.py` con el mismo criterio que `services/prefiltro.py` frente a
 `pipeline/prefiltro.py`: allí vive el contrato (cómo se valida una extracción), aquí vive lo
-que hace falta para llegar a poder llamarlo — descargar el texto de la norma y persistir el
-resultado — y que por eso sí necesita sesión de base de datos y red.
+que hace falta para llegar a poder llamarlo — leer el texto de la norma y persistir el
+resultado — y que por eso sí necesita sesión de base de datos.
 
-El texto de cada norma es dato no confiable de una fuente externa (regla de oro 1), igual que
-el sumario: la descarga pasa por `security/url_guard` y el parseo por `security/xml_safe`, sin
-excepción. A diferencia de `llm/ollama.py`, aquí sí aplica `url_guard` entero — la URL no la
-escribimos nosotros, la propone el sumario (ADR 0006).
+**Este módulo ya no toca la red, y es un cambio del ADR 0015.** Antes descargaba el cuerpo de
+cada norma él mismo; ahora lo lee del almacén, donde lo dejó la fase 2 (`services/texto_integro`).
+Tres consecuencias, y las tres son mejoras:
+
+- El mismo byte no se descarga dos veces. Antes la fase 2 y el extractor pedían al BOE lo
+  mismo, con dos sellos de tiempo distintos para un solo hecho.
+- El LLM ve **exactamente el texto archivado**, no una segunda descarga que podría diferir. Es
+  la precondición de 7.5: si la evidencia se cita contra el archivado, hay que haber extraído
+  del archivado.
+- Desaparece una salida HTTP del proyecto. Quedan dos: `ingest/boe.py` y la fase 2, las dos por
+  `url_guard`.
+
+El texto sigue siendo dato no confiable de una fuente externa (regla de oro 1): el parseo pasa
+por `security/xml_safe` sin excepción, aunque venga de nuestro propio disco — archivarlo no lo
+convierte en confiable, solo lo hace reproducible.
 
 Sobre qué se persiste y qué no: ver ADR 0009. En corto, `deteccion.clasificacion` no puede
 quedar NULL (restricción de la base de datos) y el clasificador por reglas (etapa 3) todavía no
@@ -22,18 +32,19 @@ from __future__ import annotations
 import datetime
 import logging
 from dataclasses import dataclass
-from xml.etree.ElementTree import Element
+from pathlib import Path
 
-import httpx
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.llm.provider import LLMError, ProveedorLLM, extraer
 from app.models.deteccion import Clasificacion, Deteccion, OrigenClasificacion
 from app.models.norma import EstadoPrefiltro, Norma
-from app.security import url_guard, xml_safe
-from app.security.url_guard import UrlGuardError
+from app.pipeline.texto import texto_plano
+from app.security import xml_safe
+from app.security.hashing import UnsafeStoragePath
 from app.security.xml_safe import XmlSafeError
+from app.services.archivo import leer
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +61,6 @@ logger = logging.getLogger(__name__)
 # tiempo de timeout, ambos fuera del alcance de esta tarea.
 MAX_CARACTERES_DOCUMENTO = 4_000
 
-# Cabecera que exige la API del BOE también para el texto íntegro de cada disposición, igual
-# que para el sumario (`ingest/boe.py`). No verificado contra este endpoint en concreto, pero
-# es la misma familia de API y no tiene coste enviarla de más.
-_CABECERAS = {"Accept": "application/xml"}
-
 
 @dataclass(frozen=True)
 class ResumenExtraccion:
@@ -63,27 +69,6 @@ class ResumenExtraccion:
     evaluadas: int
     extraidas: int
     fallidas: int
-
-
-def _texto_plano(raiz: Element) -> str:
-    """Extrae el cuerpo real de la norma, sin el ruido de sus metadatos.
-
-    Verificado contra un documento real de texto íntegro del BOE (`BOE-A-2023-5366`, no
-    deducido de documentación): la estructura es `documento > metadatos, metadata-eli,
-    analisis, texto`. `analisis` trae referencias a normas relacionadas (a qué modifica, quién
-    la modificó después) en decenas de etiquetas `<texto>` cortas propias; concatenar el árbol
-    entero sin distinguirlas agota el presupuesto de caracteres en ese ruido antes de llegar
-    al articulado real, que vive entero en el único `<texto>` de primer nivel.
-
-    Si ese elemento no existe —una fuente distinta del BOE, o un tipo de documento con otra
-    forma que todavía no se ha comprobado— se cae al árbol completo: no es ideal, pero es
-    mejor que no enviar nada, y no inventa una estructura que no se ha verificado para ese
-    caso (regla de oro 8).
-    """
-    cuerpo = raiz.find("./texto")
-    objetivo = cuerpo if cuerpo is not None else raiz
-    fragmentos = (fragmento.strip() for fragmento in objetivo.itertext())
-    return " ".join(f for f in fragmentos if f)
 
 
 def _recortar(texto: str, *, identificador: str) -> str:
@@ -129,7 +114,15 @@ def _pendientes(documento_id: int | None):  # type: ignore[no-untyped-def]
     consulta = (
         select(Norma)
         .outerjoin(Deteccion, Deteccion.norma_id == Norma.id)
-        .where(Norma.prefiltro_estado.in_(_COLA), Deteccion.id.is_(None))
+        .where(
+            Norma.prefiltro_estado.in_(_COLA),
+            Deteccion.id.is_(None),
+            # Sin cuerpo archivado no hay nada que extraer (ADR 0015). Se filtra aquí y no con
+            # un `continue` dentro del bucle para que el recuento de `evaluadas` signifique
+            # "normas que se podían extraer" y no "normas que se miraron y se descartaron":
+            # un embudo cuyo primer escalón cuenta trabajo imposible no dice nada.
+            Norma.documento_texto_id.is_not(None),
+        )
     )
     if documento_id is not None:
         consulta = consulta.where(Norma.documento_id == documento_id)
@@ -145,38 +138,47 @@ def aplicar(
     session: Session,
     proveedor: ProveedorLLM,
     *,
+    almacen_root: Path,
     documento_id: int | None = None,
-    client: httpx.Client | None = None,
 ) -> ResumenExtraccion:
     """Extrae y persiste. Idempotente: una norma con `deteccion` no se vuelve a tocar.
 
     `documento_id=None` barre toda la tabla; el worker normal lo llama acotado al documento
     que acaba de ingerir, igual que hace con el prefiltro.
+
+    Ya no acepta un `httpx.Client`: este servicio no hace peticiones desde el ADR 0015. Ese
+    parámetro solo lo usaban los tests, y era además un agujero en la puerta única —
+    `url_guard.fetch` devuelve el cliente que le pasen tal cual, así que un llamante podía
+    colar un cliente sin timeout o sin verificación de TLS a través del control.
     """
     normas = list(session.scalars(_pendientes(documento_id)))
     extraidas = fallidas = 0
 
     for norma in normas:
-        if not norma.url_texto:
-            logger.warning(
-                "Norma %s sin url_texto en el sumario; no se puede extraer.",
-                norma.identificador_oficial,
-            )
-            fallidas += 1
-            continue
-
         try:
-            contenido = url_guard.fetch(norma.url_texto, headers=_CABECERAS, client=client)
+            contenido = leer(norma.documento_texto.ruta_almacen, almacen_root=almacen_root)
             raiz = xml_safe.parse(contenido)
-            texto = _recortar(_texto_plano(raiz), identificador=norma.identificador_oficial)
+            texto = _recortar(texto_plano(raiz), identificador=norma.identificador_oficial)
             resultado = extraer(proveedor, texto)
-        except (UrlGuardError, XmlSafeError) as exc:
+        except (XmlSafeError, UnsafeStoragePath) as exc:
             # Mismo criterio que `worker/run.py` con la ingesta: un control de seguridad que
-            # salta no es un fallo de red cualquiera, y no debe perderse entre ellos.
+            # salta no es un fallo cualquiera, y no debe perderse entre ellos. Que el XML venga
+            # de nuestro disco no lo hace confiable: se archivó tal cual llegó de la fuente.
             logger.error(
                 "CONTROL DE SEGURIDAD al extraer %s: %s: %s",
                 norma.identificador_oficial,
                 type(exc).__name__,
+                exc,
+            )
+            fallidas += 1
+            continue
+        except OSError as exc:
+            # La fila dice que el cuerpo está archivado y el fichero no está. Es un archivo
+            # incompleto, no un fallo de extracción: se registra como error para que se vea.
+            logger.error(
+                "Falta en el almacén el cuerpo de %s (%s): %s",
+                norma.identificador_oficial,
+                norma.documento_texto.ruta_almacen,
                 exc,
             )
             fallidas += 1

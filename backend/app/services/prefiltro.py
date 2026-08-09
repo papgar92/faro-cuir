@@ -8,13 +8,23 @@ en la base de datos. Así el filtro se puede razonar y testear sin una sesión a
 from __future__ import annotations
 
 import datetime
+import logging
 from dataclasses import dataclass
+from pathlib import Path
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.norma import EstadoPrefiltro, Norma
 from app.pipeline import prefiltro, watchlist
+from app.pipeline.referencias import ReferenciaAnterior, extraer_referencias_anteriores
+from app.pipeline.texto import VERSION_TEXTO_PLANO, texto_plano
+from app.security import xml_safe
+from app.security.hashing import UnsafeStoragePath
+from app.security.xml_safe import XmlSafeError
+from app.services.archivo import leer
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -38,6 +48,11 @@ class ResumenPrefiltro:
     # Cuántas disparó cada eje. Un eje que no dispara nunca es un eje que sobra; uno que
     # dispara siempre es uno que no filtra. Sin esto no se puede afinar uno sin tocar el otro.
     por_eje: dict[str, int]
+    # De las evaluadas, cuántas lo fueron sobre el **texto íntegro** y no solo sobre el título.
+    # Va en el resumen y no solo en la columna porque es la salvedad que acompaña a cualquier
+    # cifra de cobertura (7.8): sobre título no hay recall, hay límite superior. Un embudo que
+    # no diga sobre qué se evaluó invita a leerlo como si fuera lo segundo.
+    sobre_texto_integro: int
 
 
 def _pendientes(documento_id: int | None, forzar: bool):  # type: ignore[no-untyped-def]
@@ -59,6 +74,12 @@ def _pendientes(documento_id: int | None, forzar: bool):  # type: ignore[no-unty
     `PENDIENTE` es ahora un estado de **espera** (falta el documento), no de **cola de
     trabajo** de esta etapa. Son dos preguntas distintas y ahora las contestan dos columnas
     distintas.
+
+    **La condición que añade la fase 2 (ADR 0015) es la última, y sin ella el trabajo de
+    descargar 436 cuerpos no serviría de nada**: una norma evaluada sobre el título tiene las
+    mismas versiones de vocabulario y watchlist que una evaluada sobre el texto íntegro, así
+    que sin mirar `prefiltro_version_texto` ninguna de las 435 `pendiente` volvería a
+    evaluarse nunca. Se quedarían esperando un texto que ya está en el disco.
     """
     consulta = select(Norma)
     if documento_id is not None:
@@ -74,14 +95,66 @@ def _pendientes(documento_id: int | None, forzar: bool):  # type: ignore[no-unty
                 # afectaría a las normas futuras.
                 Norma.prefiltro_version_watchlist.is_(None),
                 Norma.prefiltro_version_watchlist != watchlist.watchlist().version,
+                # Hay cuerpo archivado y la evaluación guardada no se hizo sobre él, o se hizo
+                # con otra versión de la derivación del texto.
+                and_(
+                    Norma.documento_texto_id.is_not(None),
+                    or_(
+                        Norma.prefiltro_version_texto.is_(None),
+                        Norma.prefiltro_version_texto != VERSION_TEXTO_PLANO,
+                    ),
+                ),
             )
         )
     return consulta.order_by(Norma.id)
 
 
+def _cuerpo(
+    norma: Norma, *, almacen_root: Path
+) -> tuple[str | None, tuple[ReferenciaAnterior, ...]]:
+    """Lee del almacén el texto íntegro de una norma y sus referencias anteriores.
+
+    Devuelve `(None, ())` cuando todavía no hay cuerpo archivado: eso es **fase 1**, y
+    `prefiltro.evaluar` ya sabe que sobre el título no se descarta nunca (7.1).
+
+    Lee de disco y no de la red a propósito (ADR 0015): esta función se ejecuta también al
+    relanzar `--reprefiltrar` tras subir el vocabulario, y hacerlo por red convertiría cada
+    retoque del diccionario en otra descarga del día entero.
+
+    Un cuerpo que no se puede leer o parsear **no se trata como "sin cuerpo"**: se registra y
+    se degrada a fase 1. La diferencia importa — "no lo hemos descargado" y "lo descargamos y
+    está roto" son dos hechos distintos, y confundirlos deja el segundo sin nadie que lo mire.
+    """
+    if norma.documento_texto is None:
+        return None, ()
+    try:
+        contenido = leer(norma.documento_texto.ruta_almacen, almacen_root=almacen_root)
+        raiz = xml_safe.parse(contenido)
+    except (XmlSafeError, UnsafeStoragePath) as exc:
+        logger.error(
+            "CONTROL DE SEGURIDAD al leer el cuerpo archivado de %s: %s: %s",
+            norma.identificador_oficial,
+            type(exc).__name__,
+            exc,
+        )
+        return None, ()
+    except OSError as exc:
+        logger.error(
+            "Falta en el almacén el cuerpo de %s (%s): %s",
+            norma.identificador_oficial,
+            norma.documento_texto.ruta_almacen,
+            exc,
+        )
+        return None, ()
+    # El bloque `<analisis>` se lee de la **raíz** del documento, no del texto derivado: es
+    # metadato estructurado del BOE y `texto_plano` lo deja fuera a propósito.
+    return texto_plano(raiz), extraer_referencias_anteriores(raiz)
+
+
 def aplicar(
     session: Session,
     *,
+    almacen_root: Path,
     documento_id: int | None = None,
     forzar: bool = False,
 ) -> ResumenPrefiltro:
@@ -92,6 +165,7 @@ def aplicar(
     """
     ahora = datetime.datetime.now(datetime.UTC)
     relevantes = sospechas = descartadas = pendientes = solo_contexto = 0
+    con_texto = 0
     por_eje: dict[str, int] = {}
 
     # La watchlist se carga **una vez por pasada**, no por norma: son cientos de normas y el
@@ -102,10 +176,19 @@ def aplicar(
 
     normas = list(session.scalars(_pendientes(documento_id, forzar)))
     for norma in normas:
-        # Sin texto íntegro todavía: esta etapa corre sobre el sumario. Cuando el worker
-        # descargue el día entero (tarea 0.c, ADR 0011) aquí entrarán `texto_integro` y las
-        # `referencias` del bloque <analisis>, y el resto de esta función no cambia.
-        resultado = prefiltro.evaluar(norma.titulo, organo_emisor=norma.organo_emisor, lista=lista)
+        # Aquí entra la fase 2 (tarea 0.c, ADR 0011 y 0015). `texto_integro=None` significa
+        # que el cuerpo todavía no está archivado, y `evaluar` ya sabe que sobre el título no
+        # se descarta nunca (7.1): como mucho queda `pendiente`.
+        texto, referencias = _cuerpo(norma, almacen_root=almacen_root)
+        resultado = prefiltro.evaluar(
+            norma.titulo,
+            organo_emisor=norma.organo_emisor,
+            texto_integro=texto,
+            referencias=referencias,
+            lista=lista,
+        )
+        if texto is not None:
+            con_texto += 1
 
         norma.prefiltro_estado = resultado.estado
         # Lista vacía y no NULL cuando no hay términos: NULL significaría "no evaluado", que
@@ -115,6 +198,9 @@ def aplicar(
         norma.prefiltro_directos = resultado.directos
         norma.prefiltro_version = resultado.version
         norma.prefiltro_version_watchlist = resultado.version_watchlist
+        # NULL cuando se evaluó solo sobre el título: es lo que hará que esta norma se vuelva
+        # a mirar en cuanto su cuerpo esté archivado.
+        norma.prefiltro_version_texto = VERSION_TEXTO_PLANO if texto is not None else None
         norma.prefiltro_evaluado_en = ahora
 
         for eje in resultado.ejes:
@@ -142,4 +228,5 @@ def aplicar(
         pendientes=pendientes,
         solo_por_contexto=solo_contexto,
         por_eje=por_eje,
+        sobre_texto_integro=con_texto,
     )

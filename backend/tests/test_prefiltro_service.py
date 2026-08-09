@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -21,6 +22,13 @@ from app.models.fuente import AmbitoTerritorial, FormatoFuente, Fuente, TipoFuen
 from app.models.norma import EstadoPrefiltro, Norma
 from app.pipeline import prefiltro
 from app.services import prefiltro as servicio
+
+# Ninguna norma de este módulo tiene cuerpo archivado (`documento_texto_id` en NULL), así que
+# el prefiltro no llega a abrir el almacén: estos tests son los de la fase 1. La ruta es una
+# constante y no un `tmp_path` justamente para que eso quede dicho — si algún día uno de estos
+# tests empezara a leer de disco, fallaría en vez de pasar por casualidad sobre un directorio
+# temporal vacío. Los tests de la fase 2 van en `test_texto_integro.py`.
+ALMACEN = Path("almacen-que-estos-tests-no-llegan-a-abrir")
 
 
 @pytest.fixture
@@ -87,7 +95,7 @@ def test_marca_relevantes_y_deja_pendiente_lo_que_no_dispara(
     )
     session.commit()
 
-    resumen = servicio.aplicar(session, documento_id=documento.id)
+    resumen = servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id)
 
     assert (resumen.evaluadas, resumen.relevantes, resumen.pendientes) == (2, 1, 1)
     assert resumen.descartadas == 0, "no se descarta sin haber leído el documento"
@@ -105,7 +113,7 @@ def test_registra_que_eje_disparo(session: Session, documento: Documento) -> Non
     session.add(_norma(documento, "BOE-A-1", "Ley de identidad de género"))
     session.commit()
 
-    resumen = servicio.aplicar(session, documento_id=documento.id)
+    resumen = servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id)
 
     norma = session.scalar(select(Norma))
     assert norma is not None
@@ -119,7 +127,7 @@ def test_guarda_por_que_paso_y_con_que_vocabulario(session: Session, documento: 
     session.add(_norma(documento, "BOE-A-1", "Ley de identidad de género"))
     session.commit()
 
-    servicio.aplicar(session, documento_id=documento.id)
+    servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id)
 
     norma = session.scalar(select(Norma))
     assert norma is not None
@@ -133,7 +141,7 @@ def test_al_descartar_guarda_lista_vacia_no_nulo(session: Session, documento: Do
     session.add(_norma(documento, "BOE-A-1", "Orden sobre el modelo 190 del IRPF"))
     session.commit()
 
-    servicio.aplicar(session, documento_id=documento.id)
+    servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id)
 
     norma = session.scalar(select(Norma))
     assert norma is not None
@@ -145,9 +153,9 @@ def test_es_idempotente(session: Session, documento: Documento) -> None:
     session.add(_norma(documento, "BOE-A-1", "Ley de personas trans"))
     session.commit()
 
-    assert servicio.aplicar(session, documento_id=documento.id).evaluadas == 1
+    assert servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id).evaluadas == 1
     # La segunda pasada no toca nada: ya está evaluada con el vocabulario vigente.
-    assert servicio.aplicar(session, documento_id=documento.id).evaluadas == 0
+    assert servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id).evaluadas == 0
 
 
 def test_reevalua_lo_evaluado_con_un_vocabulario_anterior(
@@ -171,7 +179,7 @@ def test_reevalua_lo_evaluado_con_un_vocabulario_anterior(
     session.add(norma)
     session.commit()
 
-    resumen = servicio.aplicar(session, documento_id=documento.id)
+    resumen = servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id)
 
     assert resumen.evaluadas == 1
     session.refresh(norma)
@@ -191,7 +199,7 @@ def test_cuenta_las_que_pasan_solo_por_terminos_de_contexto(
     )
     session.commit()
 
-    resumen = servicio.aplicar(session, documento_id=documento.id)
+    resumen = servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id)
 
     # Una relevante (término directo) y una sospecha (solo contexto). **Las dos entran en la
     # cola del extractor**; lo que cambia es el orden, no si se miran.
@@ -221,7 +229,7 @@ def test_solo_toca_el_documento_indicado(session: Session, documento: Documento)
     )
     session.commit()
 
-    assert servicio.aplicar(session, documento_id=documento.id).evaluadas == 1
+    assert servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id).evaluadas == 1
 
     sin_evaluar = session.scalar(select(Norma).where(Norma.identificador_oficial == "BOE-A-2"))
     assert sin_evaluar is not None
@@ -237,7 +245,7 @@ def test_sin_documento_barre_toda_la_tabla(session: Session, documento: Document
     )
     session.commit()
 
-    assert servicio.aplicar(session).evaluadas == 2
+    assert servicio.aplicar(session, almacen_root=ALMACEN).evaluadas == 2
 
 
 def test_pendiente_es_el_estado_por_defecto(session: Session, documento: Documento) -> None:

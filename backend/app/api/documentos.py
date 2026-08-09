@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import SessionLocal
-from app.models.documento import Documento
+from app.models.documento import Documento, TipoDocumento
 from app.schemas.documento import DocumentoDetalle, DocumentoResumen
 
 router = APIRouter(prefix="/api", tags=["documentos"])
@@ -39,7 +39,16 @@ def listar_documentos(
     limite: int = Query(20, ge=1, le=LIMITE_MAXIMO),
     desplazamiento: int = Query(0, ge=0),
 ) -> list[Documento]:
-    consulta = select(Documento).order_by(Documento.fecha_publicacion.desc(), Documento.id.desc())
+    consulta = (
+        select(Documento)
+        # **Solo sumarios** (ADR 0015). Desde que la fase 2 archiva el cuerpo de cada norma
+        # como una fila más de `documento`, este endpoint devolvería cientos de cuerpos por
+        # día mezclados con los boletines si no se filtrara — sin error, sin aviso, y
+        # rompiendo el significado de la primera página. El discriminador es una columna
+        # justamente para que esto se pueda poner en un `WHERE`.
+        .where(Documento.tipo == TipoDocumento.SUMARIO)
+        .order_by(Documento.fecha_publicacion.desc(), Documento.id.desc())
+    )
     if fecha is not None:
         consulta = consulta.where(Documento.fecha_publicacion == fecha)
     return list(session.scalars(consulta.limit(limite).offset(desplazamiento)).all())

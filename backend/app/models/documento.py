@@ -32,6 +32,24 @@ class EstadoPipeline(enum.StrEnum):
     ERROR = "error"
 
 
+class TipoDocumento(enum.StrEnum):
+    """Qué clase de documento crudo es esta fila (ADR 0015).
+
+    La sección 5 define `documento` como «un documento crudo ingerido», no como «un boletín»,
+    y el texto íntegro de una norma encaja en esa definición sin forzarla: tiene identificador
+    oficial propio, URL propia, contenido exacto y fecha. Archivarlo aquí es lo que mantiene la
+    garantía de 6.5 —`sha256` + `sello_tiempo` + ruta derivada del hash— implementada **en un
+    solo sitio**; un segundo sitio sería un segundo sitio donde olvidarse del sello.
+
+    El discriminador es una columna y no una convención («¿tiene normas colgando?») por un
+    motivo muy concreto: una convención no se puede poner en un `WHERE`, y `GET /api/documentos`
+    tiene que seguir listando sumarios y no 436 cuerpos por día.
+    """
+
+    SUMARIO = "sumario"
+    TEXTO_NORMA = "texto_norma"
+
+
 class Documento(Base):
     """Un documento crudo ingerido de una fuente. CLAUDE.md sección 5."""
 
@@ -53,6 +71,23 @@ class Documento(Base):
     identificador_oficial: Mapped[str] = mapped_column(String(200), nullable=False)
     fecha_publicacion: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     url_original: Mapped[str] = mapped_column(String(1000), nullable=False)
+
+    # Sumario del día o cuerpo de una norma (ADR 0015). Indexado porque toda consulta de la
+    # API filtra por él y los cuerpos van a ser dos órdenes de magnitud más numerosos que los
+    # sumarios: sin índice, listar sumarios pasaría a ser un recorrido completo de la tabla.
+    tipo: Mapped[TipoDocumento] = mapped_column(
+        Enum(
+            TipoDocumento,
+            native_enum=False,
+            length=20,
+            create_constraint=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+        default=TipoDocumento.SUMARIO,
+        server_default=TipoDocumento.SUMARIO.value,
+        index=True,
+    )
 
     # --- Archivo íntegro verificable (CLAUDE.md 6.5) ---
     # sha256 del contenido exacto descargado. Indexado, no único: dos fuentes distintas
@@ -86,4 +121,11 @@ class Documento(Base):
     # Relación ORM, no columna nueva: no cambia el esquema y por tanto no necesita migración.
     # Sin cascade de borrado a propósito — la FK es RESTRICT y el archivo no se borra en
     # cascada por accidente.
-    normas: Mapped[list[Norma]] = relationship(back_populates="documento")
+    #
+    # `foreign_keys` es **obligatorio** desde el ADR 0015: `norma` tiene ahora dos claves
+    # ajenas a esta tabla (de qué sumario salió, y dónde está archivado su cuerpo) y sin esto
+    # SQLAlchemy no puede adivinar cuál de las dos define esta relación. Una fila
+    # `texto_norma` tiene la lista vacía: no es el sumario de nadie.
+    normas: Mapped[list[Norma]] = relationship(
+        back_populates="documento", foreign_keys="Norma.documento_id"
+    )
