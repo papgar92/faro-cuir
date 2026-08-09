@@ -1004,18 +1004,162 @@ derivado), no contra lo que decía este fichero:
 
 **Siguiente, por orden:**
 
-1. **Implementar el ADR 0016** (~20k). Tres piezas: `_articulos_con_algun_texto` deja de
-   descartar la extracción entera y el artículo sin texto se conserva como **puntero inerte**
-   (no acciona nada, regla 10); catálogo de reglas de supresión sobre el texto archivado con
-   `regla_aplicada` y spans; y el registro de cuántos punteros trae cada extracción. La
-   verificación exigible está listada al final del ADR — incluida la ejecución contra el cuerpo
-   real de 10767, que ya está en disco.
-2. **Una línea pendiente en `CLAUDE.md` §9, que no toco por encargo**: dice «el siguiente libre
-   es el 0016» y ya no lo es. El siguiente libre es el **0017**; 0010 y 0013 siguen reservados.
+1. ~~**Implementar el ADR 0016**~~ — **hecho el 2026-08-09**, ver el bloque de abajo.
+2. ~~**Una línea pendiente en `CLAUDE.md` §9**~~ — corregida: el siguiente ADR libre es el
+   **0017**; 0010 y 0013 siguen reservados.
 3. Sigue en pie lo de antes: alinear `extraccion_json` con lo que 7.4 promete (`digest`, `seed`,
    hash del prompt, `version_normalizacion`) **o** corregir 7.4 para que no afirme un control que
    no existe — y ahora pesa más, porque el ADR 0016 usa esa carencia como argumento contra la
    opción A; el caso de título anodino que falta en el gold set; y dar volumen al corpus.
+
+---
+
+### ✅ ADR 0016 implementado — la etapa 4 existe y clasifica la reforma madrileña (2026-08-09)
+
+**El pipeline llega por primera vez hasta una clasificación derivada de reglas.** Y lo hace
+sobre el caso que el proyecto usa para explicar por qué existe: `BOE-A-2024-10767` sale
+`retroceso` por la regla `R-SUP-001` con **doce spans de evidencia** sobre su propio texto
+archivado.
+
+Ejecutado contra la base de datos y el almacén reales (`worker.run --reclasificar`, 4,7 s, ni
+red ni LLM): **32 normas en cola → 4 con veredicto**.
+
+| Norma | Veredicto | Regla | Spans | Norma vigilada que toca |
+|---|---|---|---|---|
+| BOE-A-2024-10767 | `retroceso` | R-SUP-001 | 12 | BOE-A-2016-6728 (Ley 2/2016 Madrid) |
+| BOE-A-2024-10768 | `retroceso` | R-SUP-001 | 11 | BOE-A-2016-11096 (Ley 3/2016 Madrid) |
+| BOE-A-2023-5364 | `indeterminado` | R-SUP-002 | 1 | — (suprime letras del art. 145 bis CP) |
+| BOE-A-2023-5365 | `indeterminado` | R-SUP-002 | 3 | — |
+
+**Las tres piezas del ADR, y una cuarta que hacía falta para que sirvieran de algo:**
+
+- **El validador que tumbaba la extracción entera ya no existe.** Un artículo sin texto por
+  ninguno de los dos lados es válido y se conserva como **puntero** (`ArticuloExtraido.es_puntero`,
+  `ExtraccionNorma.punteros`). El puntero **no es un campo del esquema** sino una lectura de lo
+  que hay: si fuera campo, el modelo podría marcarlo o desmarcarlo, que es justo lo que la
+  opción A del ADR regalaba.
+- **`pipeline/reglas.py`, catálogo puro y versionado** (`VERSION_REGLAS`). Dos reglas:
+  `R-SUP-001` (supresión + el `<analisis>` declara que modifica una norma de la watchlist) →
+  `retroceso`; `R-SUP-002` (supresión sin norma vigilada) → `indeterminado`, que es el umbral de
+  recall alto de 7.6. **Ninguna lee nada que venga del modelo**, y hay un test que falla si
+  algún día aparece un parámetro que sí (comprueba la firma de `clasificar`).
+- **El registro de punteros** viaja en `extraccion_json` y en el resumen del worker. Se
+  registran **cuántos, nunca cuáles**, en el log: el identificador lo escribe el modelo sobre un
+  texto que no controlamos, y un log es donde alguien lo leería como conclusión del sistema
+  (6.10). Cuáles son se guarda en la fila, que es donde se puede contrastar.
+- **La cuarta pieza, que el encargo no pedía: dónde viven los spans.** 7.6 exige
+  `regla_aplicada` **más** los spans, y `regla_aplicada` existía desde la primera migración pero
+  los spans no tenían columna. Ahora `deteccion.evidencia_json`, **aparte de `extraccion_json` y
+  no dentro**: son dos procedencias distintas —lo que dijo el modelo y lo que dice el archivo— y
+  mezclarlas dejaría de poder contestarse «¿esto lo afirma el LLM o lo afirma el BOE?».
+
+**Lo que se verificó de verdad, no solo con tests:**
+
+1. **27 spans persistidos, recortados del fichero archivado, coinciden literalmente con lo que
+   dicen: 0 descuadres.** Es el control de 7.5 aplicado a nuestra propia salida y no solo a la
+   del modelo — unos offsets desplazados producirían una alerta que señala al párrafo
+   equivocado, y el revisor leería otra cosa dándola por comprobada.
+2. **Doce supresiones en `BOE-A-2024-10767`, no diez.** El sondeo a mano con el que se escribió
+   el ADR se dejó dos: «Se suprime el apartado 2 del artículo 8» y «Se suprime el siguiente
+   texto del apartado 2 del artículo 36». El catálogo encuentra más que la lectura humana que lo
+   justificó, lo cual dice algo bueno del catálogo y algo que conviene recordar del método.
+3. **Barrido sobre los 655 ficheros del almacén: 7 documentos, 40 cláusulas**, todas revisadas
+   una a una y todas supresiones reales. **Eso es precisión observada sobre tres días de BOE, no
+   cobertura**; cuántas se escapan no se sabe y no se sabrá sin el gold set.
+4. **El falso positivo que importa, rechazado**: «Ninguna persona podrá ser presionada para
+   ocultar, **suprimir** o negar su condición sexual» está dentro de la redacción *nueva* del
+   artículo 4 de la propia reforma. Buscar el lema lo marca; buscar la **construcción operativa**
+   (`se suprime`, `queda suprimido`) no. Ese es el criterio del catálogo y viene del documento
+   real, no de un ejemplo inventado.
+5. **Segunda pasada: 0 evaluadas.** Idempotencia real.
+6. **Migración a mano y CHECKs intactas: 13 antes, 13 después**, `origenclasificacion` con su
+   definición literal.
+7. **Pasada completa del worker con Ollama real** (`--fuente boe --fecha 2024-05-29`, 25 min):
+   ingesta idempotente → fase 2 sin candidatas → prefiltro 0 → **extracción 6 pendientes, 3
+   extraídas, 3 fallidas, 0 punteros** → clasificación 0 evaluadas. Las tres cifras que
+   importan de aquí: la etapa 4 está enganchada y **no rehace trabajo ya hecho** (esas normas
+   ya llevaban el catálogo pasado); las 3 extracciones fallidas son *timeout de Ollama a 180 s*
+   y son deuda conocida del modelo pequeño en CPU, no de esta tarea; y los **0 punteros** son
+   consecuencia de `MAX_CARACTERES_DOCUMENTO = 4.000` — con el documento cortado en el
+   preámbulo el modelo no llega al articulado, así que **el camino del puntero está probado por
+   los tests y por el esquema, pero todavía no se ha visto un puntero real salir del modelo**.
+   Escrito aquí porque es justo el tipo de cosa que se da por comprobada sin estarlo.
+
+**Un fallo real encontrado al escribir los tests, y de los que no dan la cara:** el rango de la
+cláusula se calculaba con `finditer(texto, 0, posicion)`, y eso recorta la cadena justo en
+`posicion`, así que una frontera de oración que terminase ahí dejaba de encontrarse. Dos
+construcciones de la **misma** oración devolvían dos cláusulas distintas y solapadas, y la
+deduplicación por rango no podía verlo. Habría inflado el recuento de supresiones de cualquier
+documento que juntara dos en una frase — que es exactamente lo que hace la última cláusula de la
+reforma madrileña. Ahora las fronteras se calculan enteras una vez y se busca por bisección: el
+rango de una oración depende de la oración, no de por dónde se la mire.
+
+**Dos decisiones de diseño que no estaban en el encargo y conviene poder discutir:**
+
+- **El catálogo va detrás del prefiltro**, o sea solo mira normas en `relevante` o `sospecha`.
+  Se pierde recall a propósito: una supresión dentro de una norma descartada no se ve. Se acepta
+  porque `R-SUP-001` —la que produce el veredicto grave— exige que el `<analisis>` declare una
+  modificación de la watchlist, y eso ya hace `relevante` a la norma por el eje referencial. Lo
+  que se pierde es `R-SUP-002` sobre normas ajenas al ámbito, que es el ruido que el prefiltro
+  existe para quitar.
+- **`R-SUP-001` supone que la watchlist es un catálogo de normas protectoras**, así que suprimir
+  preceptos de una es presuntamente quitar protección. Su modo de fallo simétrico —suprimir un
+  precepto *restrictivo* sería un avance y la regla lo llamaría retroceso— está escrito en el
+  propio módulo. Se acepta porque nada se publica sin gate humano (regla 4) y porque el gold set
+  es lo que puede medirlo. **`severidad` y `confianza` son valores declarados y sin calibrar**,
+  como `UMBRAL_DIRECTOS_RELEVANTE`: no se citan como dato.
+
+**De paso, y no era el encargo:**
+
+- **`services/cuerpo.py`.** «Leer el cuerpo archivado, parsearlo y derivar texto y referencias»
+  era un `_cuerpo` privado dentro del servicio del prefiltro y ya tenía tres llamantes. Con tres
+  copias, el degradado ante un cuerpo ilegible acaba siendo tres degradados distintos, y el
+  prefiltro y las reglas dejarían de estar de acuerdo sobre qué normas tienen cuerpo. El
+  extractor pierde de paso su propio bloque de `except`.
+- **Gold set: `clasificacion_esperada` deja de ser un campo muerto.** `boe-a-2024-10767.json`
+  pasa a `retroceso`, y la etiqueta **no sale del clasificador** —eso sería medir el sistema
+  contra sí mismo— sino del hecho verificado contra el BOE que las notas del propio caso
+  recogían desde el 2026-08-08. `test_gold_set_clasificacion.py` compara contra la fila de
+  `deteccion` **de la base de datos** y no contra una llamada directa al catálogo: un fallo en
+  la cola del clasificador es invisible para lo segundo, y es el modo de fallo que este proyecto
+  ya se ha encontrado dos veces. Con **una** etiqueta no se mide cobertura y el fichero lo dice.
+- **`tests/fixtures/boe_a_2024_10767_recortado.xml`**: los trece párrafos que importan del
+  documento real, verbatim, con su `<analisis>` real. Existe porque `backend/data/` está en
+  `.gitignore` y sin él la verificación que exige el ADR solo correría en esta máquina, nunca en
+  CI. El test contra el cuerpo entero también está, y se salta con el motivo escrito.
+
+**Estado de la suite**: **343 en verde + 1 saltado** en el contenedor (entorno de referencia),
+35 tests nuevos. `ruff` y `mypy` limpios. Nota: `ruff` 0.16.2 quería reformatear
+`tests/test_extraccion_service.py`, que nadie había tocado — deriva de versión, formateado.
+
+**Sin commitear todavía**: 11 ficheros modificados y 8 nuevos. Van al menos en tres commits
+(`feat(clasificador)` el catálogo, la migración y el servicio · `feat(extraccion)` los punteros
+y `services/cuerpo.py` · `docs` CLAUDE.md y el gold set).
+
+**Siguiente, por orden:**
+
+1. **El diff de las modificaciones sigue sin ser construible**, y ahora es el muro visible: el
+   BOE publica la redacción nueva y no la vieja, y `version_norma` está vacía. Mientras eso siga
+   así, el catálogo solo puede crecer en familias que no necesiten texto anterior (derogación
+   completa de una norma es la candidata inmediata: `BOE-A-2023-5366` deroga la Ley 3/2007 y hoy
+   ninguna regla lo ve). **~25k** si se ataca poblar `version_norma`; **~10k** la familia de
+   derogación.
+2. **El panel de revisión (gate humano)**, que es lo que le falta a esto para servir de algo:
+   hay **13 detecciones (4 con regla, 9 centinelas del extractor) y ninguna `cola_revision`**.
+   Deliberado —crear filas que nadie consume no es avanzar— pero es el siguiente eslabón real.
+   **~35k.**
+3. **La interfaz no enseña nada de esto todavía.** `deteccion` no se publica en la API, así que
+   los doce spans de la reforma madrileña están en la base de datos y no se ven. Es el mismo
+   argumento que la huella de archivo: una garantía que el espectador no puede mirar obliga a
+   fiarse. **~20k**, y cuidado con el gate: enseñar una clasificación no aprobada exige decir
+   que no lo está.
+4. **Ver un puntero real salir del modelo.** Hoy no se ha visto ninguno porque el truncado a
+   4.000 caracteres deja al extractor en el preámbulo (6.9.7). Es el mismo hilo que la ventana
+   deslizante y el gold set; hasta entonces, el camino del puntero está probado en los tests y
+   no en producción, y así hay que contarlo. **~15k** junto con la ventana deslizante.
+5. Sigue en pie: alinear `extraccion_json` con lo que 7.4 promete (`digest`, `seed`, hash del
+   prompt) **o** corregir 7.4; el caso de título anodino que falta en el gold set; y dar volumen
+   al corpus.
 
 **Nota operativa nueva: las sesiones interactivas de este proyecto van sin petición de permisos**,
 por decisión del humano (2026-08-09). `.claude/settings.local.json` está en

@@ -537,6 +537,14 @@ anterior/nuevo, órgano, ámbito, **más los offsets de 7.5**. **No clasifica**:
 y la ausencia deliberada de campos de valoración hacen que el veredicto del modelo no tenga
 dónde aterrizar. Ver 6.9 para las reglas de la llamada.
 
+**Un artículo citado sin texto por ninguno de los dos lados es válido** desde el ADR 0016, y se
+conserva como *puntero*. Antes se rechazaba la extracción entera, y eso hacía que el mejor caso
+del corpus —una ley que suprime preceptos sin reproducirlos— fuera el único que el pipeline no
+podía procesar. Las dos condiciones del ADR son parte de la regla, no detalles: **un puntero no
+acciona nada por sí solo** (regla de oro 10; solo el catálogo de 7.6, leyendo el texto
+archivado, produce clasificación) y **cuántos trae cada extracción se registra**. El resto del
+contrato no se toca.
+
 ### 7.5 Trazabilidad por offsets (NUEVO)
 
 Cada hecho extraído lleva `offset_inicio` y `offset_fin` sobre el **texto normalizado** del
@@ -569,6 +577,13 @@ ejecutar nuestro código. Las reglas se versionan como el vocabulario.
 
 Ninguna regla puede consultar al modelo ni depender de un campo que venga de su juicio. Si una
 regla necesita algo que el extractor no da como hecho objetivo, la regla está mal planteada.
+
+**El catálogo vive en `pipeline/reglas.py` (`VERSION_REGLAS`) y lee el texto archivado, no la
+salida del modelo** (ADR 0016). La primera familia escrita es la **supresión**, y es la primera
+por una razón que conviene no olvidar: el BOE modificativo publica la redacción *nueva*, no la
+vieja, y `version_norma` está vacía, así que **el diff de una modificación todavía no se puede
+construir**. La supresión es el único cambio que no necesita texto anterior. Ese es el
+siguiente muro de esta sección y no lo tira el ADR 0016.
 
 ### 7.7 Gate humano
 
@@ -626,9 +641,11 @@ Si te encuentras haciendo cualquiera de estas, para:
   fases con umbral asimétrico~~ (7.1) — **escrito el 2026-08-07**, con el título ajustado a lo
   que la medición decidió: `0011-ingesta-en-dos-fases-y-umbral-de-la-fase-2.md`,
   **0012 prefiltro de tres ejes y watchlist** (7.3), **0013 trazabilidad por offsets** (7.5).
-  Añadidos después: 0014 la capa local entra en alcance vía BOP, y **0015 dónde vive el texto
-  íntegro archivado** (tarea 0.c, escrito el 2026-08-09). **0010 y 0013 siguen sin escribir y
-  sus números están reservados**: no reutilizarlos — el siguiente libre es el 0016.
+  Añadidos después: 0014 la capa local entra en alcance vía BOP, **0015 dónde vive el texto
+  íntegro archivado** (tarea 0.c, escrito el 2026-08-09) y **0016 cómo se representa una
+  supresión sin texto** (escrito e implementado el 2026-08-09). **0010 y 0013 siguen sin
+  escribir y sus números están reservados**: no reutilizarlos — el siguiente libre es el
+  **0017**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).
@@ -647,8 +664,10 @@ cd backend && uvicorn app.main:app --reload
 
 # Migraciones
 alembic revision --autogenerate -m "..."   &&   alembic upgrade head
-# y DESPUÉS de cada upgrade, comprobar que siguen vivas las CHECK (hoy 12 con la de 7.2):
-psql -c "SELECT conrelid::regclass, conname FROM pg_constraint WHERE contype='c'"
+# y DESPUÉS de cada upgrade, comprobar que siguen vivas las CHECK (hoy 13). El filtro honesto
+# lleva `conrelid <> 0`: sin él salen dos filas de information_schema que no son del proyecto.
+psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
+         WHERE contype='c' AND conrelid <> 0 ORDER BY 1,2"
 
 # Calidad (lo que corre el CI)
 ruff check . && ruff format --check . && mypy backend/app && pytest --cov
@@ -658,6 +677,12 @@ python -m worker.run --fuente boe --fecha 2024-12-19
 
 # Reevaluar prefiltro tras subir VERSION_VOCABULARIO o VERSION_WATCHLIST
 python -m worker.run --reprefiltrar
+
+# Drenar la cola de la fase 2 (texto íntegro que falte de toda la tabla)
+python -m worker.run --fase2
+
+# Repasar el catálogo de reglas tras subir VERSION_REGLAS (ni red ni LLM)
+python -m worker.run --reclasificar
 
 # Ollama (local, sin clave, sin coste)
 ollama serve                        # normalmente ya corre como servicio
