@@ -50,6 +50,23 @@ class ArticuloExtraido(BaseModel):
         """
         return valor or None
 
+    @property
+    def es_puntero(self) -> bool:
+        """Ni texto anterior ni nuevo: el documento **nombra** este precepto y no lo reproduce.
+
+        Es la forma que tiene una supresión de presentarse («El artículo 24 queda suprimido»),
+        y hasta el ADR 0016 se rechazaba la extracción entera por ello. Ahora se conserva, con
+        la condición que ese ADR pone y que no es negociable: **un puntero no acciona nada**
+        (regla de oro 10). Por sí solo no produce clasificación ninguna; solo el catálogo de
+        reglas sobre el texto archivado (`pipeline/reglas.py`) puede producirla, y lo hace
+        buscando la supresión en el archivo, no creyéndose esta lista. Un puntero alucinado es
+        inerte.
+
+        No es un campo del esquema a propósito: es una lectura de lo que hay, no un dato que el
+        modelo pueda emitir. Si fuera campo, el modelo podría marcarlo o desmarcarlo.
+        """
+        return self.texto_anterior is None and self.texto_nuevo is None
+
 
 class ExtraccionNorma(BaseModel):
     """Hechos que el LLM extrae de una norma. **Ningún juicio.**"""
@@ -84,13 +101,26 @@ class ExtraccionNorma(BaseModel):
             raise ValueError(f"ámbito fuera del vocabulario: {valor!r}")
         return normalizado
 
-    @field_validator("articulos")
-    @classmethod
-    def _articulos_con_algun_texto(cls, valor: list[ArticuloExtraido]) -> list[ArticuloExtraido]:
-        """Un artículo sin texto por ninguno de los dos lados no aporta nada al diff."""
-        for articulo in valor:
-            if articulo.texto_anterior is None and articulo.texto_nuevo is None:
-                raise ValueError(
-                    f"el artículo {articulo.identificador!r} no trae texto anterior ni nuevo"
-                )
-        return valor
+    @property
+    def punteros(self) -> tuple[ArticuloExtraido, ...]:
+        """Artículos citados sin texto por ninguno de los dos lados (ADR 0016).
+
+        Aquí vivía `_articulos_con_algun_texto`, un validador que rechazaba la extracción
+        **entera** si aparecía uno de estos. La premisa era «un artículo sin texto no aporta
+        nada al diff», y era cierta mientras se esperase encontrar el diff dentro del propio
+        documento. Dejó de serlo: una supresión no reproduce lo que borra, lo nombra («El
+        artículo 24 queda suprimido»), así que el artículo sin texto es *precisamente* la forma
+        en que se presenta el cambio más grave que este proyecto vigila.
+
+        El coste de aquel rechazo, medido sobre `BOE-A-2024-10767` —la reforma madrileña, el
+        caso que 7.8 señala como el más importante del corpus—: se perdían también las trece
+        modificaciones del mismo documento que sí traían redacción nueva, no quedaba fila en
+        `deteccion`, la norma no llegaba nunca al gate humano, y como la ausencia de fila es lo
+        que define la cola del extractor, cada pasada volvía a gastar los 133,9 s de LLM sin
+        producir nada.
+
+        Se cuenta y se registra (`services/extraccion.py`) por el mismo motivo por el que se
+        registra el embudo del prefiltro: lo que no se cuenta no se afina. Que un documento
+        traiga muchos punteros es la señal barata de que ahí hay supresiones que mirar.
+        """
+        return tuple(articulo for articulo in self.articulos if articulo.es_puntero)

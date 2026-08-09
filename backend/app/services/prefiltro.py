@@ -17,12 +17,8 @@ from sqlalchemy.orm import Session
 
 from app.models.norma import EstadoPrefiltro, Norma
 from app.pipeline import prefiltro, watchlist
-from app.pipeline.referencias import ReferenciaAnterior, extraer_referencias_anteriores
-from app.pipeline.texto import VERSION_TEXTO_PLANO, texto_plano
-from app.security import xml_safe
-from app.security.hashing import UnsafeStoragePath
-from app.security.xml_safe import XmlSafeError
-from app.services.archivo import leer
+from app.pipeline.texto import VERSION_TEXTO_PLANO
+from app.services.cuerpo import leer_cuerpo
 
 logger = logging.getLogger(__name__)
 
@@ -109,48 +105,6 @@ def _pendientes(documento_id: int | None, forzar: bool):  # type: ignore[no-unty
     return consulta.order_by(Norma.id)
 
 
-def _cuerpo(
-    norma: Norma, *, almacen_root: Path
-) -> tuple[str | None, tuple[ReferenciaAnterior, ...]]:
-    """Lee del almacén el texto íntegro de una norma y sus referencias anteriores.
-
-    Devuelve `(None, ())` cuando todavía no hay cuerpo archivado: eso es **fase 1**, y
-    `prefiltro.evaluar` ya sabe que sobre el título no se descarta nunca (7.1).
-
-    Lee de disco y no de la red a propósito (ADR 0015): esta función se ejecuta también al
-    relanzar `--reprefiltrar` tras subir el vocabulario, y hacerlo por red convertiría cada
-    retoque del diccionario en otra descarga del día entero.
-
-    Un cuerpo que no se puede leer o parsear **no se trata como "sin cuerpo"**: se registra y
-    se degrada a fase 1. La diferencia importa — "no lo hemos descargado" y "lo descargamos y
-    está roto" son dos hechos distintos, y confundirlos deja el segundo sin nadie que lo mire.
-    """
-    if norma.documento_texto is None:
-        return None, ()
-    try:
-        contenido = leer(norma.documento_texto.ruta_almacen, almacen_root=almacen_root)
-        raiz = xml_safe.parse(contenido)
-    except (XmlSafeError, UnsafeStoragePath) as exc:
-        logger.error(
-            "CONTROL DE SEGURIDAD al leer el cuerpo archivado de %s: %s: %s",
-            norma.identificador_oficial,
-            type(exc).__name__,
-            exc,
-        )
-        return None, ()
-    except OSError as exc:
-        logger.error(
-            "Falta en el almacén el cuerpo de %s (%s): %s",
-            norma.identificador_oficial,
-            norma.documento_texto.ruta_almacen,
-            exc,
-        )
-        return None, ()
-    # El bloque `<analisis>` se lee de la **raíz** del documento, no del texto derivado: es
-    # metadato estructurado del BOE y `texto_plano` lo deja fuera a propósito.
-    return texto_plano(raiz), extraer_referencias_anteriores(raiz)
-
-
 def aplicar(
     session: Session,
     *,
@@ -179,12 +133,13 @@ def aplicar(
         # Aquí entra la fase 2 (tarea 0.c, ADR 0011 y 0015). `texto_integro=None` significa
         # que el cuerpo todavía no está archivado, y `evaluar` ya sabe que sobre el título no
         # se descarta nunca (7.1): como mucho queda `pendiente`.
-        texto, referencias = _cuerpo(norma, almacen_root=almacen_root)
+        cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+        texto = cuerpo.texto if cuerpo is not None else None
         resultado = prefiltro.evaluar(
             norma.titulo,
             organo_emisor=norma.organo_emisor,
             texto_integro=texto,
-            referencias=referencias,
+            referencias=cuerpo.referencias if cuerpo is not None else (),
             lista=lista,
         )
         if texto is not None:

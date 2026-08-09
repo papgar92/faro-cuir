@@ -22,9 +22,14 @@ por `security/xml_safe` sin excepción, aunque venga de nuestro propio disco —
 convierte en confiable, solo lo hace reproducible.
 
 Sobre qué se persiste y qué no: ver ADR 0009. En corto, `deteccion.clasificacion` no puede
-quedar NULL (restricción de la base de datos) y el clasificador por reglas (etapa 3) todavía no
-existe, así que esta etapa inserta con `INDETERMINADO`/`HEURISTICA`/`regla_aplicada=None` — un
-valor centinela que no sale de nada que haya dicho el LLM, para no romper el ADR 0004.
+quedar NULL (restricción de la base de datos), así que esta etapa inserta con
+`INDETERMINADO`/`HEURISTICA`/`regla_aplicada=None` — un valor centinela que no sale de nada que
+haya dicho el LLM, para no romper el ADR 0004.
+
+El centinela **sigue siendo lo correcto aunque el catálogo de reglas ya exista**
+(`services/clasificacion.py`, ADR 0016): esta etapa no clasifica y no debe. Quien pisa esas
+tres columnas es el catálogo, leyendo el texto archivado, y por eso las detecciones que ha
+tocado se distinguen de las que no por `origen='derivado_diff'` y `regla_aplicada IS NOT NULL`.
 """
 
 from __future__ import annotations
@@ -40,11 +45,7 @@ from sqlalchemy.orm import Session
 from app.llm.provider import LLMError, ProveedorLLM, extraer
 from app.models.deteccion import Clasificacion, Deteccion, OrigenClasificacion
 from app.models.norma import EstadoPrefiltro, Norma
-from app.pipeline.texto import texto_plano
-from app.security import xml_safe
-from app.security.hashing import UnsafeStoragePath
-from app.security.xml_safe import XmlSafeError
-from app.services.archivo import leer
+from app.services.cuerpo import leer_cuerpo
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,12 @@ class ResumenExtraccion:
     evaluadas: int
     extraidas: int
     fallidas: int
+    # Artículos que el modelo citó **sin texto por ninguno de los dos lados** (ADR 0016). Antes
+    # de ese ADR, uno solo de estos tumbaba la extracción entera; ahora se conservan como
+    # punteros inertes y se cuentan, porque lo que no se cuenta no se afina. Un documento con
+    # muchos punteros es la señal barata de que ahí hay supresiones que el catálogo de reglas
+    # tiene que ir a corroborar contra el texto archivado.
+    punteros: int = 0
 
 
 def _recortar(texto: str, *, identificador: str) -> str:
@@ -152,37 +159,19 @@ def aplicar(
     colar un cliente sin timeout o sin verificación de TLS a través del control.
     """
     normas = list(session.scalars(_pendientes(documento_id)))
-    extraidas = fallidas = 0
+    extraidas = fallidas = punteros = 0
 
     for norma in normas:
+        # `leer_cuerpo` ya registra el motivo, y distingue el control de seguridad que salta
+        # (mismo criterio que `worker/run.py` con la ingesta) del fichero que falta en el
+        # almacén. Aquí las dos cosas cuentan igual: no hay extracción.
+        cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+        if cuerpo is None:
+            fallidas += 1
+            continue
+        texto = _recortar(cuerpo.texto, identificador=norma.identificador_oficial)
         try:
-            contenido = leer(norma.documento_texto.ruta_almacen, almacen_root=almacen_root)
-            raiz = xml_safe.parse(contenido)
-            texto = _recortar(texto_plano(raiz), identificador=norma.identificador_oficial)
             resultado = extraer(proveedor, texto)
-        except (XmlSafeError, UnsafeStoragePath) as exc:
-            # Mismo criterio que `worker/run.py` con la ingesta: un control de seguridad que
-            # salta no es un fallo cualquiera, y no debe perderse entre ellos. Que el XML venga
-            # de nuestro disco no lo hace confiable: se archivó tal cual llegó de la fuente.
-            logger.error(
-                "CONTROL DE SEGURIDAD al extraer %s: %s: %s",
-                norma.identificador_oficial,
-                type(exc).__name__,
-                exc,
-            )
-            fallidas += 1
-            continue
-        except OSError as exc:
-            # La fila dice que el cuerpo está archivado y el fichero no está. Es un archivo
-            # incompleto, no un fallo de extracción: se registra como error para que se vea.
-            logger.error(
-                "Falta en el almacén el cuerpo de %s (%s): %s",
-                norma.identificador_oficial,
-                norma.documento_texto.ruta_almacen,
-                exc,
-            )
-            fallidas += 1
-            continue
         except LLMError as exc:
             logger.warning("Extracción descartada para %s: %s", norma.identificador_oficial, exc)
             fallidas += 1
@@ -191,12 +180,30 @@ def aplicar(
         # Ver ADR 0009: valor centinela, no un veredicto. `version_prompt` y `modelo` viajan
         # dentro del propio JSON porque `deteccion` no tiene columnas dedicadas para ellos —
         # mismo motivo que el prefiltro guarda su versión junto al resultado.
+        del_documento = len(resultado.extraccion.punteros)
+        if del_documento:
+            # Se registran **cuántos** y no cuáles: el identificador lo escribe el modelo sobre
+            # un texto que no controlamos, y un log es justo donde alguien lo leería como
+            # conclusión del sistema (6.10). Cuáles son se guarda en la fila, que es donde se
+            # puede contrastar contra el archivo.
+            logger.info(
+                "%s cita %s precepto(s) sin reproducir su texto: punteros a corroborar contra "
+                "el archivo (ADR 0016).",
+                norma.identificador_oficial,
+                del_documento,
+            )
+        punteros += del_documento
+
         deteccion = Deteccion(
             norma_id=norma.id,
             extraccion_json={
                 "extraccion": resultado.extraccion.model_dump(mode="json"),
                 "version_prompt": resultado.version_prompt,
                 "modelo": resultado.modelo,
+                # Cuántos artículos llegan sin texto por ninguno de los dos lados. Va dentro
+                # del JSON y no en una columna por lo mismo que `version_prompt`: es un dato
+                # de esta extracción concreta, no un eje por el que se vaya a consultar.
+                "punteros": del_documento,
                 "extraido_en": datetime.datetime.now(datetime.UTC).isoformat(),
             },
             clasificacion=Clasificacion.INDETERMINADO,
@@ -208,4 +215,6 @@ def aplicar(
 
     session.commit()
 
-    return ResumenExtraccion(evaluadas=len(normas), extraidas=extraidas, fallidas=fallidas)
+    return ResumenExtraccion(
+        evaluadas=len(normas), extraidas=extraidas, fallidas=fallidas, punteros=punteros
+    )

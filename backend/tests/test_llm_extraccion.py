@@ -144,12 +144,27 @@ class TestVocabularioYLimites:
         )
         assert resultado.extraccion.ambito == "sanitario"
 
-    def test_un_articulo_sin_texto_por_ningun_lado_no_vale(self) -> None:
-        vacio = json.dumps(
-            {**VALIDA, "articulos": [{"identificador": "art. 1", "texto_anterior": None}]}
+    def test_un_articulo_sin_texto_es_un_puntero_y_no_tumba_la_extraccion(self) -> None:
+        """ADR 0016: la supresión no reproduce lo que borra, lo nombra.
+
+        Antes, uno solo de estos rechazaba la respuesta **entera**, así que sobre la reforma
+        madrileña se perdían también las modificaciones del mismo documento que sí traían
+        redacción nueva. Este test fija justamente eso: que el resto sobrevive.
+        """
+        mixta = json.dumps(
+            {
+                **VALIDA,
+                "articulos": [
+                    {"identificador": "art. 24"},
+                    {"identificador": "art. 4", "texto_nuevo": "nueva redacción"},
+                ],
+            }
         )
-        with pytest.raises(LLMError):
-            extraer(ProveedorGuionizado([vacio]), "documento")
+        resultado = extraer(ProveedorGuionizado([mixta]), "documento")
+
+        assert len(resultado.extraccion.articulos) == 2
+        assert [a.identificador for a in resultado.extraccion.punteros] == ["art. 24"]
+        assert resultado.extraccion.articulos[1].es_puntero is False
 
     def test_cadena_vacia_y_ausencia_son_lo_mismo(self) -> None:
         """Si no, una derogación se confundiría con una modificación a texto vacío."""

@@ -264,11 +264,13 @@ def main(argv: list[str] | None = None) -> int:
     # sin la única métrica interesante de esta etapa.
     _registrar_embudo(resumen, reaplicado=False)
     logger.info(
-        "Extracción (prompt %s): %s pendientes, %s extraídas, %s fallidas.",
+        "Extracción (prompt %s): %s pendientes, %s extraídas, %s fallidas, "
+        "%s punteros (preceptos citados sin texto, ADR 0016).",
         VERSION_PROMPT,
         resumen_extraccion.evaluadas,
         resumen_extraccion.extraidas,
         resumen_extraccion.fallidas,
+        resumen_extraccion.punteros,
     )
     return 0
 
