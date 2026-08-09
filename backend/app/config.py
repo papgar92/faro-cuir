@@ -3,8 +3,16 @@ hardcodeados). Ver `.env.example` para las variables soportadas."""
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Hosts admisibles para Ollama (CLAUDE.md 6.9.2). Cerrada a propósito: la URL de Ollama es la
+# **única excepción declarada** a la allowlist de `url_guard` (ADR 0006), y esa excepción solo
+# es legítima mientras el destino sea local y fijo. `host.docker.internal` es el mismo host
+# visto desde dentro de un contenedor, vía `extra_hosts` del compose.
+_HOSTS_OLLAMA = frozenset({"127.0.0.1", "localhost", "::1", "host.docker.internal"})
 
 
 class Settings(BaseSettings):
@@ -47,6 +55,47 @@ class Settings(BaseSettings):
     llm_modelo: str = "qwen2.5:3b-instruct"
     # Generoso: en CPU sin GPU dedicada una extracción tarda bastante más que contra una API.
     llm_timeout_segundos: float = 180.0
+
+    @field_validator("llm_base_url")
+    @classmethod
+    def _ollama_es_local(cls, valor: str) -> str:
+        """La validación de arranque que exige 6.9.2, y que faltaba.
+
+        6.9.2 dice literalmente que la URL de Ollama «es un destino local y fijo de
+        configuración, no una URL que venga de una fuente. **Por eso mismo se valida al
+        arrancar** (host de la config, esquema y puerto esperados)». La primera mitad estaba
+        (`ollama.py` no la compone con nada dinámico); esta era la que faltaba.
+
+        Sin ella, `LLM_BASE_URL` era una variable de entorno sin comprobar, y el compose la
+        dejaba sobreescribible. Quien pudiera escribir el entorno —un `.env`, una variable de
+        CI, un `docker run -e`— redirigía **toda** la salida del LLM a un host arbitrario: por
+        ahí salen el prompt de sistema y el texto íntegro del boletín, y lo que respondiera ese
+        host es lo que se valida contra Pydantic y acaba en `extraccion_json`. Es la única
+        salida HTTP del proyecto sin allowlist, sin pin de IP y —al ser `http://`— sin TLS.
+
+        **Falla al arrancar y no en la primera llamada**: un fallo de configuración que solo
+        aparece cuando el worker lleva media hora ingiriendo es un fallo que se descubre en
+        producción. Y falla cerrado: no hay degradación a "pues lo intento igual".
+
+        Permitir un Ollama remoto **amplía la excepción del ADR 0006** y necesita su propio
+        ADR, no un valor distinto en el entorno.
+        """
+        partes = urlsplit(valor)
+        if partes.scheme not in ("http", "https"):
+            raise ValueError(f"LLM_BASE_URL con esquema no admitido: {partes.scheme!r}")
+        # `hostname` y no `netloc`: normaliza a minúsculas y descarta credenciales y puerto,
+        # así que `http://evil.com@127.0.0.1:11434` no cuela por comparar la cadena entera.
+        if partes.hostname not in _HOSTS_OLLAMA:
+            raise ValueError(
+                f"LLM_BASE_URL apunta a un host no local: {partes.hostname!r}. "
+                f"Admitidos: {sorted(_HOSTS_OLLAMA)}. Un Ollama remoto amplía la excepción "
+                "del ADR 0006 a la allowlist de url_guard y necesita su propio ADR."
+            )
+        if partes.username or partes.password:
+            raise ValueError("LLM_BASE_URL no admite credenciales en la URL")
+        if partes.path.rstrip("/"):
+            raise ValueError(f"LLM_BASE_URL no admite ruta: {partes.path!r}")
+        return valor
 
 
 @lru_cache

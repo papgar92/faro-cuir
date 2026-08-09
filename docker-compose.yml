@@ -35,7 +35,10 @@ services:
     # contenedor, 127.0.0.1 es el propio contenedor, asi que el valor por defecto de
     # `llm_base_url` (correcto fuera de docker) aqui no encuentra nada. `host.docker.internal`
     # resuelve al host; `extra_hosts` lo garantiza tambien donde Docker no lo trae de serie.
-    # Se deja sobreescribible: si algun dia Ollama vive en otro sitio, basta el .env.
+    # Sobreescribible, pero NO a cualquier sitio: desde 2026-08-09 `config.py` valida el host
+    # al arrancar contra un conjunto cerrado (6.9.2) y falla cerrado si no encaja. Sirve para
+    # mover el puerto o alternar 127.0.0.1/host.docker.internal, no para apuntar a un Ollama
+    # remoto — eso amplia la excepcion del ADR 0006 y necesita su propio ADR.
     environment:
       LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
     extra_hosts:
@@ -63,7 +66,10 @@ services:
     # contenedor, 127.0.0.1 es el propio contenedor, asi que el valor por defecto de
     # `llm_base_url` (correcto fuera de docker) aqui no encuentra nada. `host.docker.internal`
     # resuelve al host; `extra_hosts` lo garantiza tambien donde Docker no lo trae de serie.
-    # Se deja sobreescribible: si algun dia Ollama vive en otro sitio, basta el .env.
+    # Sobreescribible, pero NO a cualquier sitio: desde 2026-08-09 `config.py` valida el host
+    # al arrancar contra un conjunto cerrado (6.9.2) y falla cerrado si no encaja. Sirve para
+    # mover el puerto o alternar 127.0.0.1/host.docker.internal, no para apuntar a un Ollama
+    # remoto — eso amplia la excepcion del ADR 0006 y necesita su propio ADR.
     environment:
       LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
     extra_hosts:
