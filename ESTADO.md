@@ -1017,9 +1017,19 @@ derivado), no contra lo que decía este fichero:
    no existe — y ahora pesa más, porque el ADR 0016 usa esa carencia como argumento contra la
    opción A; el caso de título anodino que falta en el gold set; y dar volumen al corpus.
 
-**Nota operativa nueva:** los permisos de la sesión se configuran en `.claude/settings.local.json`
-(gitignored). Está en `defaultMode: acceptEdits` con allowlist amplia — deja de preguntar por
-cada `Bash`/`Edit`. El salto **completo** de permisos no se puede poner desde ahí: es `/permissions`
-→ *Bypass permissions*, o arrancar con `--dangerously-skip-permissions`, y lo tiene que hacer el
-humano. Ojo a que la sección 13.3 prohíbe ese flag **para el driver headless**, que es otra cosa
-que una sesión interactiva vigilada.
+**Nota operativa nueva: las sesiones interactivas de este proyecto van sin petición de permisos**,
+por decisión del humano (2026-08-09). `.claude/settings.local.json` está en
+`defaultMode: bypassPermissions` con allowlist amplia. El fichero **no está en el repositorio**
+y no por el `.gitignore` del proyecto, sino por el global del humano
+(`~/.config/git/ignore`): quien clone esto no hereda el modo, que es lo correcto — un permiso
+es de una máquina y de una persona, no de un repositorio.
+
+Si al arrancar la sesión sigue preguntando, el ajuste no se ha aplicado (algunas versiones solo
+aceptan `bypassPermissions` por línea de órdenes): entonces es `claude --dangerously-skip-permissions`,
+o `/permissions` → *Bypass permissions* dentro de la sesión. Se comprueba con `/permissions`.
+
+**Lo que NO cambia, y conviene que no cambie: la sección 13.3 sigue prohibiendo ese flag en el
+driver headless** (`run_agent.sh`). No es la misma situación: una sesión interactiva la está
+mirando alguien mientras ocurre, y el driver corre solo contra un backlog. Y este proyecto mete
+en el árbol de trabajo XML de fuentes externas que trata como hostil por regla de oro 1; el
+modo bypass quita justamente el escalón que separa "leer eso" de "ejecutar algo por eso".
