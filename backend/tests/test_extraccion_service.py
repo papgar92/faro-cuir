@@ -191,9 +191,7 @@ class TestExtraccionFeliz:
         assert "Contenido real de la disposicion." in enviado
         assert "ruido de metadatos" not in enviado, "el <analisis> no debe llegar al modelo"
 
-    def test_es_idempotente(
-        self, session: Session, documento: Documento, almacen: Path
-    ) -> None:
+    def test_es_idempotente(self, session: Session, documento: Documento, almacen: Path) -> None:
         cuerpo = _cuerpo_archivado(session, documento, "BOE-A-1", XML_NORMA, almacen)
         session.add(_norma_relevante(documento, "BOE-A-1", cuerpo=cuerpo))
         session.commit()
