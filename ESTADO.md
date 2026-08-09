@@ -945,3 +945,81 @@ desde el host. ruff y mypy limpios.
    ADR 0011. Su estimación de **~1,6 GB/año** de un solo boletín se sostiene. Hay que volver a
    mirarlo al añadir fuentes autonómicas, no antes.
 
+
+### ✅ Historia de ayer commiteada y ADR 0016 escrito (2026-08-09, sesión de tarde)
+
+**Los ~30 ficheros de la tarea 0.c estaban sin commitear.** Ahora son cinco commits, no uno:
+`feat(ingesta)` la fase 2 y el ADR 0015 · `sec(config)` la validación de `llm_base_url` ·
+`feat(frontend)` sospecha, ejes y huella de archivo · `docs(gold-set)` el README del formato
+viejo · `docs` el split CLAUDE.md/ESTADO.md y el presupuesto de los cuatro subagentes.
+
+Tres ficheros llevaban cambios de **dos bloques distintos** y se partieron por hunks
+(`git apply --cached`) para que ningún commit quede roto por sí solo: `config.py` (ajustes de
+la fase 2 / validador de Ollama), `api/documentos.py` (filtro por `tipo` / `selectinload` de la
+huella) y `schemas/documento.py`. Comprobado después: el commit de ingesta ya trae
+`settings.fase2_*`, que su propio `worker/run.py` usa — sin partirlo, ese commit no arrancaba.
+
+Una corrección de datos encontrada al revisar el diff, no reportada por nadie: los tres ficheros
+de subagentes decían que `CLAUDE.md` son «124 KB (~31.000 tokens)» para justificar que no lo
+abran entero. Tras el split del mismo día son **51 KB (~13.000)**, y `ESTADO.md` son 74 KB. El
+consejo sigue valiendo; el número era falso y se habría commiteado como cierto.
+
+---
+
+**ADR 0016 escrito: `0016-como-se-representa-una-supresion-sin-texto.md`. Decisión tomada:
+opción B (reglas sobre el texto archivado), y no se añade `accion` al esquema.** Las tres
+casillas del encargo venían sin marcar, así que se tomó la tercera opción —decidir y
+justificarlo en el ADR—; revertir a la opción A es cambiar una sección, porque la alternativa
+está argumentada entera dentro.
+
+Verificado contra el cuerpo real ya archivado de `BOE-A-2024-10767` (44.526 caracteres de texto
+derivado), no contra lo que decía este fichero:
+
+- **Diez supresiones, ninguna con texto**, en cinco órdenes sintácticos distintos («El artículo
+  24 queda suprimido», «Se suprime el artículo 7», «Queda suprimido el apartado 2 del artículo
+  9», «Los apartados 1 y 8 del artículo 1 quedan suprimidos»…).
+- **El `<analisis>` oficial ya trae el verbo**: `MODIFICA BOE-A-2016-6728` con el texto «…y
+  SUPRIME los arts. 7, 24 y 45, 48 y los títulos X y XIV». O sea que el dato por el que la
+  opción A pagaría un campo del modelo, la fuente lo publica firmado.
+- **Pero el `<analisis>` resume y el cuerpo no**: omite las cinco supresiones de *apartados*
+  (arts. 1, 3, 9 y 11). Por eso el cuerpo es la fuente primaria y el resumen es corroboración —
+  y por eso la discrepancia entre ambos es señal, que es el perfil exacto del retroceso
+  silencioso de la sección 1.
+- **Honestidad sobre el método**: el sondeo con el que se escribió el ADR se dejó una de las
+  diez (la que mezcla supresión y sustitución en la misma frase). Está escrito dentro. Ninguna
+  cifra de cobertura de estas reglas se publica antes del gold set.
+
+**Dos hallazgos que cambian el plan y no estaban previstos:**
+
+1. **El coste de no arreglarlo era peor de lo que se creía.** Sin fila en `deteccion`, la norma
+   no solo no llega al gate humano: es que *la ausencia de fila define la cola del extractor*,
+   así que cada barrido que la incluya vuelve a gastar los 133,9 s de LLM, indefinidamente y sin
+   producir nada.
+2. **`texto_anterior` es casi siempre `null` y no es culpa del extractor.** El BOE modificativo
+   publica la redacción *nueva*, no la vieja («El artículo 4 queda redactado como sigue…»). El
+   diff de 7.6 no está dentro del documento: hay que construirlo contra `version_norma`, que
+   está vacía. **Ese es el siguiente muro del clasificador y no lo tira ninguna de las dos
+   opciones del ADR.** La supresión es, justo por eso, la única familia clasificable con lo que
+   hoy está archivado: no necesita texto anterior.
+
+**Siguiente, por orden:**
+
+1. **Implementar el ADR 0016** (~20k). Tres piezas: `_articulos_con_algun_texto` deja de
+   descartar la extracción entera y el artículo sin texto se conserva como **puntero inerte**
+   (no acciona nada, regla 10); catálogo de reglas de supresión sobre el texto archivado con
+   `regla_aplicada` y spans; y el registro de cuántos punteros trae cada extracción. La
+   verificación exigible está listada al final del ADR — incluida la ejecución contra el cuerpo
+   real de 10767, que ya está en disco.
+2. **Una línea pendiente en `CLAUDE.md` §9, que no toco por encargo**: dice «el siguiente libre
+   es el 0016» y ya no lo es. El siguiente libre es el **0017**; 0010 y 0013 siguen reservados.
+3. Sigue en pie lo de antes: alinear `extraccion_json` con lo que 7.4 promete (`digest`, `seed`,
+   hash del prompt, `version_normalizacion`) **o** corregir 7.4 para que no afirme un control que
+   no existe — y ahora pesa más, porque el ADR 0016 usa esa carencia como argumento contra la
+   opción A; el caso de título anodino que falta en el gold set; y dar volumen al corpus.
+
+**Nota operativa nueva:** los permisos de la sesión se configuran en `.claude/settings.local.json`
+(gitignored). Está en `defaultMode: acceptEdits` con allowlist amplia — deja de preguntar por
+cada `Bash`/`Edit`. El salto **completo** de permisos no se puede poner desde ahí: es `/permissions`
+→ *Bypass permissions*, o arrancar con `--dangerously-skip-permissions`, y lo tiene que hacer el
+humano. Ojo a que la sección 13.3 prohíbe ese flag **para el driver headless**, que es otra cosa
+que una sesión interactiva vigilada.
