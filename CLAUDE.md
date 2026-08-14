@@ -287,11 +287,15 @@ Estar suscrito a alertas de derechos trans revela afinidad al colectivo. Por tan
 - Token de baja **opaco** (aleatorio), nunca derivado del email ni predecible.
 - Los suscriptores **nunca** entran en el LLM ni en logs.
 
-**Canal pull primero (decisión nueva, requiere ADR 0010).** El canal principal de difusión es
-*pull*: web pública + RSS/Atom. Quien quiera enterarse se suscribe con su lector y el sistema
-**no sabe quién es**. Sin lista, sin fichero, sin brecha posible, y desaparece medio capítulo
-de cumplimiento. El correo y los webhooks quedan como vías **secundarias y opcionales**, con
-doble opt-in y todo lo anterior.
+**Canal pull primero (ADR 0010, escrito e implementado el 2026-08-14).** El canal principal de
+difusión es *pull*: web pública + feed Atom en `GET /api/alertas.xml`. Quien quiera enterarse se
+suscribe con su lector y el sistema **no sabe quién es**. Sin lista, sin fichero, sin brecha
+posible, y desaparece medio capítulo de cumplimiento. El correo y los webhooks quedan como vías
+**secundarias y opcionales**, con doble opt-in y todo lo anterior.
+
+**Nada de feeds personalizados ni de tokens por suscriptor**: una URL única por persona es una
+lista de suscriptores con otro nombre, y encima una que viaja en la barra de direcciones. Hay un
+test que lo fija.
 
 Consecuencias operativas:
 - La tabla `suscriptor` no se elimina, pero deja de ser el camino por defecto. El feed no
@@ -653,15 +657,16 @@ Si te encuentras haciendo cualquiera de estas, para:
   Primeros ADRs esperados: 0001 arquitectura conocimiento-cero de suscriptores, 0002 el LLM
   extrae no juzga, 0003 gate humano obligatorio, 0004 no persistir veredicto del LLM,
   0005 archivo con sellado de tiempo.
-  ADRs nuevos que exige esta revisión: **0010 canal pull primero** (6.4), ~~0011 ingesta en dos
+  ADRs nuevos que exige esta revisión: ~~0010 canal pull primero~~ (6.4) — **escrito e
+  implementado el 2026-08-14**, ~~0011 ingesta en dos
   fases con umbral asimétrico~~ (7.1) — **escrito el 2026-08-07**, con el título ajustado a lo
   que la medición decidió: `0011-ingesta-en-dos-fases-y-umbral-de-la-fase-2.md`,
   **0012 prefiltro de tres ejes y watchlist** (7.3), **0013 trazabilidad por offsets** (7.5).
   Añadidos después: 0014 la capa local entra en alcance vía BOP, **0015 dónde vive el texto
   íntegro archivado** (tarea 0.c, escrito el 2026-08-09), **0016 cómo se representa una
   supresión sin texto** (escrito e implementado el 2026-08-09) y **0017 autenticación del panel
-  de revisión** (escrito e implementado el 2026-08-14). **0010 y 0013 siguen sin escribir y sus
-  números están reservados**: no reutilizarlos — el siguiente libre es el **0018**.
+  de revisión** (escrito e implementado el 2026-08-14). **0013 (trazabilidad por offsets) sigue
+  sin escribir y su número está reservado**: no reutilizarlo — el siguiente libre es el **0018**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).

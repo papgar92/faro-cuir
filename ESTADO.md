@@ -1410,3 +1410,112 @@ migrar Mapa/Alertas, canal RSS y la EIPD. **Sigue sin caber entero**, pero el re
 menos doloroso: con el gate cerrado, lo que queda para tener una demostración completa de punta a
 punta es publicar lo aprobado (punto 1) y el canal (punto 3), que juntos son ~35k. El gold set es
 lo que no se puede recortar sin que la parte de IA deje de ser evaluable.
+
+---
+
+### ✅ Lo aprobado ya se ve y ya se puede seguir: API de alertas y canal pull (ADR 0010) — 2026-08-14
+
+Dos tareas de la lista anterior, la 1 y la 3, en la misma sesión y en este orden porque la
+segunda depende de la primera. **El pipeline pasa de terminar en una fila de base de datos a
+terminar en algo que alguien puede recibir.**
+
+#### `GET /api/alertas` y `/api/alertas/{id}`
+
+Había una alerta aprobada y no se veía en ninguna parte. Es el mismo argumento que la huella de
+archivo: una garantía que el espectador no puede mirar obliga a fiarse.
+
+**El control que sostiene el endpoint es de dónde se lee, no un filtro.** La consulta parte de
+`alerta`; esa tabla solo la escribe `services/revision.aprobar`, así que «aprobada por una
+persona» no es un `WHERE` que alguien pueda olvidarse de poner mañana al añadir un canal, es la
+tabla de partida. Un `WHERE revisada = true` habría sido equivalente hoy y frágil para siempre.
+El test que lo fija siembra **los cinco estados posibles** —sin veredicto, con veredicto sin
+encolar, pendiente, descartada y aprobada— y comprueba que sale uno.
+
+Cada alerta viaja con la regla y su versión, los spans recortados del texto archivado **con sus
+offsets**, y el `sha256` con el enlace a la fuente. No viaja `extraccion_json` (regla de oro 10)
+ni `nota_revision`: **a quien la escribe se le dijo que se guarda con la decisión, no que se
+publica**, y publicar algo que su autor no sabía que sería público es justo lo que este proyecto
+no hace. Si algún día hace falta una justificación pública, será un campo distinto y con su
+etiqueta.
+
+**`Watchlist.buscar` es nuevo y resuelve el territorio de la alerta.** Hace falta porque una ley
+autonómica se publica en el **BOE**: por fuente sería «estatal» y la comunidad quedaría en blanco
+justo en el caso que el proyecto existe para enseñar. La reforma madrileña sale con ámbito `MD`,
+y eso es lo que algún día permitirá colorear el mapa con dato real.
+
+#### El canal pull: feed Atom, y el ADR 0010 por fin escrito
+
+El 0010 llevaba **reservado desde el 2026-08-07**, con la decisión tomada en la 6.4 y sin ADR. Se
+escribió al haber por fin algo que difundir.
+
+- `GET /api/alertas.xml`, Atom, sin autenticación y **sin saber quién lee**. Sin lista, sin
+  fichero, sin brecha posible.
+- **Ni feeds personalizados ni tokens por suscriptor**: una URL única por persona es una lista de
+  suscriptores con otro nombre, y encima una que viaja en la barra de direcciones. Hay un test
+  que comprueba que un parámetro extra no cambia la respuesta y que no hay ruta con token.
+- **La huella viaja dentro de cada entrada**, no solo en la web: quien lo recibe en su lector
+  tiene que poder contrastarlo sin volver a nuestra página.
+- **`tag:` URI como identificador de entrada, no una URL.** El proyecto no tiene dominio público
+  todavía; usar una URL provisional haría que el día que lo tenga **todos los lectores marcaran
+  el feed entero como no leído**.
+- **Contenido como `type="text"`**: nada que sale de un boletín se declara HTML. No hay nada que
+  maquetar —son citas literales— y sí que perder si el cliente de alguien lo interpreta.
+- **Un feed vacío responde 200 con cero entradas**, no un error: un día en el que nada pasa el
+  gate es un día normal, y un 404 lo leería un lector como una avería del sitio.
+- Sobre generar XML aquí: la 6.1 obliga a `defusedxml` para **parsear** contenido no confiable, y
+  esto serializa datos propios. `ElementTree` como serializador no tiene superficie de XXE y
+  escapa texto y atributos — que es la única defensa que hace falta al escribir. Componer el XML
+  con f-strings sí habría roto: el BOE publica títulos con `&` y comillas a diario, y hay un test
+  con un título hostil que lo comprueba. En los tests el feed **se parsea con `defusedxml`**
+  aunque lo hayamos generado nosotros, para dejar escrito el ejemplo correcto.
+
+#### `services/alertas.py`: la consulta compartida
+
+La consulta y la vista pública viven en un servicio, no dentro de un router, y el motivo está
+escrito en su cabecera: **es un control de seguridad, no una separación estética**. El feed y la
+API web comparten el punto de partida, así que un tercer canal —correo, webhook— que reutilice
+esto hereda la garantía. Uno que escriba su propia consulta sobre `deteccion`, no; por eso lo
+compartido tiene que ser lo obvio de usar.
+
+#### Frontend
+
+- **La pantalla de Alertas deja de ser una maqueta** y sale de `PANTALLAS_CON_MOCK`. Queda solo
+  el Mapa, que necesita agregar por comunidad y hoy hay **una** alerta: pintar un mapa de España
+  con un dato sería peor que el mock, porque parecería una medición.
+- **Los filtros del diseño original no vuelven.** Eran comunidad, ámbito temático y tipo, y de
+  los tres solo uno tiene dato hoy (`norma.ambito` sigue nulo). Un desplegable que no filtra
+  promete una capacidad que no existe. Queda el filtro por clasificación. `AlertFilters` se queda
+  en el repositorio esperando, como `DiffBlock`.
+- **El estado vacío dice lo que significa**: «nada ha pasado el gate humano», que no es lo mismo
+  que «no hay nada detectado». Es la distinción que el proyecto lleva cuidando desde el prefiltro.
+- La tarjeta enseña **la evidencia, no solo el veredicto**: el fragmento literal con sus offsets,
+  la regla, la huella y el enlace para comprobarlo en el BOE.
+- El enlace al feed está en la pantalla de Alertas y en el pie, **con la frase que explica la
+  decisión**: «sin dar tu correo y sin que sepamos quién eres. No hay lista de suscriptores
+  porque estar en ella ya diría algo de ti.»
+
+#### Verificado
+
+- **421 tests en verde + 1 saltado** (19 nuevos), `ruff` y `mypy` limpios, `tsc` y `vite build`
+  limpios.
+- Contra la base real: `/api/alertas` devuelve la reforma madrileña con **12 spans**, ámbito
+  `MD` y su `sha256`; el feed sale como `application/atom+xml`, **valida como Atom** al parsearlo
+  y trae la evidencia entera, la huella y el enlace al BOE.
+- En navegador: la pantalla de Alertas con la insignia «Datos reales» y sin aviso de maqueta, el
+  filtro por clasificación funcionando, el vacío explicado, los **dos** enlaces al feed y el XML
+  parseando sin error desde el propio navegador. Consola limpia.
+
+#### Siguiente, por orden
+
+1. **`docs/eipd.md`** — **~25k**. Ya es el hueco más grande y ahora es cuando **más barato sale**:
+   con el canal pull escrito, la evaluación se articula sobre un tratamiento por defecto que **no
+   recoge datos personales**, y el ADR 0017 aporta el otro tratamiento que sí hay que documentar
+   (autenticación del panel, y la decisión de no guardar quién revisa).
+2. **Poblar `version_norma`** — **~25k**. Sin texto anterior no hay diff, y sin diff el catálogo
+   no crece: supresión y derogación eran las dos únicas familias que no lo necesitan.
+3. **Gold set**: dar volumen al corpus y el caso de título anodino. Es lo que no se puede
+   recortar sin que la parte de IA deje de ser evaluable.
+4. **El Mapa con dato real**, cuando haya alertas de más de una comunidad. Hoy sería una medición
+   falsa; el dato que hace falta (`ambito` por norma vigilada) ya lo publica la API.
+5. Sigue en pie: alinear `extraccion_json` con lo que promete 7.4, y ver un puntero real salir
+   del modelo.

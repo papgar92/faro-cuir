@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.api.alertas import router as alertas_router
 from app.api.cobertura import router as cobertura_router
 from app.api.documentos import router as documentos_router
+from app.api.feed import router as feed_router
 from app.api.health import router as health_router
 from app.api.revision import router as revision_router
 from app.config import get_settings
@@ -44,6 +45,10 @@ app.include_router(cobertura_router)
 # Lo aprobado por el gate humano, y solo eso. Público y de solo lectura: es lo que el proyecto
 # afirma en su nombre, así que va con su evidencia para que se pueda comprobar.
 app.include_router(alertas_router)
+# El canal de difusión por defecto (6.4, ADR 0010): un feed Atom que no sabe quién lo lee. Va
+# después de las alertas porque es el mismo dato con otra piel — y comparte la consulta, que es
+# donde vive el control de que solo salga lo aprobado.
+app.include_router(feed_router)
 # El panel de revisión (gate humano, regla de oro 4): la única parte de la API que escribe y la
 # única con autenticación. Va detrás de los mismos dos middlewares que todo lo demás — el
 # limitador de peticiones también cuenta los intentos de login, además de la cadencia propia

@@ -6,6 +6,15 @@ export function Footer() {
         <span>Código abierto (AGPL-3.0)</span>
         <a href="#repo">Repositorio</a>
         <a href="#metodologia">Metodología de clasificación</a>
+        {/*
+          El feed es el único enlace de esta fila que lleva a algo que existe de verdad; los
+          otros siguen siendo anclas muertas del diseño. Va aquí porque un canal de difusión que
+          nadie encuentra no es un canal, y este es **el canal por defecto** del proyecto
+          (ADR 0010): suscribirse con un lector no le dice a nadie quién eres.
+        */}
+        <a href="/api/alertas.xml" type="application/atom+xml">
+          Feed de alertas (Atom)
+        </a>
         <a href="#datos">Datos abiertos (API)</a>
         <span className="ml-auto flex items-center gap-2">
           Geometría IGN · CC BY 4.0

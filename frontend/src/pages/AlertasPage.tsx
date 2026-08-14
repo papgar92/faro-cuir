@@ -66,6 +66,22 @@ export function AlertasPage({ comunidadInicial, onGoArchivo }: AlertasPageProps)
           produjo y la huella del documento, para que se pueda comprobar en la fuente oficial sin
           fiarse de nosotros.
         </p>
+        {/*
+          El canal de difusión por defecto (ADR 0010), y se explica en vez de poner solo un
+          icono: lo que lo hace distinto no es el formato, es que suscribirse no crea ninguna
+          lista con tu nombre. Esa frase es la decisión de diseño entera, así que se dice.
+        */}
+        <p className="mt-3 text-sm text-ink-2">
+          <a
+            href="/api/alertas.xml"
+            type="application/atom+xml"
+            className="font-medium text-link hover:text-ink"
+          >
+            Suscríbete por Atom/RSS
+          </a>{" "}
+          — sin dar tu correo y sin que sepamos quién eres. No hay lista de suscriptores porque
+          estar en ella ya diría algo de ti.
+        </p>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por clasificación">
