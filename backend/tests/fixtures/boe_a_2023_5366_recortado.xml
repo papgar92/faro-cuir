@@ -1,0 +1,57 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  RECORTE DEL DOCUMENTO REAL, no un ejemplo escrito a mano.
+
+  Origen: BOE-A-2023-5366 — la Ley 4/2023, tal y como está archivada en el almacén con su
+  sha256 y su sello. El documento completo tiene 137 KB largos de texto derivado; aquí se
+  conservan **verbatim** los cuatro párrafos que importan para la familia de derogación:
+
+  - LA CLÁUSULA OPERATIVA: «Queda derogada la Ley 3/2007, de 15 de marzo, reguladora de la
+    rectificación registral de la mención relativa al sexo de las personas.» Es la única
+    evidencia que R-DER-001 emite sobre este documento, y en el original está en el offset
+    137.025.
+  - EL MISMO HECHO CONTADO EN EL PREÁMBULO: «Mediante la disposición derogatoria única se
+    deroga la Ley 3/2007…». Dice la verdad pero **no es la cláusula que deroga**, y `se deroga`
+    sin «expresamente» queda fuera del patrón a propósito: es la forma que comparten el
+    preámbulo y las citas de títulos de normas europeas. Está aquí para que ese límite sea un
+    test y no un comentario.
+  - LOS DOS ENCABEZADOS «Disposición derogatoria única. Derogación normativa.», que traen la
+    palabra «derogatoria»/«derogación» y no derogan nada. Separan buscar el lema de buscar la
+    construcción operativa.
+
+  Ojo a los espacios: el BOE publica «Ley 3/2007» con **espacio duro** (U+00A0) entre la
+  palabra y el número, igual que en las fechas. Se conserva verbatim porque es lo que el
+  patrón tiene que saber tragar; sustituirlo por un espacio normal haría que este fichero
+  probase algo más fácil que la realidad.
+
+  El bloque <analisis> es también el real: `DEROGA BOE-A-2007-5585` con su código 210, que es
+  la Ley 3/2007 y está en config/watchlist.json. Es lo que hace que dispare R-DER-001.
+
+  **Lo que este caso demuestra y conviene no perder de vista:** la Ley 4/2023 deroga una norma
+  vigilada y es un AVANCE, porque la sustituye ampliando protección. Por eso R-DER-001 emite
+  `indeterminado` y no `retroceso`. Ver la cabecera de pipeline/reglas.py.
+
+  Existe como fixture porque `backend/data/` está en .gitignore: sin esto, la verificación de
+  esta regla solo correría en la máquina donde está el almacén, nunca en CI.
+-->
+<documento>
+  <metadatos>
+    <identificador>BOE-A-2023-5366</identificador>
+  </metadatos>
+  <analisis>
+    <referencias>
+      <anteriores>
+        <anterior referencia="BOE-A-2007-5585">
+          <palabra codigo="210">DEROGA</palabra>
+          <texto>la Ley 3/2007, de 15 de marzo</texto>
+        </anterior>
+      </anteriores>
+    </referencias>
+  </analisis>
+  <texto>
+    <p class="parrafo">Mediante la disposición derogatoria única se deroga la Ley&#160;3/2007, de&#160;15 de marzo, reguladora de la rectificación registral de la mención relativa al sexo de las personas.</p>
+    <p class="parrafo">Disposición derogatoria única.&#8195;Derogación normativa.</p>
+    <p class="articulo">Disposición derogatoria única.&#8195;Derogación normativa.</p>
+    <p class="parrafo">Queda derogada la Ley&#160;3/2007, de&#160;15 de marzo, reguladora de la rectificación registral de la mención relativa al sexo de las personas.</p>
+  </texto>
+</documento>

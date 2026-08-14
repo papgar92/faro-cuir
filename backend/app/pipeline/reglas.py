@@ -17,6 +17,27 @@ publica la redacción **nueva** («El artículo 4 queda redactado como sigue: �
 `version_norma` está vacía: el diff de una *modificación* todavía no se puede construir. La
 supresión, en cambio, no necesita texto anterior — el hecho es que el precepto deja de existir.
 
+## La segunda familia: derogación, y por qué NO produce «retroceso»
+
+La derogación es la otra familia que no necesita texto anterior, y por eso es la que sigue. Pero
+su veredicto es `indeterminado` y no `retroceso`, **y el motivo es el caso insignia del propio
+proyecto**: `BOE-A-2023-5366` —la Ley 4/2023— deroga `BOE-A-2007-5585` —la Ley 3/2007, que está
+en la watchlist— y es un **avance**, porque la sustituye ampliando protección.
+
+Una regla ingenua «deroga norma vigilada → retroceso», que es la extensión aparentemente natural
+de R-SUP-001, clasificaría al revés justo la norma que este proyecto usa para explicar por qué
+existe. El supuesto de R-SUP-001 —la watchlist son normas protectoras, luego quitarles preceptos
+quita protección— **no se transporta a la derogación**, porque derogar una norma entera es lo que
+hace tanto quien la desmonta como quien la sustituye por otra mejor.
+
+Distinguir los dos casos exige saber **qué ocupa el lugar de la norma derogada**, y eso es el
+diff contra `version_norma`, que está vacía. Así que la decisión honesta es la que 7.6 llama el
+umbral de recall alto: severidad alta, sin signo, a la cola de revisión con su evidencia para que
+la mire una persona. Afirmar el signo aquí sería exactamente lo que la regla de oro 2 prohíbe.
+
+Hoy `BOE-A-2023-5366` no produce **ninguna** fila: ninguna regla lo ve. Ese es el valor de esta
+familia, y no es el veredicto: es que la norma más importante del corpus deje de ser invisible.
+
 ## Qué se midió antes de escribir esto, y qué no
 
 Sobre los 655 ficheros archivados (652 cuerpos de tres días de BOE), el detector dispara en
@@ -48,7 +69,7 @@ from app.pipeline.watchlist import Watchlist
 # cada detección y obliga a reevaluar lo anterior, igual que `VERSION_VOCABULARIO` y la versión
 # de la watchlist: sin esto, dos alertas de fechas distintas no serían comparables porque no se
 # sabría si las produjo el mismo catálogo.
-VERSION_REGLAS = "2026.08.09"
+VERSION_REGLAS = "2026.08.14"
 
 # --- Identificadores estables de regla ---------------------------------------------------
 # Van a `deteccion.regla_aplicada` y son parte del contrato de auditoría: no se renombran. Si
@@ -56,6 +77,7 @@ VERSION_REGLAS = "2026.08.09"
 # usa un identificador nuevo y el viejo queda retirado, nunca reutilizado con otro significado.
 R_SUP_NORMA_VIGILADA = "R-SUP-001"
 R_SUP_SIN_NORMA_VIGILADA = "R-SUP-002"
+R_DER_NORMA_VIGILADA = "R-DER-001"
 
 # Construcciones **operativas** de supresión: las que un texto normativo usa para borrar algo,
 # no para hablar de borrar. La distinción no es gramatical por gusto — es la que rechaza el
@@ -73,6 +95,55 @@ _SUPRESION = re.compile(
     r"|\bqueda(?:n)?\s+suprimid[oa]s?\b"
     r"|\bqueda(?:n)?\s+sin\s+contenido\b"
     r"|\bse\s+deja(?:n)?\s+sin\s+contenido\b",
+    re.IGNORECASE,
+)
+
+# Construcciones **operativas** de derogación, con el mismo criterio que `_SUPRESION`: las que
+# derogan, no las que hablan de derogar. El corpus enseña exactamente dónde está la línea, y
+# estas cuatro formas salen de él (12 referencias `DEROGA` sobre 652 cuerpos archivados):
+#
+#   OPERATIVAS  «Queda derogada la Ley 3/2007, de 15 de marzo…»
+#               «Quedan derogados el Real Decreto 296/1996… y el Real Decreto 386/1996…»
+#               «…se deroga expresamente el Real Decreto 296/1996, de 23 de febrero…»
+#   RUIDO       «…y por el que se deroga la Directiva 95/46/CE…»  ← cita del título de un
+#               reglamento europeo dentro del preámbulo: no deroga nada aquí.
+#               «…por el que se derogan los Reglamentos (UE)…»    ← lo mismo.
+#               «Se derogan las disposiciones de igual o inferior rango que contradigan…»
+#               ← cláusula de arrastre genérica, sin norma identificada: no dice qué cae.
+#
+# `se deroga` a secas queda fuera **a propósito** y es lo que separa las dos columnas: aparece
+# en las tres formas de ruido y en ninguna de las operativas sin ir acompañado de «expresamente».
+_DEROGACION = re.compile(
+    r"\bqueda(?:n)?\s+derogad[oa]s?\b" r"|\bse\s+deroga(?:n)?\s+expresamente\b",
+    re.IGNORECASE,
+)
+
+# Cómo se nombra una norma **concreta**, para exigirlo en la misma cláusula que la derogación
+# igual que `_PRECEPTO` se exige en la de supresión.
+#
+# El número (`3/2007`, `905/2022`) es obligatorio y es lo único que separa una derogación real
+# de la **cláusula de arrastre**, que aparece al final de casi toda norma reglamentaria:
+#
+#   REAL     «Queda derogada la Ley 3/2007, de 15 de marzo…»
+#            «Quedan derogados el Real Decreto 296/1996… y el Real Decreto 386/1996…»
+#   ARRASTRE «Quedan derogadas cuantas disposiciones de igual o inferior rango se opongan a lo
+#             establecido en la presente ley.»   ← 3 de las 8 cláusulas del corpus son esto
+#
+# La de arrastre trae la palabra «ley», así que pedir solo la palabra no la distingue: eso fue
+# un fallo de la primera versión de esta regla, detectado al revisar las ocho cláusulas del
+# corpus una a una. No dice qué norma cae, luego no se puede verificar contra el archivo, luego
+# no vale como evidencia — que es exactamente para lo que existe la evidencia.
+#
+# **Precio, y hay que escribirlo:** una norma derogada solo por su nombre, sin número («queda
+# derogada la Ley de Enjuiciamiento Criminal»), no produce evidencia y por tanto tampoco
+# veredicto, aunque el `<analisis>` la declare. Es pérdida de recall a cambio de que ningún span
+# persistido sea ilegible para quien lo revise. No se ha visto ningún caso así en el corpus de
+# tres días, y eso **no** es lo mismo que decir que no ocurra (regla de oro 8).
+_NORMA_CITADA = re.compile(
+    r"\b(?:ley(?:es)?\s+org[áa]nicas?|ley(?:es)?|real(?:es)?\s+decretos?"
+    r"(?:\s+legislativos?|\s+leyes?)?|decretos?(?:\s+legislativos?)?|reglamentos?"
+    r"|[óo]rden(?:es)?|directivas?)"
+    r"[^.;:»]{0,40}?\b\d{1,4}\s*/\s*\d{2,4}\b",
     re.IGNORECASE,
 )
 
@@ -187,23 +258,30 @@ def _clausula(texto: str, posicion: int, fronteras: tuple[list[int], list[int]])
     return inicio, fin
 
 
-def supresiones(texto: str) -> tuple[Evidencia, ...]:
-    """Cláusulas del texto archivado que suprimen un precepto, con sus offsets.
+def _clausulas_con(
+    texto: str, construccion: re.Pattern[str], acompanante: re.Pattern[str]
+) -> tuple[Evidencia, ...]:
+    """Cláusulas donde `construccion` aparece acompañada de `acompanante`, con sus offsets.
 
-    Dos condiciones, las dos necesarias: una construcción **operativa** de supresión y una
-    referencia a precepto **en la misma cláusula**. Cada cláusula se emite una sola vez aunque
-    contenga dos construcciones («Se suprime el Título XIV y se sustituye el Título XIII…»).
+    El esqueleto que comparten las dos familias del catálogo: encontrar la construcción
+    operativa, acotarla a su oración, exigir en esa misma oración la referencia que la hace
+    verificable —un precepto para la supresión, una norma para la derogación— y emitir cada
+    oración una sola vez aunque contenga dos construcciones.
+
+    Está factorizado y no copiado por el mismo motivo que `services/cuerpo.py`: dos copias de
+    este recorte son dos criterios de evidencia distintos en cuanto alguien toque una, y el
+    span es lo único que un revisor lee para decidir. Los topes y el degradado tienen que ser
+    los mismos para todas las reglas o el catálogo deja de ser un catálogo.
 
     Una cláusula desmesurada —un documento sin puntuación, por accidente o a propósito— se
-    recorta a una ventana alrededor de la construcción encontrada, y entonces la referencia a
-    precepto se exige **dentro de la ventana**: si al recortar se pierde, la cláusula deja de
-    valer como evidencia. Es la decisión conservadora correcta, porque el span es justamente lo
-    que un revisor va a leer para decidir.
+    recorta a una ventana alrededor de la construcción encontrada, y entonces el acompañante se
+    exige **dentro de la ventana**: si al recortar se pierde, la cláusula deja de valer como
+    evidencia. Es la decisión conservadora correcta.
     """
     encontradas: list[Evidencia] = []
     vistas: set[tuple[int, int]] = set()
     fronteras = _fronteras(texto)
-    for coincidencia in _SUPRESION.finditer(texto):
+    for coincidencia in construccion.finditer(texto):
         inicio, fin = _clausula(texto, coincidencia.start(), fronteras)
         if fin - inicio > MAX_CARACTERES_EVIDENCIA:
             margen = (MAX_CARACTERES_EVIDENCIA - (coincidencia.end() - coincidencia.start())) // 2
@@ -213,11 +291,33 @@ def supresiones(texto: str) -> tuple[Evidencia, ...]:
             continue
         vistas.add((inicio, fin))
         fragmento = texto[inicio:fin]
-        if _PRECEPTO.search(fragmento):
+        if acompanante.search(fragmento):
             encontradas.append(Evidencia(inicio=inicio, fin=fin, fragmento=fragmento))
         if len(encontradas) == MAX_EVIDENCIAS:
             break
     return tuple(encontradas)
+
+
+def supresiones(texto: str) -> tuple[Evidencia, ...]:
+    """Cláusulas del texto archivado que suprimen un precepto, con sus offsets.
+
+    Dos condiciones, las dos necesarias: una construcción **operativa** de supresión y una
+    referencia a precepto **en la misma cláusula**. Cada cláusula se emite una sola vez aunque
+    contenga dos construcciones («Se suprime el Título XIV y se sustituye el Título XIII…»).
+    """
+    return _clausulas_con(texto, _SUPRESION, _PRECEPTO)
+
+
+def derogaciones(texto: str) -> tuple[Evidencia, ...]:
+    """Cláusulas del texto archivado que derogan una norma, con sus offsets.
+
+    Mismas dos condiciones que `supresiones`, cambiando qué acompaña a la construcción: aquí se
+    exige que la cláusula **nombre una norma**. Es lo que deja fuera la cláusula de arrastre
+    («quedan derogadas cuantas disposiciones se opongan a lo dispuesto en este real decreto»),
+    que aparece en casi toda norma reglamentaria y no dice qué cae: como evidencia no se puede
+    verificar contra el archivo, que es para lo que existe la evidencia.
+    """
+    return _clausulas_con(texto, _DEROGACION, _NORMA_CITADA)
 
 
 def corroborar(
@@ -262,6 +362,23 @@ def _vigiladas(referencias: tuple[ReferenciaAnterior, ...], lista: Watchlist) ->
     )
 
 
+def _derogadas(referencias: tuple[ReferenciaAnterior, ...], lista: Watchlist) -> tuple[str, ...]:
+    """Normas de la watchlist que este documento **deroga**, según el `<analisis>` oficial.
+
+    Más estricto que `_vigiladas`: exige el verbo `DEROGA` y no cualquiera de los modificativos.
+    R-DER-001 habla de la desaparición de una norma vigilada entera, y `MODIFICA` no lo es; sin
+    esta distinción la regla dispararía sobre cualquier retoque y su severidad 4 dejaría de
+    significar nada.
+    """
+    return tuple(
+        dict.fromkeys(
+            referencia.identificador
+            for referencia in referencias
+            if referencia.verbo == "DEROGA" and lista.contiene(referencia.identificador)
+        )
+    )
+
+
 def clasificar(
     texto: str,
     *,
@@ -285,40 +402,72 @@ def clasificar(
       fallo conocido es el simétrico —suprimir un precepto *restrictivo* de una norma vigilada
       sería un avance y esta regla lo llamaría retroceso—; se acepta porque el veredicto no se
       publica sin gate humano (regla de oro 4) y porque el gold set es lo que puede medirlo.
+    - **R-DER-001 → `indeterminado`.** El `<analisis>` declara que este documento **deroga** una
+      norma de la watchlist, y el cuerpo trae la cláusula operativa que lo hace. Severidad alta
+      —desaparece una norma vigilada entera— y **sin signo, a propósito**: ver la sección «La
+      segunda familia» de la cabecera. Derogar es lo que hace tanto quien desmonta una ley como
+      quien la sustituye por otra mejor, y cuál de las dos cosas es exige el diff contra
+      `version_norma`, que está vacía.
     - **R-SUP-002 → `indeterminado`.** Hay supresión pero no se identifica norma vigilada. Es
       el umbral de recall alto de 7.6: entra en la cola de revisión sin afirmar nada. Se
       distingue del centinela del ADR 0009 (`indeterminado`/`heuristica`/`regla_aplicada NULL`)
       justamente por traer regla y evidencia.
+
+    ## Orden de las reglas, que no es arbitrario
+
+    Se evalúan de más específica a menos, y cada una emite **su propia** evidencia: la que
+    sostiene *ese* veredicto, no todas las cláusulas del documento. R-SUP-001 va primero porque
+    es la única que afirma un signo; R-DER-001 antes que R-SUP-002 porque una norma vigilada
+    derogada pesa más que una supresión suelta en una norma que no lo está.
 
     `severidad` y `confianza` son **atributos declarados de cada regla, provisionales y sin
     calibrar**, del mismo modo que `UMBRAL_DIRECTOS_RELEVANTE` en el prefiltro: no salen de
     ninguna medición y no se citan como dato hasta que el gold set los recalibre. Están porque
     las columnas existen y ponerlas a cero las haría leerse como "confianza nula".
     """
-    evidencia = supresiones(texto)
-    if not evidencia:
+    supresion = supresiones(texto)
+    derogacion = derogaciones(texto)
+    if not supresion and not derogacion:
         return None
 
-    corroborados, sin_corroborar = corroborar(punteros, evidencia)
     vigiladas = _vigiladas(referencias, lista)
+    derogadas = _derogadas(referencias, lista)
 
-    if vigiladas:
+    if supresion and vigiladas:
+        corroborados, sin_corroborar = corroborar(punteros, supresion)
         return Veredicto(
             regla=R_SUP_NORMA_VIGILADA,
             clasificacion=Clasificacion.RETROCESO,
             severidad=4,
             confianza=0.8,
-            evidencia=evidencia,
+            evidencia=supresion,
             normas_vigiladas=vigiladas,
             punteros_corroborados=corroborados,
             punteros_sin_corroborar=sin_corroborar,
         )
-    return Veredicto(
-        regla=R_SUP_SIN_NORMA_VIGILADA,
-        clasificacion=Clasificacion.INDETERMINADO,
-        severidad=2,
-        confianza=0.4,
-        evidencia=evidencia,
-        punteros_corroborados=corroborados,
-        punteros_sin_corroborar=sin_corroborar,
-    )
+
+    if derogacion and derogadas:
+        corroborados, sin_corroborar = corroborar(punteros, derogacion)
+        return Veredicto(
+            regla=R_DER_NORMA_VIGILADA,
+            clasificacion=Clasificacion.INDETERMINADO,
+            severidad=4,
+            confianza=0.5,
+            evidencia=derogacion,
+            normas_vigiladas=derogadas,
+            punteros_corroborados=corroborados,
+            punteros_sin_corroborar=sin_corroborar,
+        )
+
+    if supresion:
+        corroborados, sin_corroborar = corroborar(punteros, supresion)
+        return Veredicto(
+            regla=R_SUP_SIN_NORMA_VIGILADA,
+            clasificacion=Clasificacion.INDETERMINADO,
+            severidad=2,
+            confianza=0.4,
+            evidencia=supresion,
+            punteros_corroborados=corroborados,
+            punteros_sin_corroborar=sin_corroborar,
+        )
+    return None
