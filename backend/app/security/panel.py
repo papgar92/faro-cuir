@@ -29,12 +29,13 @@ Cinco decisiones, todas razonadas en el ADR 0017 y resumidas aquí porque es don
    log accidental de la estructura no entrega una sesión usable, y la búsqueda no compara la
    cadena secreta.
 
-5. **La cadencia de intentos no mira la IP.** La 6.4 prohíbe registrar IPs de quien consulta, y
-   el limitador general (`rate_limit.py`) ya funciona sin persistirlas. Aquí se va un paso más
-   allá: el freno de fuerza bruta es un **cubo global**, sin clave por cliente. La consecuencia
-   está escrita y asumida — quien queme los intentos deja al revisor esperando unos segundos —
-   y se prefiere a inventariar direcciones. No es un bloqueo: es una cadencia máxima, así que
-   se recupera sola con el paso del tiempo y nadie queda fuera para siempre.
+5. **La cadencia de intentos no mira la IP, y no puede dejar fuera a quien sabe la contraseña.**
+   La 6.4 prohíbe registrar IPs de quien consulta, y el limitador general (`rate_limit.py`) ya
+   funciona sin persistirlas. Aquí el freno de fuerza bruta es un **cubo global**, sin clave por
+   cliente — y solo lo gastan los intentos **fallidos**, comprobados después de verificar la
+   contraseña. Un cubo global que se gastara antes de comprobar sería la forma de cerrarle el
+   panel al revisor desde fuera, o sea de anular el gate; ver `CadenciaIntentos`, que lleva
+   escrito por qué el orden importa.
 """
 
 from __future__ import annotations
@@ -199,11 +200,32 @@ class Sesiones:
 
 
 class CadenciaIntentos:
-    """Cubo de fichas global para los intentos de login. Sin IP, sin identificador de cliente.
+    """Cubo de fichas global para los intentos **fallidos** de login. Sin IP, sin cliente.
 
-    Se rellena con el tiempo, así que no es un bloqueo: es un techo de intentos por minuto. La
-    contrapartida —alguien puede hacer esperar al revisor quemando el cubo— está asumida en la
-    cabecera del módulo y se prefiere a inventariar direcciones (6.4).
+    ## La corrección que costó la primera auditoría de este módulo
+
+    La versión inicial gastaba una ficha **antes** de comprobar la contraseña y devolvía 429 con
+    el cubo vacío. El `revisor-seguridad` lo señaló y tenía razón: eso convierte el freno de
+    fuerza bruta en la forma de **anular el gate humano**. Cualquiera, sin credenciales y desde
+    una sola dirección sin salirse del limitador general (60 pet./min), mantiene el cubo a cero
+    indefinidamente, y entonces **la contraseña correcta tampoco entra**. El panel es el único
+    camino por el que una detección llega a `alerta` (regla de oro 4), así que cerrarlo no es una
+    molestia: es desactivar la única etapa que el proyecto declara obligatoria.
+
+    Ahora el orden es el que evita ese fallo entero, no el que lo hace menos probable:
+
+    1. **La contraseña se comprueba siempre**, haya fichas o no.
+    2. **Si es correcta, se entra siempre.** No hay estado del servidor que pueda impedirlo.
+    3. **Solo un intento fallido gasta ficha**, y solo un fallido con el cubo vacío da 429.
+
+    O sea: quien tiene la contraseña no puede quedarse fuera nunca, y quien no la tiene se queda
+    sin intentos. Un techo de intentos por minuto que además no es un bloqueo, porque el cubo se
+    rellena solo.
+
+    El precio: comprobar siempre significa derivar scrypt siempre, que cuesta ~50 ms y 16 MB. Por
+    eso `verificar_password` se serializa con un cerrojo en `api/revision.py` — sin él, cien
+    intentos a la vez son 1,6 GB de memoria y el control de acceso vuelve a ser el vector, esta
+    vez de agotamiento en lugar de bloqueo.
     """
 
     def __init__(self, *, intentos: int, ventana_segundos: float) -> None:
@@ -212,8 +234,13 @@ class CadenciaIntentos:
         self._fichas = float(intentos)
         self._ultimo = time.monotonic()
 
-    def consumir(self) -> bool:
-        """Gasta una ficha. `False` si no quedaba ninguna (y entonces no se prueba la clave)."""
+    def registrar_fallo(self) -> bool:
+        """Anota un intento fallido. `False` si ya no quedaban fichas (o sea, toca 429).
+
+        Se llama **después** de comprobar la contraseña y solo cuando ha fallado. Un login
+        correcto no pasa por aquí: el uso legítimo del panel no compite con el freno pensado
+        para quien adivina.
+        """
         ahora = time.monotonic()
         self._fichas = min(self._capacidad, self._fichas + (ahora - self._ultimo) * self._ritmo)
         self._ultimo = ahora
@@ -222,10 +249,6 @@ class CadenciaIntentos:
         self._fichas -= 1.0
         return True
 
-    def devolver(self) -> None:
-        """Un login correcto no gasta cadencia.
-
-        Si no, el uso legítimo del panel competiría con el freno pensado para quien adivina, y
-        un día de revisión intensa se toparía con su propia defensa.
-        """
-        self._fichas = min(self._capacidad, self._fichas + 1.0)
+    def fallos_en_la_ventana(self) -> int:
+        """Cuántos intentos fallidos lleva la ventana. Para el log agregado, sin identidades."""
+        return round(self._capacidad - self._fichas)

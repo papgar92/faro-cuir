@@ -52,7 +52,19 @@ services:
       - ./config:/config:ro
     ports:
       - "127.0.0.1:8000:8000"
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    # `--no-access-log`: el log de acceso de uvicorn escribe la IP del cliente en CADA peticion,
+    # y la 6.4 dice literalmente que no se registran las IPs de quien consulta. Estaba desde S0 y
+    # nadie lo habia mirado; se ve al leer el log del panel de revision (ADR 0017), donde la
+    # contradiccion es mas visible porque ahi si hay una persona identificable detras. Lo que el
+    # proyecto quiere registrar -que normas se revisaron y que se aprobo- lo escriben los logs
+    # de la aplicacion, sin direcciones.
+    #
+    # UN SOLO PROCESO, sin `--workers`: las sesiones y la cadencia del panel viven en memoria
+    # del proceso (ver `api/revision.py`). Con varios, la cadencia se multiplicaria y eso falla
+    # ABIERTO.
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload",
+       "--no-access-log"]
     depends_on:
       db:
         condition: service_healthy

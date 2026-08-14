@@ -25,11 +25,14 @@ que salte la cola, porque la regla de oro 4 no admite excepción.
 
 from __future__ import annotations
 
+import logging
+import threading
 from collections.abc import Iterator
 from typing import Any
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy import Select, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
@@ -59,11 +62,19 @@ CABECERA_PANEL = "X-Faro-Panel"
 
 LIMITE_MAXIMO = 100
 
+logger = logging.getLogger(__name__)
+
+# Estos tres viven en el proceso, así que **este servicio es de proceso único**: uvicorn se
+# arranca sin `--workers` (ver `docker-compose.yml`). Con varios procesos, las sesiones no se
+# verían entre ellos (falla cerrado: 401 intermitentes, molesto pero seguro) y la cadencia se
+# multiplicaría por el número de workers, que **falla abierto** y es el que importa. Escalar a
+# varios procesos exige mover los dos almacenes a un sitio compartido; está en el ADR 0017.
 _settings = get_settings()
 _sesiones = panel.Sesiones(ttl_segundos=_settings.panel_sesion_ttl_segundos)
 _cadencia = panel.CadenciaIntentos(
     intentos=_settings.panel_intentos_por_minuto, ventana_segundos=60.0
 )
+_cerrojo_password = threading.Lock()
 
 
 def get_session() -> Iterator[Session]:
@@ -72,13 +83,20 @@ def get_session() -> Iterator[Session]:
 
 
 def revisor_requerido(
+    respuesta: Response,
     farocuir_panel: str | None = Cookie(default=None, alias=COOKIE_SESION),
 ) -> None:
     """Exige sesión válida. Lanza 401 sin decir por qué falló.
 
     No se distingue "no hay cookie" de "la cookie caducó" de "el token no existe": tres mensajes
     distintos son tres bits de información gratis para quien está probando.
+
+    De paso marca la respuesta como no almacenable. Va aquí y no en el middleware de cabeceras
+    porque es exactamente la condición que lo justifica: **detrás de sesión**. La API pública
+    sirve boletines oficiales y puede cachearse; la cola de revisión lleva evidencia y notas de
+    quien revisa, y no tiene por qué quedarse en ninguna caché intermedia.
     """
+    respuesta.headers["Cache-Control"] = "no-store"
     if not _sesiones.es_valida(farocuir_panel):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -150,23 +168,42 @@ def abrir_sesion(credenciales: Credenciales, respuesta: Response) -> SesionAbier
     Sin cabecera anti-CSRF aquí a propósito: un CSRF de login solo consigue iniciarle sesión a
     alguien con una contraseña que el atacante ya tiene, y exigir la cabecera obligaría a
     pedirla antes de tener sesión. Lo que sí hay es cadencia (6.4: global, sin IP).
+
+    **El orden de las tres operaciones es un control, no estilo** (ver `CadenciaIntentos`): se
+    comprueba la contraseña primero, se entra si es correcta, y solo un fallo gasta cadencia.
+    Al revés, quien no tuviera la contraseña podría dejar fuera a quien sí la tiene.
     """
-    if not _cadencia.consumir():
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Demasiados intentos de acceso al panel. Espera unos segundos.",
-            headers={"Retry-After": "10"},
-        )
+    respuesta.headers["Cache-Control"] = "no-store"
     settings = get_settings()
-    if not panel.verificar_password(
-        credenciales.password, hash_almacenado=settings.panel_password_hash
-    ):
-        # Nada de la contraseña se registra, ni siquiera su longitud.
+    # Serializado: cada comprobación son ~50 ms y 16 MB de scrypt, y ahora se comprueba siempre.
+    # Sin el cerrojo, una ráfaga de intentos convierte el control de acceso en un agotamiento de
+    # memoria — el mismo razonamiento que el tope de clientes de `rate_limit.py`.
+    with _cerrojo_password:
+        correcta = panel.verificar_password(
+            credenciales.password, hash_almacenado=settings.panel_password_hash
+        )
+
+    if not correcta:
+        # Nada de la contraseña se registra, ni siquiera su longitud. El contador sí: es un
+        # agregado sin identidades, y sin él el único control de acceso del proyecto sería
+        # también el único sin rastro. La 6.4 prohíbe inventariar IPs, no contar fallos.
+        quedaban = _cadencia.registrar_fallo()
+        logger.warning(
+            "Intento de acceso al panel fallido (%s fallidos en la ventana actual).",
+            _cadencia.fallos_en_la_ventana(),
+        )
+        if not quedaban:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Demasiados intentos de acceso al panel. Espera unos segundos.",
+                headers={"Retry-After": "10"},
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales no válidas."
         )
-    _cadencia.devolver()
+
     token, caduca = _sesiones.crear()
+    logger.info("Sesión del panel de revisión abierta. Sesiones vivas: %s.", len(_sesiones))
     respuesta.set_cookie(
         COOKIE_SESION,
         token,
@@ -203,7 +240,12 @@ def cerrar_sesion(
     cerrada, no 401. Un logout que falla deja al navegador con la cookie puesta.
     """
     _sesiones.cerrar(farocuir_panel)
-    respuesta.delete_cookie(COOKIE_SESION, path=COOKIE_PATH, httponly=True, samesite="strict")
+    # Los mismos atributos con los que se emitió, `secure` incluido: una cookie de borrado que
+    # no coincide en atributos es una cookie que algunos navegadores no consideran la misma.
+    respuesta.delete_cookie(
+        COOKIE_SESION, path=COOKIE_PATH, httponly=True, secure=True, samesite="strict"
+    )
+    logger.info("Sesión del panel de revisión cerrada. Sesiones vivas: %s.", len(_sesiones))
     return None
 
 
@@ -268,8 +310,19 @@ def _resolver(session: Session, cola_id: int, aprobada: bool, nota: str | None) 
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except servicio.RevisionError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except IntegrityError as exc:
+        # La última red del gate: `alerta.deteccion_id` es único, así que dos aprobaciones
+        # simultáneas del mismo ítem no pueden producir dos alertas ni aunque las dos pasen la
+        # comprobación de estado. Aquí se traduce a la respuesta que ya significa "llegas tarde"
+        # en vez de a un 500 que parecería un fallo del servidor.
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Otra revisión resolvió este ítem a la vez.",
+        ) from exc
     fila = session.execute(_consulta_cola().where(ColaRevision.id == cola_id)).first()
-    assert fila is not None  # noqa: S101 - acaba de resolverse en esta misma transacción
+    if fila is None:  # pragma: no cover - se acaba de resolver en esta misma transacción
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ítem no encontrado")
     return _item(*fila)
 
 

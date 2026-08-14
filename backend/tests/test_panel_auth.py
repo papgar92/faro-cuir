@@ -119,23 +119,23 @@ class TestSesiones:
 
 
 class TestCadencia:
-    def test_deja_pasar_hasta_el_tope_y_luego_no(self) -> None:
+    def test_aguanta_hasta_el_tope_de_fallos_y_luego_avisa(self) -> None:
         cadencia = panel.CadenciaIntentos(intentos=3, ventana_segundos=60)
-        assert [cadencia.consumir() for _ in range(4)] == [True, True, True, False]
+        assert [cadencia.registrar_fallo() for _ in range(4)] == [True, True, True, False]
 
     def test_se_recupera_con_el_tiempo_y_no_es_un_bloqueo(self) -> None:
         """Un bloqueo permanente convertiría el freno en una denegación de servicio al revisor."""
         cadencia = panel.CadenciaIntentos(intentos=2, ventana_segundos=0.05)
-        assert cadencia.consumir() and cadencia.consumir()
-        assert not cadencia.consumir()
+        assert cadencia.registrar_fallo() and cadencia.registrar_fallo()
+        assert not cadencia.registrar_fallo()
         import time
 
         time.sleep(0.06)
-        assert cadencia.consumir()
+        assert cadencia.registrar_fallo()
 
-    def test_un_login_correcto_no_gasta_cadencia(self) -> None:
-        """Si no, un día de revisión intensa se topa con su propia defensa."""
-        cadencia = panel.CadenciaIntentos(intentos=2, ventana_segundos=60)
-        for _ in range(10):
-            assert cadencia.consumir()
-            cadencia.devolver()
+    def test_cuenta_los_fallos_de_la_ventana_para_el_log(self) -> None:
+        cadencia = panel.CadenciaIntentos(intentos=5, ventana_segundos=600)
+        assert cadencia.fallos_en_la_ventana() == 0
+        cadencia.registrar_fallo()
+        cadencia.registrar_fallo()
+        assert cadencia.fallos_en_la_ventana() == 2

@@ -106,7 +106,12 @@ def _resolver(
     estado: EstadoRevision,
     nota: str | None,
 ) -> ColaRevision:
-    item = session.get(ColaRevision, cola_id)
+    # `with_for_update`: sin él, dos POST simultáneos sobre el mismo ítem (dos pestañas, un
+    # doble clic) leen los dos `pendiente` y los dos siguen adelante. La unicidad de
+    # `alerta.deteccion_id` impide que salgan dos alertas —el control aguanta— pero a costa de
+    # un error de integridad, y una comprobación que solo funciona porque la base de datos la
+    # rescata no es una comprobación. En SQLite (los tests) el dialecto lo ignora sin fallar.
+    item = session.get(ColaRevision, cola_id, with_for_update=True)
     if item is None:
         raise ItemNoEncontrado(f"No hay ningún ítem de revisión con id {cola_id}.")
     if item.estado is not EstadoRevision.PENDIENTE:

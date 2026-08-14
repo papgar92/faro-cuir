@@ -226,6 +226,45 @@ class TestSesion:
         ]
         assert codigos == [401, 401, 401, 429]
 
+    def test_la_cadencia_agotada_no_deja_fuera_a_quien_sabe_la_contrasena(
+        self, client: TestClient
+    ) -> None:
+        """El hallazgo del `revisor-seguridad` (2026-08-14), y por qué el orden es un control.
+
+        Si el cubo se gastara **antes** de comprobar la contraseña, cualquiera podría cerrarle
+        el panel al revisor sin credenciales y desde una sola dirección — o sea, anular el gate
+        humano (regla de oro 4) desde fuera, usando el propio freno de fuerza bruta.
+        """
+        api_revision._cadencia = panel.CadenciaIntentos(intentos=1, ventana_segundos=600)
+        assert client.post("/api/revision/sesion", json={"password": "mal"}).status_code == 401
+        assert client.post("/api/revision/sesion", json={"password": "mal"}).status_code == 429
+
+        # El cubo está a cero y la contraseña correcta entra igualmente.
+        assert client.post("/api/revision/sesion", json={"password": PASSWORD}).status_code == 200
+
+    def test_un_login_correcto_no_gasta_cadencia(self, client: TestClient) -> None:
+        """Un día de revisión intensa no puede toparse con la defensa contra quien adivina."""
+        api_revision._cadencia = panel.CadenciaIntentos(intentos=1, ventana_segundos=600)
+        for _ in range(5):
+            assert (
+                client.post("/api/revision/sesion", json={"password": PASSWORD}).status_code == 200
+            )
+        assert api_revision._cadencia.fallos_en_la_ventana() == 0
+
+    def test_las_respuestas_del_panel_no_se_almacenan_en_cache(self, client: TestClient) -> None:
+        """Llevan evidencia y notas de revisión detrás de sesión; la API pública no."""
+        respuesta = client.post("/api/revision/sesion", json={"password": PASSWORD})
+        assert respuesta.headers["cache-control"] == "no-store"
+        assert client.get("/api/revision/cola").headers["cache-control"] == "no-store"
+
+    def test_al_cerrar_sesion_la_cookie_de_borrado_conserva_los_atributos(
+        self, client: TestClient
+    ) -> None:
+        _entrar(client)
+        cookie = client.delete("/api/revision/sesion").headers["set-cookie"]
+        assert "Secure" in cookie and "HttpOnly" in cookie
+        assert f"Path={api_revision.COOKIE_PATH}" in cookie
+
     def test_cerrar_sesion_invalida_el_token_en_el_servidor(self, client: TestClient) -> None:
         """Borrar la cookie del navegador sin invalidar el token sería teatro."""
         _entrar(client)

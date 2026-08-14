@@ -1,13 +1,27 @@
 """Punto de entrada de la app FastAPI."""
 
+import logging
+
 from fastapi import FastAPI
 
 from app.api.cobertura import router as cobertura_router
 from app.api.documentos import router as documentos_router
 from app.api.health import router as health_router
 from app.api.revision import router as revision_router
+from app.config import get_settings
 from app.security.headers import SecurityHeadersMiddleware
 from app.security.rate_limit import RateLimitMiddleware
+
+# Sin esto, **los logs de la aplicación no salían**. uvicorn solo configura sus propios
+# loggers; los nuestros propagan al raíz, que sin handler deja pasar únicamente WARNING y
+# superiores por el `lastResort` de la biblioteca. El worker sí llamaba a `basicConfig` y la API
+# no, así que el rastro del gate humano —«aprobada la revisión N, alerta emitida» (ADR 0003 y
+# 0017)— se escribía en un logger que nadie escuchaba. Se descubrió al verificar el panel en el
+# navegador: la fila estaba en la base de datos y no había ni una línea en el log.
+logging.basicConfig(
+    level=get_settings().log_level,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 app = FastAPI(title="Faro Cuir")
 
