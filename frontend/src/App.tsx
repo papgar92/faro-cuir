@@ -6,6 +6,7 @@ import { AlertasPage } from "./pages/AlertasPage";
 import { ArchivoPage } from "./pages/ArchivoPage";
 import { FichaPage } from "./pages/FichaPage";
 import { MapaPage } from "./pages/MapaPage";
+import { RevisionPage } from "./pages/RevisionPage";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("mapa");
@@ -46,6 +47,7 @@ export default function App() {
       )}
       {screen === "archivo" && <ArchivoPage onVerFicha={verFicha} />}
       {screen === "ficha" && <FichaPage seleccion={seleccion} onIrAlArchivo={goArchivo} />}
+      {screen === "revision" && <RevisionPage />}
 
       <Footer />
     </div>

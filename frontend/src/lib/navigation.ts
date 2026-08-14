@@ -1,4 +1,4 @@
-export type Screen = "mapa" | "alertas" | "archivo" | "ficha";
+export type Screen = "mapa" | "alertas" | "archivo" | "ficha" | "revision";
 
 /**
  * Qué norma tiene que pintar la Ficha. Hacen falta los dos ids: la API expone las normas
@@ -18,3 +18,13 @@ export interface SeleccionNorma {
  * pipeline (CLAUDE.md sección 7). En cuanto una de las dos lea de la API, se quita de aquí.
  */
 export const PANTALLAS_CON_MOCK: ReadonlySet<Screen> = new Set<Screen>(["mapa", "alertas"]);
+
+/**
+ * Pantallas que exigen sesión de revisión (ADR 0017). Hoy solo el panel del gate humano.
+ *
+ * El conjunto existe para que "esta pantalla es privada" se lea de un sitio y no de un `if`
+ * repartido: no es un control de seguridad —el control está en el backend, que devuelve 401 y
+ * no sirve nada— sino lo que evita que la interfaz prometa una pantalla que no va a poder
+ * pintar.
+ */
+export const PANTALLAS_CON_SESION: ReadonlySet<Screen> = new Set<Screen>(["revision"]);

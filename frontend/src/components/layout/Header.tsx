@@ -17,6 +17,11 @@ const NAV_ITEMS: Array<{ screen: Screen; label: string }> = [
   { screen: "alertas", label: "Alertas" },
   { screen: "archivo", label: "Archivo" },
   { screen: "ficha", label: "Ficha de norma" },
+  // El panel del gate humano (ADR 0017). Está en la navegación pública a propósito: que exista
+  // un paso humano obligatorio antes de publicar es parte de lo que el proyecto afirma, y
+  // esconder la puerta no la protege — la protege el 401 del backend. Quien no tenga la
+  // contraseña ve la pantalla de acceso y la explicación de para qué sirve.
+  { screen: "revision", label: "Revisión" },
 ];
 
 /** Franja con los colores de la bandera trans: no es decorativa, marca el enfoque del proyecto. */
@@ -84,8 +89,14 @@ function PulsoReal() {
         </span>
       )}
       <span className="ml-auto text-ink-3">
-        {/* Sin pipeline no hay "pasada de análisis" que anunciar: solo ingesta. */}
-        pipeline de clasificación: pendiente
+        {/*
+          Decía "pipeline de clasificación: pendiente", y desde el ADR 0016 era falso: el
+          catálogo de reglas produce veredictos con su evidencia. Se corrige por lo mismo que
+          existe `DemoDataNotice` — una franja fija que afirma algo que ya no es cierto es
+          exactamente lo que este proyecto denuncia. Lo que sigue siendo verdad, y es lo que
+          importa decir, es que nada se publica sin que una persona lo apruebe (regla de oro 4).
+        */}
+        nada se publica sin revisión humana
       </span>
     </>
   );

@@ -201,3 +201,127 @@ export interface CoberturaApi {
 export function obtenerCobertura(signal?: AbortSignal): Promise<CoberturaApi> {
   return pedir<CoberturaApi>("/api/cobertura", signal);
 }
+
+// --- Panel de revisión: el gate humano (ADR 0017) ---------------------------------------
+//
+// La única parte de la API que escribe, y la única con sesión. Espejo de
+// `backend/app/schemas/revision.py`.
+//
+// La sesión viaja en una cookie `HttpOnly`, así que **este código no ve el token y no puede
+// verlo**: eso es lo que se quiere. No hay nada que guardar en `localStorage` ni que meter en
+// una cabecera `Authorization`; el navegador manda la cookie sola porque las rutas son del
+// mismo origen. Saber si hay sesión se pregunta al backend (`comprobarSesion`), no se deduce
+// de una variable del cliente.
+
+/** Un fragmento del texto archivado sobre el que se aplicó la regla (7.5 y 7.6). */
+export interface SpanEvidenciaApi {
+  inicio: number;
+  fin: number;
+  fragmento: string;
+}
+
+export interface ItemRevisionApi {
+  id: number;
+  estado: "pendiente" | "aprobada" | "descartada";
+  creada_en: string;
+  resuelta_en: string | null;
+  nota_revision: string | null;
+
+  deteccion_id: number;
+  clasificacion: "avance" | "retroceso" | "neutro" | "indeterminado";
+  origen: "derivado_diff" | "heuristica";
+  regla_aplicada: string | null;
+  /**
+   * Declaradas por cada regla y **sin calibrar** contra ningún corpus. Sirven para ordenar la
+   * cola, no para citarlas como dato; la interfaz tiene que decirlo donde se pintan.
+   */
+  severidad: number;
+  confianza: number;
+  version_reglas: string | null;
+  version_texto_plano: string | null;
+  normas_vigiladas: string[];
+  spans: SpanEvidenciaApi[];
+
+  /**
+   * Que el extractor pasara por esta norma. El panel **no** publica lo que dijo el modelo
+   * (reglas de oro 3 y 10): quien revisa decide sobre el texto archivado y la evidencia que
+   * el catálogo recortó de él.
+   */
+  tiene_extraccion: boolean;
+  punteros_corroborados: number;
+  punteros_sin_corroborar: number;
+
+  norma: {
+    id: number;
+    identificador_oficial: string;
+    titulo: string;
+    organo_emisor: string | null;
+    url_texto: string | null;
+    prefiltro_estado: EstadoPrefiltro;
+    prefiltro_ejes: EjePrefiltro[] | null;
+  };
+  texto_archivado: TextoArchivadoApi | null;
+}
+
+/**
+ * Cabecera propia en todo lo que escribe. Es el segundo control anti-CSRF del ADR 0017: no se
+ * puede enviar entre orígenes sin un *preflight* de CORS, y este proyecto no activa CORS.
+ */
+const CABECERA_PANEL = "X-Faro-Panel";
+
+async function escribir<T>(ruta: string, metodo: "POST" | "DELETE", cuerpo?: unknown): Promise<T> {
+  const respuesta = await fetch(ruta, {
+    method: metodo,
+    // Explícito aunque sea el valor por defecto: es lo que hace que la cookie de sesión viaje,
+    // y un cambio a `omit` rompería el panel de una forma difícil de diagnosticar.
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      [CABECERA_PANEL]: "1",
+      ...(cuerpo === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+  });
+
+  if (!respuesta.ok) {
+    throw new ApiError(respuesta.status, `La API respondió ${respuesta.status} en ${ruta}`);
+  }
+  if (respuesta.status === 204) return undefined as T;
+  return (await respuesta.json()) as T;
+}
+
+export function abrirSesionPanel(password: string): Promise<{ caduca_en: string }> {
+  return escribir<{ caduca_en: string }>("/api/revision/sesion", "POST", { password });
+}
+
+export function cerrarSesionPanel(): Promise<void> {
+  return escribir<void>("/api/revision/sesion", "DELETE");
+}
+
+/** 204 si la sesión vale, 401 si no. Lo que se consulta al entrar en el panel. */
+export async function comprobarSesionPanel(signal?: AbortSignal): Promise<boolean> {
+  const respuesta = await fetch("/api/revision/sesion", {
+    signal,
+    credentials: "same-origin",
+  });
+  if (respuesta.status === 204) return true;
+  if (respuesta.status === 401) return false;
+  throw new ApiError(respuesta.status, "La API respondió un estado inesperado al comprobar sesión");
+}
+
+export function listarColaRevision(
+  estado: ItemRevisionApi["estado"] = "pendiente",
+  signal?: AbortSignal,
+): Promise<ItemRevisionApi[]> {
+  return pedir<ItemRevisionApi[]>(`/api/revision/cola?estado=${estado}`, signal);
+}
+
+export function resolverRevision(
+  id: number,
+  accion: "aprobar" | "descartar",
+  nota: string,
+): Promise<ItemRevisionApi> {
+  return escribir<ItemRevisionApi>(`/api/revision/cola/${id}/${accion}`, "POST", {
+    nota: nota.trim() === "" ? null : nota.trim(),
+  });
+}
