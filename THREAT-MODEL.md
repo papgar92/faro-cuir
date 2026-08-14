@@ -107,21 +107,35 @@ desde fuera y no haya que fiarse de nosotros.
 | **I**nfo disclosure | Reversión del hash con un diccionario de direcciones | Pepper fuera de la base de datos (variable de entorno); `hash_email` **falla cerrado** si no está, en vez de guardar un hash sin sal | Mitigado |
 | **S**poofing | Dar de baja a otra persona adivinando su token | Token de baja aleatorio y opaco, no derivado del email | Mitigado |
 | **I**nfo disclosure | Correlación por comportamiento | Sin perfilado, sin analítica, sin cookies de terceros | Mitigado por diseño |
-| **R**epudiation | No poder demostrar el consentimiento | — | **No mitigado** — pendiente del flujo de alta (EIPD) |
+| **R**epudiation | No poder demostrar el consentimiento | — | **No aplica hoy** — no hay altas; ver abajo |
 
-**No mitigado, consciente:** el envío de una alerta requiere el email en claro en ese
-momento. Ese es el punto débil estructural del modelo y no se puede eliminar del todo, solo
-acotar (cifrado en reposo, mínimo tiempo de exposición). Se desarrolla en `docs/eipd.md`.
+**El cambio de fondo (2026-08-14, ADR 0010): esta tabla describe un tratamiento que ya no
+ocurre.** El canal de difusión por defecto es *pull* —web y feed Atom— y **no hay lista de
+suscriptores**. Los controles de arriba siguen implementados y siguen siendo correctos, pero
+protegen una tabla que ningún flujo usa. La mejor mitigación de esta sección resultó ser no tener
+el dato.
 
-### 4.5 Panel de revisión y webhooks
+**No mitigado, consciente, y sigue en pie el día que se active el correo como vía secundaria:**
+el envío de una alerta requiere el email en claro en ese momento. Ese es el punto débil
+estructural del canal push y no se puede eliminar del todo, solo acotar (cifrado en reposo,
+mínimo tiempo de exposición). Se desarrolla en `docs/eipd.md`, sección 3.5.
 
-Ambos **sin implementar**. Se listan porque las amenazas ya se conocen y condicionan el
-diseño:
+### 4.5 Panel de revisión (implementado el 2026-08-14, ADR 0017)
+
+| Amenaza | Escenario | Control | Estado |
+|---|---|---|---|
+| **E**levation | Emitir una alerta sin sesión | `revisor_requerido` en todos los endpoints; el 401 no distingue la causa. Un test comprueba que el intento **además no deja fila en `alerta`** | Mitigado |
+| **T**ampering | CSRF desde otro sitio para aprobar | Cookie `SameSite=Strict` **más** cabecera propia `X-Faro-Panel`, y solo POST resuelve | Mitigado (dos controles independientes) |
+| **S**poofing | Fuerza bruta de la contraseña | scrypt con sal por credencial + cadencia global de fallos | Mitigado |
+| **D**oS | **Cerrar el panel quemando la cadencia** — y con ello anular el gate humano | La cadencia se gasta **después** de comprobar la clave y solo con fallos: quien la sabe entra siempre. La verificación se serializa para que scrypt no sea el agotamiento | Mitigado tras la auditoría del 2026-08-14 |
+| **I**nfo disclosure | Robo de sesión por XSS | Token opaco en cookie `HttpOnly`+`Secure`, nunca en el cuerpo ni en `localStorage` | Mitigado |
+| **R**epudiation | Aprobación indebida por un insider (A4) | Se registra **qué** se aprobó y cuándo, no **quién**: es una decisión de minimización (6.4) y su precio está escrito en el ADR 0017 | **Parcial y consciente** |
+| **T**ampering | Reabrir un ítem para emitir dos veces | Un ítem resuelto no se reabre (409); `alerta.deteccion_id` es único; la fila se bloquea al resolver | Mitigado |
+
+### 4.5 bis Webhooks (sin implementar)
 
 | Amenaza | Control previsto |
 |---|---|
-| Aprobación indebida por un insider (A4) | Registro de quién aprueba cada detección, inmutable |
-| Fuerza bruta contra el panel | Autenticación con límite de intentos; el panel no es público |
 | Webhook de salida suplantado | Firma HMAC-SHA256 del payload + timestamp + nonce anti-replay |
 | Replay de un webhook de entrada | Verificación de firma y ventana temporal antes de procesar |
 
@@ -139,9 +153,13 @@ Ordenado por riesgo, no por facilidad:
 
 1. **Recall del prefiltro sin medir.** Hoy no se puede afirmar cuántas normas relevantes se
    pierden. Solo lo resuelve el gold set.
-2. **Consentimiento y ciclo de vida de los suscriptores.** Sin flujo de alta/baja
-   implementado no hay EIPD cerrable.
+2. ~~**Consentimiento y ciclo de vida de los suscriptores.**~~ — **resuelto de otra manera el
+   2026-08-14 (ADR 0010)**: el canal por defecto es *pull* y no hay suscriptores que consentir.
+   `docs/eipd.md` está escrita sobre esa base. Lo que queda de este punto es que **activar el
+   correo como vía secundaria reintroduce el problema entero** y obliga a revisar la EIPD.
 3. **Sello de tiempo sin tercero de confianza.** Hasta RFC 3161, la fecha del archivo es
    afirmación nuestra (ADR 0005).
-4. **Panel de revisión y webhooks sin implementar**, con sus amenazas ya identificadas.
+4. ~~**Panel de revisión sin implementar**~~ — **hecho el 2026-08-14 (ADR 0017)**, con sus
+   amenazas mitigadas: sesión opaca, anti-CSRF doble y cadencia que no puede cerrar el gate.
+   **Los webhooks siguen sin implementar**, con sus amenazas ya identificadas.
 5. **Sin protección ante DDoS**, fuera de alcance por diseño.

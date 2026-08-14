@@ -48,9 +48,13 @@ que no se pueda enseñar funcionando.
 | Cabeceras de seguridad (CSP, HSTS, nosniff, ...) | Implementado | `security/headers.py` |
 | Prefiltro auditable (decisión persistida y publicada) | Implementado — recall **sin medir** hasta el gold set | ADR 0007 |
 | `gitleaks` en CI | Implementado | `.github/workflows/ci.yml` |
-| Validación Pydantic de la salida del LLM | Pendiente — el extractor no existe todavía | ADR 0002 |
+| Validación Pydantic de la salida del LLM | Implementado — `extra="forbid"`, y un test que simula que la inyección funciona y comprueba que la salida se descarta igual | `schemas/extraccion.py`, ADR 0002 |
+| Gate humano antes de emitir una alerta | Implementado — `alerta` solo la escribe `revision.aprobar`, sin flag que lo salte; un ítem resuelto no se reabre | `services/revision.py`, ADR 0003 |
+| Autenticación del panel de revisión | Implementado — scrypt, sesión opaca `HttpOnly`+`Secure`+`SameSite=Strict`, anti-CSRF doble | `security/panel.py`, ADR 0017 |
+| Sin registro de IPs de quien consulta | Implementado — ventana del limitador en memoria y log de acceso del servidor apagado | `security/rate_limit.py`, `docker-compose.yml` |
+| Canal de difusión sin lista de suscriptores | Implementado — feed Atom sin token ni personalización | `api/feed.py`, ADR 0010 |
+| Evaluación de impacto en protección de datos | **Parcial** — escrita y con plan de acción; le falta canal de ejercicio de derechos y revisión jurídica antes de un despliegue público | `docs/eipd.md` |
 | Firma HMAC de webhooks | Pendiente | — |
-| Autenticación del panel de revisión | Pendiente | ADR 0003 |
 | Escaneo de vulnerabilidades en dependencias | Implementado — `pip-audit` en CI, rompe el job si hay CVE | `.github/workflows/ci.yml` |
 
 El detalle de cada amenaza, con los escenarios concretos y lo que **no** está mitigado, está

@@ -1519,3 +1519,76 @@ compartido tiene que ser lo obvio de usar.
    falsa; el dato que hace falta (`ambito` por norma vigilada) ya lo publica la API.
 5. Sigue en pie: alinear `extraccion_json` con lo que promete 7.4, y ver un puntero real salir
    del modelo.
+
+---
+
+### ✅ La EIPD escrita de verdad, y el modelo de amenazas al día — 2026-08-14
+
+Era el último hueco de seguridad sin desarrollar y llevaba en esqueleto desde S0. Se ha escrito
+ahora porque **hoy sale mucho más barata y mucho más defendible**: con el canal pull (ADR 0010) y
+el panel de revisión (ADR 0017) hechos, la evaluación tiene tratamientos reales que describir en
+vez de intenciones.
+
+**La conclusión va por delante en el documento, y es la que importa:** el tratamiento de riesgo
+alto que motivaba la EIPD —una lista de personas suscritas a alertas sobre derechos trans— **ya
+no ocurre**. No se mitigó: se eliminó cambiando el canal. Eso es el artículo 25 (protección de
+datos desde el diseño y por defecto) en su forma más literal, y es lo que convierte una
+evaluación incómoda en una corta.
+
+**Lo que sí analiza, que es lo que no desaparece:**
+
+1. **El archivo íntegro de boletines**, que es el tratamiento con más volumen y el que menos se
+   suele mirar porque «son documentos públicos». Los boletines traen datos personales de terceros
+   —nombramientos, listas de oposiciones, sanciones, notificaciones por comparecencia— y el
+   documento lo dice con ejemplos en vez de en abstracto. **La tensión se escribe, no se
+   esconde**: la inmutabilidad del archivo es lo que detecta lo que una administración borra en
+   silencio, y choca de frente con el derecho de supresión de un tercero nombrado. Se gestiona
+   con tres hechos verificables —el contenido archivado **no se publica** (solo la huella), no se
+   indexa por persona, y lo único del cuerpo que llega al público son los fragmentos de evidencia
+   que **pasan antes por una persona**— y con un hueco reconocido: falta el procedimiento escrito
+   para atender una solicitud.
+2. **La autenticación del panel**, único dato personal que el sistema crea por sí mismo, y
+   diseñado para ser el mínimo posible.
+3. **La tabla `suscriptor`**, que sigue existiendo sin uso, con lo que costaría activarla.
+
+**Un hallazgo del propio análisis, que no estaba previsto:** el gate humano existía por
+neutralidad editorial (regla de oro 4) y **funciona igual de bien como control de protección de
+datos** — una persona lee la evidencia exacta antes de que se publique. Está escrito en la EIPD
+para que nadie lo suprima algún día creyendo que solo servía para lo primero.
+
+**Y una decisión que se deja anotada para cuando llegue:** elegir alojamiento es una decisión de
+protección de datos, no solo de coste. Los registros de acceso del proveedor son justo donde
+reaparecerían las IPs que el sistema se cuida de no guardar.
+
+**Honestidad de alcance, en el primer párrafo del documento:** es el análisis de quien desarrolla
+el proyecto, no un dictamen jurídico, y las bases de legitimación están razonadas pero no
+validadas por nadie con habilitación. La regla de oro 8 prohíbe presentar como verificado lo que
+no lo está, y una EIPD que se dé más autoridad de la que tiene es peor que no tenerla.
+
+**De paso, `THREAT-MODEL.md` y `SECURITY.md` al día**, que es la mitad del valor: el modelo de
+amenazas tenía el panel de revisión como «sin implementar» y los datos de suscriptores como el
+agujero pendiente. Ahora el panel tiene su tabla STRIDE con siete filas —incluida **la del DoS
+que la auditoría encontró**: cerrar el panel quemando la cadencia era anular el gate— y la
+sección de suscriptores dice lo que de verdad pasó: sus controles siguen ahí y protegen una tabla
+que ningún flujo usa, porque **la mejor mitigación resultó ser no tener el dato**. En
+`SECURITY.md`, cinco controles pasan de «Pendiente» a «Implementado» y la EIPD entra como
+«Parcial» obligada a nombrar qué le falta.
+
+#### Siguiente, por orden
+
+1. **Poblar `version_norma`** — **~25k**. Sin texto anterior no hay diff, y sin diff el catálogo
+   no crece: supresión y derogación eran las dos únicas familias que no lo necesitan. Es lo único
+   que queda del pipeline sin cerrar.
+2. **Gold set**: volumen del corpus y el caso de título anodino. Es lo que no se puede recortar
+   sin que la parte de IA deje de ser evaluable, y sigue siendo el trabajo humano más lento.
+3. **El Mapa con dato real**, cuando haya alertas de más de una comunidad. El dato que hace falta
+   (`ambito` por norma vigilada) ya lo publica la API; lo que falta son alertas.
+4. Sigue en pie: alinear `extraccion_json` con lo que promete 7.4, y ver un puntero real salir
+   del modelo.
+
+**Estado del plan a V1 (quedan 8 días).** De las nueve tareas: **cerradas 0.b, 0.c, el panel de
+revisión, migrar Alertas a la API, el canal RSS y la EIPD**; el clasificador a medias (dos
+familias de reglas, a la espera del diff); **abiertas gold set y offsets**. El Mapa depende de que
+haya datos, no de código. Es bastante mejor de lo que pintaba el aviso de esta mañana: lo que
+queda sin hacer es sobre todo **etiquetado humano**, que es exactamente lo que el plan avisó desde
+el principio que sería el cuello de botella.
