@@ -1177,3 +1177,107 @@ driver headless** (`run_agent.sh`). No es la misma situación: una sesión inter
 mirando alguien mientras ocurre, y el driver corre solo contra un backlog. Y este proyecto mete
 en el árbol de trabajo XML de fuentes externas que trata como hostil por regla de oro 1; el
 modo bypass quita justamente el escalón que separa "leer eso" de "ejecutar algo por eso".
+
+---
+
+### ✅ Segunda familia del catálogo: derogación (R-DER-001) — 2026-08-14
+
+**La Ley 4/2023 deja de ser invisible para el clasificador.** Era el punto 1 de la lista
+anterior en su rama barata: el catálogo solo podía crecer en familias que no necesitan texto
+anterior, y la derogación es la otra. `BOE-A-2023-5366` no producía **ninguna** fila —ninguna
+regla lo veía— y ahora entra en la cola de revisión con su evidencia.
+
+| Norma | Veredicto | Regla | Spans | Norma vigilada |
+|---|---|---|---|---|
+| BOE-A-2024-10767 | `retroceso` | R-SUP-001 | 12 | BOE-A-2016-6728 |
+| BOE-A-2024-10768 | `retroceso` | R-SUP-001 | 11 | BOE-A-2016-11096 |
+| **BOE-A-2023-5366** | **`indeterminado`** | **R-DER-001** | **1** | **BOE-A-2007-5585** |
+| BOE-A-2023-5364 | `indeterminado` | R-SUP-002 | 1 | — |
+| BOE-A-2023-5365 | `indeterminado` | R-SUP-002 | 3 | — |
+
+**Lo importante de esta tarea no es la regla, es el veredicto que NO emite.** La extensión
+aparentemente natural de R-SUP-001 —«deroga norma vigilada → retroceso»— habría clasificado
+como retroceso justo la norma que el proyecto usa para explicar por qué existe: la Ley 4/2023
+deroga la Ley 3/2007, que está en la watchlist, y es un **avance**, porque la sustituye
+ampliando protección. El supuesto de R-SUP-001 (la watchlist son normas protectoras, luego
+quitarles preceptos quita protección) **no se transporta**: derogar una norma entera es lo que
+hace tanto quien la desmonta como quien la sustituye por otra mejor. Distinguirlo exige saber
+qué ocupa su lugar, y eso es el diff contra `version_norma`, que sigue vacía. Así que
+`indeterminado` con severidad 4: alto impacto, sin signo, a que lo mire una persona. Está
+escrito en la cabecera de `pipeline/reglas.py` y hay un test cuyo único trabajo es fallar si
+alguien lo cambia a `retroceso`.
+
+**No hay R-DER-002**, y es deliberado a diferencia de la familia de supresión: derogar una
+norma ajena al ámbito es la mayoría de las derogaciones del boletín y no dice nada del
+colectivo. El equivalente inundaría la cola que el prefiltro existe para limpiar.
+
+**Un fallo de precisión propio, encontrado revisando las ocho cláusulas del corpus una a una**
+—no lo reportó ningún test—: la primera versión aceptaba la **cláusula de arrastre** («Quedan
+derogadas cuantas disposiciones de igual o inferior rango se opongan a lo establecido en la
+presente ley»), que aparece al final de casi toda norma reglamentaria y era **3 de las 8**
+cláusulas detectadas. Se colaba por traer la palabra «ley», y el comentario del módulo decía
+excluirla: código y comentario discrepando, que es el hallazgo que el `auditor-reglas` ya le
+hizo a este repo. Ahora `_NORMA_CITADA` exige el **número** (`3/2007`, `905/2022`), que es lo
+único que separa una derogación verificable de una barrida genérica. Tras el arreglo: **5
+cláusulas en 4 documentos, todas derogaciones reales con su norma nombrada**.
+
+**El precio, escrito porque es pérdida de recall real:** una norma derogada solo por su nombre
+y sin número («queda derogada la Ley de Enjuiciamiento Criminal») no produce evidencia y por
+tanto tampoco veredicto, aunque el `<analisis>` la declare. No se ha visto ningún caso así en
+el corpus de tres días, y eso **no** es lo mismo que decir que no ocurra (regla de oro 8).
+
+**Lo que se verificó de verdad, no solo con tests:**
+
+1. **Barrido de los 652 cuerpos archivados**: 8 veredictos del catálogo, **41 spans, 0
+   descuadres** — cada rango, recortado del fichero archivado, es literalmente lo que dice su
+   fragmento. Es el control de 7.5 aplicado a nuestra propia salida.
+2. **La evidencia de R-DER-001 es la cláusula operativa y solo esa**: «Queda derogada la Ley
+   3/2007, de 15 de marzo…» en el offset 137.025. El párrafo del preámbulo que cuenta el mismo
+   hecho («Mediante la disposición derogatoria única *se deroga*…») queda fuera, igual que los
+   dos encabezados «Disposición derogatoria única. Derogación normativa.».
+3. **`--reclasificar` contra la base real**: 32 evaluadas → 5 con veredicto. Segunda pasada
+   **0 evaluadas**: idempotencia real, no de diseño.
+4. **Sin migración y sin tocar el servicio.** `clasificacion.py` ya era genérico sobre
+   `Veredicto` y su cola está versionada, así que subir `VERSION_REGLAS` a `2026.08.14` disparó
+   la reevaluación sin una línea de cambio ahí.
+
+**De paso:** el escaneo de cláusulas estaba a punto de duplicarse, así que se factorizó en
+`_clausulas_con(texto, construccion, acompanante)` — mismo criterio que llevó a
+`services/cuerpo.py`: dos copias del recorte de evidencia son dos criterios de evidencia en
+cuanto alguien toque una, y el span es lo único que un revisor lee para decidir.
+
+**Fixture nuevo**: `tests/fixtures/boe_a_2023_5366_recortado.xml`, cuatro párrafos verbatim del
+documento real con su `<analisis>` real. Conserva el **espacio duro** (U+00A0) con que el BOE
+publica «Ley 3/2007» — sustituirlo por un espacio normal haría que el fichero probase algo más
+fácil que la realidad. Existe porque `backend/data/` está en `.gitignore` y sin él esta
+verificación solo correría en esta máquina.
+
+**Estado de la suite**: **352 en verde + 1 saltado** en el contenedor, 9 tests nuevos. `ruff` y
+`mypy` limpios.
+
+**Siguiente, por orden:**
+
+1. **Poblar `version_norma`** — el muro que queda del punto 1 anterior, ahora sin rama barata
+   que lo esquive. Sin texto anterior no hay diff, y sin diff el catálogo no puede crecer más:
+   supresión y derogación eran las dos únicas familias que no lo necesitan, y las dos están
+   hechas. **~25k.**
+2. **El panel de revisión (gate humano)** — **~35k**. Hay **14 detecciones (5 con regla, 9
+   centinelas) y ninguna `cola_revision`**. Es el siguiente eslabón real y es la regla de oro 4:
+   sin él no se puede emitir ninguna alerta, así que ninguna de las clasificaciones de arriba
+   sirve todavía para nada.
+3. **La interfaz no enseña nada de esto** — `deteccion` no se publica en la API, así que los
+   doce spans de la reforma madrileña y la derogación de la Ley 3/2007 están en la base de datos
+   y no se ven. **~20k**, y cuidado con el gate: enseñar una clasificación no aprobada exige
+   decir que no lo está.
+4. **El caso de título anodino en el gold set**: la aportación única del eje referencial sigue
+   siendo cero. Etiquetado humano, **~5k**.
+5. Sigue en pie: alinear `extraccion_json` con lo que 7.4 promete (`digest`, `seed`, hash del
+   prompt) **o** corregir 7.4; ver un puntero real salir del modelo; y dar volumen al corpus.
+
+**Aviso de plazo (2026-08-14).** V1 tiene fecha objetivo **2026-08-22**: quedan 8 días. Del plan
+de 9 tareas hay 2 cerradas (0.b, 0.c) y el clasificador a medias; siguen abiertas gold set,
+offsets, panel de revisión, migrar Mapa/Alertas, canal RSS y la EIPD. **No cabe entero y hay que
+recortar con el humano**, no descubrirlo el día 21. La candidata que la propia sección 8 ya
+autoriza a recortar es la auditoría de las 17 fuentes autonómicas; el panel de revisión (regla de
+oro 4) y el gold set (sin él nada es evaluable) son los que no se pueden recortar sin vaciar la
+demostración.
