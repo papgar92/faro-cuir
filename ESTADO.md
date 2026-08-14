@@ -1281,3 +1281,132 @@ recortar con el humano**, no descubrirlo el día 21. La candidata que la propia 
 autoriza a recortar es la auditoría de las 17 fuentes autonómicas; el panel de revisión (regla de
 oro 4) y el gold set (sin él nada es evaluable) son los que no se pueden recortar sin vaciar la
 demostración.
+
+---
+
+### ✅ El gate humano existe: panel de revisión autenticado y primera alerta emitida — 2026-08-14
+
+**Era el punto 2 de la lista anterior y el eslabón que le faltaba a todo lo demás para servir de
+algo.** Había 5 detecciones con veredicto, 13 en total, y **ninguna forma de aprobar ninguna**:
+la regla de oro 4 estaba en el esquema (`cola_revision`, `alerta`) y no en el código. Ahora el
+pipeline recorre el camino entero, y lo hace sobre el caso que el proyecto usa para explicar por
+qué existe:
+
+> ingesta → archivo con huella → prefiltro por dos ejes → catálogo de reglas → **una persona
+> mirándolo** → alerta.
+
+La primera alerta aprobada del proyecto es `BOE-A-2024-10767`, la reforma madrileña de 2023, con
+sus doce spans de evidencia sobre el texto archivado.
+
+**Sin migración**: las tres tablas estaban desde S1. Lo que faltaba era el código y la puerta.
+
+#### Las decisiones, y por qué (ADR 0017)
+
+- **Una credencial en el entorno, sin tabla de usuarios.** La 6.4 no distingue entre suscriptores
+  y revisores: quién revisa alertas sobre derechos trans revela afinidad al colectivo igual que
+  estar suscrito, y `cola_revision` ya se diseñó sin columna de autor. Con una persona revisando,
+  una tabla `usuario` solo añade correos, hashes y un flujo de recuperación que mantener. Cuando
+  haya dos personas habrá que rehacerlo, y **ese es el disparador escrito para revisitar el ADR**.
+- **scrypt de la biblioteca estándar** (sin dependencia nueva), con los parámetros dentro del
+  propio hash para poder subirlos sin invalidar lo generado. `scripts/generar_hash_panel.py` lo
+  pide por `getpass`: la contraseña en claro no pasa por el historial ni por un fichero.
+- **Sesión opaca en cookie `HttpOnly` + `Secure` + `SameSite=Strict`, en memoria y por `sha256`
+  del token.** Nada de JWT: **no se puede revocar**, y un logout que solo borra la cookie del
+  navegador es teatro. Hay un test cuyo único trabajo es comprobar que cerrar sesión invalida el
+  token en el servidor.
+- **Tres controles sobre las escrituras que fallan por motivos distintos**: sesión, cabecera
+  `X-Faro-Panel` y método POST. Ningún `GET` resuelve nada — un precargador de enlaces no puede
+  emitir una alerta.
+- **El centinela del extractor (ADR 0009) no entra en la cola.** Sin regla no hay veredicto que
+  aprobar, y llenar el gate de ruido es exactamente como un gate humano se vacía por dentro sin
+  que nadie lo desactive. `indeterminado` **sí** entra cuando lo produce una regla: es el umbral
+  de recall alto de 7.6 y su destino declarado es esta cola.
+- **La evidencia va antes que el veredicto en el orden de lectura de la tarjeta**, y la insignia
+  dice «propuesta del catálogo». Es la cautela contra el anclaje que el fichero del subagente
+  `jurista-lgtbi` ya describía: quien lee «retroceso» antes que el artículo lo confirma en vez de
+  juzgarlo.
+- **El panel no publica lo que dijo el modelo**, solo que el extractor pasó y cuántos punteros
+  dejó. La prosa del LLM al lado de la evidencia acaba leyéndose como conclusión del sistema
+  (reglas de oro 3 y 10).
+
+#### El hallazgo del `revisor-seguridad`, que es lo más importante de esta sesión
+
+Corrió sobre el diff ya escrito y encontró que **el freno de fuerza bruta era la forma de anular
+el gate**. La primera versión gastaba una ficha del cubo *antes* de comprobar la contraseña y
+devolvía 429 con el cubo vacío: cualquiera, sin credenciales, desde una sola dirección y sin
+salirse del limitador general de 60 pet./min, lo mantiene a cero indefinidamente — **y entonces
+la contraseña correcta tampoco entra**. El panel es el único camino hacia `alerta`, así que eso
+no es una molestia: es desactivar desde fuera la etapa que la regla de oro 4 declara obligatoria.
+
+El arreglo no baja la probabilidad, elimina el caso: **se comprueba siempre, se entra siempre si
+es correcta, y solo un fallo gasta ficha**. Quien la sabe no puede quedarse fuera; quien no, se
+queda sin intentos. El precio es que scrypt corre en cada intento, así que la verificación se
+serializa con un cerrojo — sin él, cien intentos simultáneos son 1,6 GB y el control de acceso
+vuelve a ser el vector, esta vez de agotamiento. Hay un test que falla si alguien vuelve a poner
+la cadencia por delante.
+
+Los otros cinco, todos arreglados: **sin rastro de los intentos fallidos** (ahora un contador
+agregado, sin IP ni identidad); **carrera al resolver** sin bloqueo de fila (ahora
+`with_for_update`, y el error de integridad se traduce al 409 que ya significaba «llegas tarde»);
+la cookie de borrado sin `Secure`; las respuestas del panel sin `Cache-Control: no-store`; y un
+`assert` en el camino de escritura que con `python -O` habría reventado *después* de emitir la
+alerta.
+
+#### Tres cosas que aparecieron al verificar y que ningún test habría visto
+
+1. **Los logs de la aplicación no salían en la API.** uvicorn solo configura sus propios loggers;
+   los nuestros propagan al raíz, que sin handler deja pasar únicamente WARNING. El worker
+   llamaba a `basicConfig` y `main.py` no, así que **el rastro de auditoría del gate se escribía
+   en un logger que nadie escuchaba**: la fila estaba en la base de datos y el log, vacío. Es el
+   tipo de fallo que solo se ve mirando, porque todo lo demás funciona.
+2. **El log de acceso de uvicorn escribe la IP del cliente en cada petición**, y la 6.4 dice
+   literalmente que no se registran las IPs de quien consulta. Estaba desde S0 y nadie lo había
+   mirado; se ve al leer el log del panel, donde la contradicción duele más porque ahí sí hay una
+   persona identificable detrás. `--no-access-log` en el compose y en el Dockerfile.
+3. **La franja de la cabecera decía «pipeline de clasificación: pendiente»**, falso desde el ADR
+   0016. Una franja fija que afirma algo que ya no es cierto es lo que este proyecto denuncia.
+   Ahora dice lo que sigue siendo verdad y es lo que importa: «nada se publica sin revisión
+   humana».
+
+**De paso, y no era el encargo:** la imagen de Docker no traía `ruff`, `mypy` ni `pytest` —
+estaban instaladas a mano dentro del contenedor y **se perdieron al recrearlo**, dejando la suite
+inejecutable sin ningún aviso. El Dockerfile instala ya `-e ".[dev]"`.
+
+#### Lo que se verificó de verdad, no solo con tests
+
+- **Por HTTP contra la base real**: sin sesión 401 **y 0 filas en `alerta`** (el 401 no basta si
+  además escribió algo); contraseña incorrecta 401; diez fallos seguidos → 429, y **con el cubo a
+  cero la contraseña correcta entra igual**; cookie con los cinco atributos; `no-store` presente.
+- **Aprobar sin `X-Faro-Panel` → 403 y 0 alertas.** Con la cabecera → 200 y en la base
+  `estado='aprobada'`, `resuelta_en`, `revisada=true` y **1 fila en `alerta`**. Segundo intento →
+  409. `DELETE /sesion` → 204 y el mismo token → 401.
+- **`--reclasificar` dos veces: 5 encoladas, luego 0.** Idempotente.
+- **En navegador real**, contra la API a través del proxy de Vite: la cola pinta 4 pendientes
+  ordenadas por severidad, con la evidencia, los offsets, el `sha256` y el enlace a la fuente; se
+  descartó `BOE-A-2023-5364` desde la interfaz y **la fila quedó `descartada` con 0 alertas**.
+  Un detalle de la verificación: el `Secure` de la cookie obliga a pasar la cabecera `Cookie` a
+  mano con `curl` sobre `http://` — que hiciera falta es, de por sí, la prueba de que está puesto.
+- **402 tests en verde + 1 saltado** (50 nuevos), `ruff` y `mypy` limpios, `vite build` limpio.
+
+#### Siguiente, por orden
+
+1. **Publicar `deteccion` y las alertas aprobadas en la API pública** — **~20k**. Ahora es lo más
+   valioso: hay una alerta aprobada y **no se ve en ninguna parte**. Es el mismo argumento que la
+   huella de archivo —una garantía que el espectador no puede mirar obliga a fiarse— y desbloquea
+   de golpe migrar el Mapa y las Alertas (punto 7 del plan a V1) y el canal RSS (punto 8), que
+   ahora sí tiene qué publicar: lo aprobado, y solo lo aprobado.
+2. **Poblar `version_norma`** — **~25k**. Sin texto anterior no hay diff, y sin diff el catálogo
+   no puede crecer más: supresión y derogación eran las dos únicas familias que no lo necesitan.
+3. **Canal pull (RSS/Atom) + ADR 0010** — **~15k**. Depende del 1.
+4. **`docs/eipd.md`** — **~25k**. Único hueco de seguridad sin desarrollar, y ahora tiene más
+   material que documentar: el modelo de autenticación del ADR 0017 es tratamiento de datos, y la
+   decisión de no guardar quién revisa es justo lo que una EIPD tiene que recoger.
+5. Sigue en pie: el caso de título anodino en el gold set (~5k), alinear `extraccion_json` con lo
+   que promete 7.4, ver un puntero real salir del modelo, y dar volumen al corpus.
+
+**Aviso de plazo (2026-08-14).** Quedan **8 días** para V1. Del plan de 9 tareas hay **3 cerradas**
+(0.b, 0.c y el panel de revisión) y el clasificador a medias. Siguen abiertas gold set, offsets,
+migrar Mapa/Alertas, canal RSS y la EIPD. **Sigue sin caber entero**, pero el recorte es ahora
+menos doloroso: con el gate cerrado, lo que queda para tener una demostración completa de punta a
+punta es publicar lo aprobado (punto 1) y el canal (punto 3), que juntos son ~35k. El gold set es
+lo que no se puede recortar sin que la parte de IA deje de ser evaluable.

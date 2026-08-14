@@ -85,6 +85,22 @@ importante— le cuenta a un proveedor quién revisa alertas de derechos trans y
 que no se registran IPs, y el limitador general (`rate_limit.py`) ya se escribió sin
 persistirlas. El cubo de fichas es **global**, sin clave por cliente.
 
+**Y un cubo global mal ordenado anula el gate: el hallazgo de la auditoría.** La primera versión
+gastaba una ficha *antes* de comprobar la contraseña y devolvía 429 con el cubo vacío. El
+subagente `revisor-seguridad`, sobre el diff ya escrito, señaló la consecuencia: cualquiera, sin
+credenciales y desde una sola dirección sin salirse del limitador general de 60 pet./min,
+mantiene el cubo a cero indefinidamente, **y entonces la contraseña correcta tampoco entra**. El
+control de fuerza bruta se convertía en la vía para cerrar el único camino hacia `alerta`, o sea
+para desactivar desde fuera la etapa que la regla de oro 4 declara obligatoria.
+
+El arreglo no reduce la probabilidad, elimina el caso: **la contraseña se comprueba siempre, y si
+es correcta se entra siempre; solo un intento fallido gasta ficha**. Quien la sabe no puede
+quedarse fuera por estado del servidor; quien no la sabe se queda sin intentos. El precio es que
+scrypt corre en cada intento (~50 ms y 16 MB), así que la verificación se **serializa con un
+cerrojo**: sin él, cien intentos simultáneos son 1,6 GB y el control de acceso vuelve a ser el
+vector, esta vez de agotamiento. Hay un test cuyo único trabajo es fallar si alguien vuelve a
+poner la cadencia por delante de la comprobación.
+
 ## Consecuencias
 
 **Buenas**
@@ -107,10 +123,16 @@ persistirlas. El cubo de fichas es **global**, sin clave por cliente.
   pero significa que el registro de auditoría dice «se aprobó», no «lo aprobó Fulana». Para un
   proyecto con una persona revisora es el intercambio correcto; con dos ya no lo será, y ese es
   el disparador para revisitar este ADR.
-- **La cadencia global permite molestar al revisor**: quien queme los intentos lo deja esperando
-  unos segundos. No es un bloqueo (el cubo se rellena solo), y se prefiere a inventariar
-  direcciones IP. Escrito en el módulo, no descubierto luego.
+- **Cada intento de login cuesta scrypt**, incluso los que van a acabar en 429, porque la
+  comprobación va por delante de la cadencia (ver arriba). Serializado, eso son ~20 intentos por
+  segundo como techo; el limitador general acota además por IP. Es CPU gastada a propósito.
 - **Reiniciar el backend cierra todas las sesiones.**
+- **Este servicio es de proceso único.** `_sesiones` y `_cadencia` viven en memoria del proceso, y
+  el compose arranca uvicorn sin `--workers`. Con varios procesos, las sesiones no se verían
+  entre ellos —falla cerrado, 401 intermitentes— pero **la cadencia se multiplicaría por el
+  número de workers, y eso falla abierto**. Escalar exige mover los dos almacenes a un sitio
+  compartido; está escrito en `api/revision.py`, junto a las variables, que es donde se va a
+  leer.
 - **La cookie es `Secure` sin interruptor para apagarla.** En producción obliga a HTTPS, que es
   lo que se quiere; en local funciona porque los navegadores tratan `localhost` como origen
   seguro. El precio real apareció al verificar: `curl` sobre `http://` **no devuelve** una cookie
@@ -125,6 +147,27 @@ alguien puede cambiar sin darse cuenta de que estaba sosteniendo un control de s
 porque una cabecera propia no se puede enviar entre orígenes sin un *preflight*. Dos controles
 que fallan por motivos distintos valen más que uno bueno; es el mismo criterio que el «cinturón
 y tirantes» de `storage_path` en `security/hashing.py`.
+
+## Lo que cambió después de la auditoría (misma sesión)
+
+`revisor-seguridad` corrió sobre el diff ya escrito y encontró seis cosas. Se arreglaron las seis
+antes de dar la tarea por cerrada:
+
+1. **La cadencia podía cerrar el panel** (arriba, y es la importante).
+2. **Un intento fallido no dejaba ningún rastro.** El único control de acceso del proyecto era
+   también el único sin observabilidad. Ahora se registra un **contador agregado** de fallos en
+   la ventana y la apertura y cierre de sesión — sin IP, sin identidad, sin la contraseña. La 6.4
+   prohíbe inventariar direcciones, no contar.
+3. **Carrera al resolver.** `_resolver` leía el estado y escribía sin bloquear la fila, así que
+   dos `POST` simultáneos pasaban los dos por «está pendiente». No salían dos alertas —lo impide
+   la unicidad de `alerta.deteccion_id`— pero una comprobación que solo funciona porque la base
+   de datos la rescata no es una comprobación. Ahora `with_for_update` al resolver, y el error de
+   integridad se traduce al 409 que ya significaba «llegas tarde».
+4. **La cookie de borrado no repetía `Secure`.**
+5. **Las respuestas del panel salían sin `Cache-Control: no-store`.** La API pública sirve
+   boletines y puede cachearse; la cola de revisión lleva evidencia y notas.
+6. **Un `assert` en el camino de escritura**, que con `python -O` desaparece y habría reventado
+   *después* de emitir la alerta.
 
 ## Verificación
 

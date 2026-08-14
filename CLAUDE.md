@@ -589,6 +589,22 @@ siguiente muro de esta sección y no lo tira el ADR 0016.
 
 Un validador revisa la cola antes de emitir. Obligatorio, sin flag que lo salte.
 
+**Implementado el 2026-08-14 (ADR 0017).** `services/revision.py` es el **único** sitio del
+código que escribe en `alerta`, y solo al aprobar; `security/panel.py` es la puerta única de
+autenticación y `api/revision.py` la única parte de la API que escribe. Tres reglas que no son
+detalles de implementación:
+
+- **Solo entra en la cola lo que tiene veredicto** (`regla_aplicada IS NOT NULL`). El centinela
+  del extractor (ADR 0009) no es un veredicto, y pedirle a una persona que apruebe la ausencia
+  de conclusión llena la cola de ruido hasta que deja de mirarse — que es como un gate humano se
+  vacía por dentro sin que nadie lo desactive.
+- **Un ítem resuelto no se reabre.** Reabrirlo permite emitir dos veces la misma alerta o retirar
+  una emitida sin dejar constancia.
+- **No se guarda quién revisa** (6.4). Para auditar el gate basta con que se resolvió, cuándo y
+  con qué nota; almacenar qué persona aprueba qué alerta sobre derechos trans crea el dato
+  sensible que este proyecto se dedica a no crear. Por eso la credencial es una y vive en el
+  entorno: **el día que revisen dos personas, esto se rehace con su propio ADR**.
+
 ### 7.8 Set de evaluación
 
 `tests/gold_set/` con 150-200 documentos históricos etiquetados a mano (incluir la reforma
@@ -642,10 +658,10 @@ Si te encuentras haciendo cualquiera de estas, para:
   que la medición decidió: `0011-ingesta-en-dos-fases-y-umbral-de-la-fase-2.md`,
   **0012 prefiltro de tres ejes y watchlist** (7.3), **0013 trazabilidad por offsets** (7.5).
   Añadidos después: 0014 la capa local entra en alcance vía BOP, **0015 dónde vive el texto
-  íntegro archivado** (tarea 0.c, escrito el 2026-08-09) y **0016 cómo se representa una
-  supresión sin texto** (escrito e implementado el 2026-08-09). **0010 y 0013 siguen sin
-  escribir y sus números están reservados**: no reutilizarlos — el siguiente libre es el
-  **0017**.
+  íntegro archivado** (tarea 0.c, escrito el 2026-08-09), **0016 cómo se representa una
+  supresión sin texto** (escrito e implementado el 2026-08-09) y **0017 autenticación del panel
+  de revisión** (escrito e implementado el 2026-08-14). **0010 y 0013 siguen sin escribir y sus
+  números están reservados**: no reutilizarlos — el siguiente libre es el **0018**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).
