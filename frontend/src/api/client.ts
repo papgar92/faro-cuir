@@ -202,6 +202,66 @@ export function obtenerCobertura(signal?: AbortSignal): Promise<CoberturaApi> {
   return pedir<CoberturaApi>("/api/cobertura", signal);
 }
 
+// --- Alertas emitidas: lo aprobado, y solo lo aprobado ----------------------------------
+//
+// Espejo de `backend/app/schemas/alerta.py`. Que exista una fila aquí significa que **una
+// persona la aprobó** (regla de oro 4): el endpoint lee de `alerta`, no de `deteccion`.
+//
+// Cada alerta viaja con lo que hace falta para no tener que creérsela: la regla que la produjo
+// con su versión, los fragmentos recortados del texto archivado con sus offsets, y el `sha256`
+// del documento con el enlace a la fuente oficial.
+
+export interface NormaVigiladaAfectadaApi {
+  identificador: string;
+  titulo: string;
+  /** `estatal` o el código ISO 3166-2:ES de la comunidad. Sale de la watchlist, no de la fuente. */
+  ambito: string;
+}
+
+export interface AlertaApi {
+  id: number;
+  emitida_en: string;
+  /** Fecha del boletín, no de cuándo lo procesamos: la cronología es de lo que pasó. */
+  fecha_publicacion: string;
+  clasificacion: "avance" | "retroceso" | "neutro" | "indeterminado";
+  /** Declaradas por la regla y **sin calibrar**. Ordenan; no son una medición. */
+  severidad: number;
+  confianza: number;
+  regla_aplicada: string | null;
+  version_reglas: string | null;
+  version_texto_plano: string | null;
+  normas_vigiladas: NormaVigiladaAfectadaApi[];
+  spans: SpanEvidenciaApi[];
+  norma: {
+    id: number;
+    identificador_oficial: string;
+    titulo: string;
+    organo_emisor: string | null;
+    url_texto: string | null;
+  };
+  texto_archivado: TextoArchivadoApi | null;
+}
+
+export interface ListarAlertasParams {
+  clasificacion?: AlertaApi["clasificacion"];
+  limite?: number;
+  desplazamiento?: number;
+}
+
+export function listarAlertas(
+  params: ListarAlertasParams = {},
+  signal?: AbortSignal,
+): Promise<AlertaApi[]> {
+  const query = new URLSearchParams();
+  if (params.clasificacion) query.set("clasificacion", params.clasificacion);
+  if (params.limite !== undefined) query.set("limite", String(params.limite));
+  if (params.desplazamiento !== undefined) {
+    query.set("desplazamiento", String(params.desplazamiento));
+  }
+  const sufijo = query.size > 0 ? `?${query}` : "";
+  return pedir<AlertaApi[]>(`/api/alertas${sufijo}`, signal);
+}
+
 // --- Panel de revisión: el gate humano (ADR 0017) ---------------------------------------
 //
 // La única parte de la API que escribe, y la única con sesión. Espejo de

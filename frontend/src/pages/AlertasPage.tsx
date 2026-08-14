@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
-import { FEED } from "../api/mocks";
+import { useState } from "react";
+import { type AlertaApi, listarAlertas } from "../api/client";
+import { describirError, useRecurso } from "../api/useRecurso";
 import { AlertCard } from "../components/AlertCard/AlertCard";
-import { AlertFilters } from "../components/AlertFilters/AlertFilters";
-import { DemoDataNotice } from "../components/DemoDataNotice/DemoDataNotice";
+import { nombreTerritorio } from "../lib/territorio";
 
 interface AlertasPageProps {
   comunidadInicial?: string;
@@ -10,89 +10,123 @@ interface AlertasPageProps {
 }
 
 /**
- * Feed de alertas. **Sigue sobre datos inventados**: una alerta es una detección aprobada en
- * el gate humano (`alerta` sobre `deteccion`), y ninguna de las dos tablas tiene filas hasta
- * que exista el pipeline.
+ * Feed de alertas. **Lee de la API desde el 2026-08-14**, con el gate humano ya implementado
+ * (ADR 0017): cada tarjeta de aquí es una detección que una persona aprobó.
  *
- * Por eso las tarjetas ya no llevan a la Ficha: la Ficha lee de la API y desde una alerta
- * ficticia no hay ninguna norma real a la que resolver. Llevan al Archivo, que es donde está
- * lo que sí existe.
+ * Dos cosas que cambiaron al dejar de ser una maqueta y conviene no deshacer:
+ *
+ * - **Los filtros del diseño original no están.** Eran comunidad, ámbito temático y tipo, y de
+ *   los tres solo uno tiene dato real hoy: `norma.ambito` sigue nulo hasta que el extractor lo
+ *   rellene. Un desplegable que no filtra nada es peor que no tenerlo, porque promete una
+ *   capacidad que no existe. Queda el filtro por clasificación, que sí se puede sostener.
+ *   `AlertFilters` sigue en el repositorio esperando a que haya con qué; no borrarlo.
+ * - **El recuento no dice "de 1.284 documentos analizados hoy".** Esa cifra era del mock. Lo
+ *   que se puede decir con verdad es cuántas alertas hay, y eso es lo que dice.
+ *
+ * El estado vacío es importante y no es un error: significa que nada ha pasado el gate, que es
+ * distinto de que no haya nada detectado. La pantalla lo dice con esas palabras.
  */
+
+const CLASIFICACIONES: Array<{ valor: AlertaApi["clasificacion"] | "todas"; etiqueta: string }> = [
+  { valor: "todas", etiqueta: "Todas" },
+  { valor: "retroceso", etiqueta: "Retrocesos" },
+  { valor: "avance", etiqueta: "Avances" },
+  { valor: "indeterminado", etiqueta: "Sin signo" },
+  { valor: "neutro", etiqueta: "Neutras" },
+];
+
 export function AlertasPage({ comunidadInicial, onGoArchivo }: AlertasPageProps) {
-  const [comunidad, setComunidad] = useState(comunidadInicial ?? "todas");
-  const [ambito, setAmbito] = useState("todos");
-  const [tipo, setTipo] = useState("todos");
-
-  const comunidades = useMemo(() => Array.from(new Set(FEED.map((item) => item.com))), []);
-  const ambitos = useMemo(() => Array.from(new Set(FEED.map((item) => item.ambito))), []);
-
-  const feed = useMemo(
-    () =>
-      FEED.filter(
-        (item) =>
-          (comunidad === "todas" || item.com === comunidad) &&
-          (ambito === "todos" || item.ambito === ambito) &&
-          (tipo === "todos" || item.tipo === tipo),
+  const [clasificacion, setClasificacion] = useState<AlertaApi["clasificacion"] | "todas">("todas");
+  const estado = useRecurso(
+    (signal) =>
+      listarAlertas(
+        { limite: 100, ...(clasificacion === "todas" ? {} : { clasificacion }) },
+        signal,
       ),
-    [comunidad, ambito, tipo],
+    [clasificacion],
   );
 
-  const clearFilters = () => {
-    setComunidad("todas");
-    setAmbito("todos");
-    setTipo("todos");
-  };
-
-  const countLabel = `${feed.length} ${feed.length === 1 ? "alerta" : "alertas"} · de 1.284 documentos analizados hoy`;
+  // El mapa puede llegar con una comunidad ya elegida. Se filtra en cliente porque el
+  // territorio de una alerta no es una columna: sale de la watchlist, cruzando la norma
+  // vigilada que toca (ver `schemas/alerta.py`).
+  const filtrar = (alertas: AlertaApi[]) =>
+    comunidadInicial === undefined
+      ? alertas
+      : alertas.filter((a) =>
+          a.normas_vigiladas.some((n) => nombreTerritorio(n.ambito) === comunidadInicial),
+        );
 
   return (
     <main className="mx-auto max-w-[1360px] px-7 pb-2 pt-7">
       <div className="max-w-[900px]">
-        <DemoDataNotice
-          que="El feed de alertas"
-          depende="las detecciones aprobadas en el gate humano (deteccion, alerta)"
-          onIrAlArchivo={onGoArchivo}
-        />
         <h1 className="font-serif text-2xl font-bold tracking-tight text-ink">Alertas validadas</h1>
-        <p className="mt-2 max-w-[66ch] text-sm text-ink-2">
-          Detecciones revisadas por una persona antes de publicarse. Orden cronológico inverso. Cada
-          titular describe qué cambia en el texto, sin valoración.
+        <p className="mt-2 max-w-[66ch] text-sm leading-relaxed text-ink-2">
+          Detecciones que una persona ha revisado y aprobado antes de publicarse. Cada una lleva
+          el fragmento exacto del texto archivado sobre el que se clasificó, la regla que la
+          produjo y la huella del documento, para que se pueda comprobar en la fuente oficial sin
+          fiarse de nosotros.
         </p>
       </div>
 
-      <AlertFilters
-        comunidades={comunidades}
-        ambitos={ambitos}
-        comunidad={comunidad}
-        ambito={ambito}
-        tipo={tipo}
-        onComunidadChange={setComunidad}
-        onAmbitoChange={setAmbito}
-        onTipoChange={setTipo}
-        onClear={clearFilters}
-      />
-
-      <div className="mb-3 mt-5 font-mono text-xs text-ink-3">{countLabel}</div>
-
-      <div className="max-w-[900px]">
-        {feed.map((alerta) => (
-          <AlertCard key={alerta.id} alerta={alerta} onGoArchivo={onGoArchivo} />
+      <div className="mt-5 flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por clasificación">
+        {CLASIFICACIONES.map((opcion) => (
+          <button
+            key={opcion.valor}
+            type="button"
+            onClick={() => setClasificacion(opcion.valor)}
+            aria-pressed={clasificacion === opcion.valor}
+            className={`rounded border px-3 py-1.5 text-xs font-medium ${
+              clasificacion === opcion.valor
+                ? "border-ink bg-ink text-bg"
+                : "border-line-2 bg-surface text-ink-2 hover:border-ink-3 hover:text-ink"
+            }`}
+          >
+            {opcion.etiqueta}
+          </button>
         ))}
       </div>
 
-      {feed.length === 0 && (
-        <div className="max-w-[900px] rounded border border-dashed border-line-2 bg-surface p-8 text-center">
-          <p className="m-0 text-base font-semibold text-ink">Ninguna alerta coincide con estos filtros</p>
-          <p className="mt-1.5 text-sm text-ink-2">Prueba a ampliar el ámbito o el rango de comunidades.</p>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="mt-3.5 rounded bg-ink px-3.5 py-2 text-sm text-surface"
-          >
-            Limpiar filtros
-          </button>
-        </div>
-      )}
+      {estado.fase === "cargando" && <p className="mt-8 text-ink-2">Cargando alertas…</p>}
+      {estado.fase === "error" && <p className="mt-8 text-ink-2">{describirError(estado.error)}</p>}
+
+      {estado.fase === "listo" &&
+        (() => {
+          const alertas = filtrar(estado.datos);
+          if (alertas.length === 0) {
+            return (
+              <div className="mt-8 max-w-[900px] rounded border border-dashed border-line-2 bg-surface p-8">
+                <p className="m-0 text-base font-semibold text-ink">
+                  Ninguna alerta emitida con estos criterios
+                </p>
+                <p className="mt-2 max-w-[62ch] text-sm leading-relaxed text-ink-2">
+                  Esto significa que nada ha pasado el gate humano todavía, que no es lo mismo que
+                  «no hay nada detectado»: el pipeline puede tener detecciones esperando revisión.
+                  Ninguna se publica hasta que una persona la apruebe.
+                </p>
+                <button
+                  type="button"
+                  onClick={onGoArchivo}
+                  className="mt-4 rounded bg-ink px-3.5 py-2 text-sm text-bg"
+                >
+                  Ver el archivo de documentos
+                </button>
+              </div>
+            );
+          }
+          return (
+            <>
+              <div className="mb-3 mt-5 font-mono text-xs text-ink-3">
+                {alertas.length} {alertas.length === 1 ? "alerta emitida" : "alertas emitidas"}
+                {comunidadInicial && ` · filtradas por ${comunidadInicial}`}
+              </div>
+              <div className="max-w-[900px]">
+                {alertas.map((alerta) => (
+                  <AlertCard key={alerta.id} alerta={alerta} />
+                ))}
+              </div>
+            </>
+          );
+        })()}
     </main>
   );
 }

@@ -14,10 +14,13 @@ export interface SeleccionNorma {
  * Pantallas que todavía sirven datos inventados, para que el aviso de la interfaz se derive
  * de un único sitio y no de un booleano copiado en cada componente.
  *
- * El Mapa y las Alertas dependen de `deteccion` y `alerta`, vacías hasta que exista el
- * pipeline (CLAUDE.md sección 7). En cuanto una de las dos lea de la API, se quita de aquí.
+ * **Alertas salió de aquí el 2026-08-14**: con el gate humano implementado (ADR 0017) la tabla
+ * `alerta` tiene filas y la pantalla las lee de `GET /api/alertas`.
+ *
+ * El Mapa sigue: necesita agregar por comunidad, y hoy hay una sola alerta emitida. Pintar un
+ * mapa de España con un dato sería peor que el mock, porque parecería una medición.
  */
-export const PANTALLAS_CON_MOCK: ReadonlySet<Screen> = new Set<Screen>(["mapa", "alertas"]);
+export const PANTALLAS_CON_MOCK: ReadonlySet<Screen> = new Set<Screen>(["mapa"]);
 
 /**
  * Pantallas que exigen sesión de revisión (ADR 0017). Hoy solo el panel del gate humano.

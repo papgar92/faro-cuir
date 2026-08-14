@@ -90,6 +90,18 @@ class Watchlist:
         indice: set[str] = self._indice  # type: ignore[attr-defined]
         return identificador in indice
 
+    def buscar(self, identificador: str) -> NormaVigilada | None:
+        """La entrada completa, o None. Misma validación de formato que `contiene`.
+
+        Existe para poder decir **a qué territorio afecta** una alerta: la norma vigilada que
+        toca es lo único que lo sabe (una ley autonómica publicada en el BOE se ingiere por una
+        fuente estatal, así que la fuente no distingue). Sin esto, el mapa no puede colorear la
+        comunidad de una reforma autonómica aunque el sistema la haya detectado.
+        """
+        if not self.contiene(identificador):
+            return None
+        return next(n for n in self.normas if n.identificador == identificador)
+
 
 def _localizar() -> Path:
     forzada = os.environ.get("WATCHLIST_PATH")

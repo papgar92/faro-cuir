@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI
 
+from app.api.alertas import router as alertas_router
 from app.api.cobertura import router as cobertura_router
 from app.api.documentos import router as documentos_router
 from app.api.health import router as health_router
@@ -40,6 +41,9 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(health_router)
 app.include_router(documentos_router)
 app.include_router(cobertura_router)
+# Lo aprobado por el gate humano, y solo eso. Público y de solo lectura: es lo que el proyecto
+# afirma en su nombre, así que va con su evidencia para que se pueda comprobar.
+app.include_router(alertas_router)
 # El panel de revisión (gate humano, regla de oro 4): la única parte de la API que escribe y la
 # única con autenticación. Va detrás de los mismos dos middlewares que todo lo demás — el
 # limitador de peticiones también cuenta los intentos de login, además de la cadencia propia
