@@ -29,6 +29,7 @@ from app.services import clasificacion as servicio_clasificacion
 from app.services import extraccion as servicio_extraccion
 from app.services import ingesta, texto_integro
 from app.services import prefiltro as servicio_prefiltro
+from app.services import revision as servicio_revision
 
 logger = logging.getLogger("worker")
 
@@ -167,6 +168,25 @@ def _registrar_clasificacion(resumen: servicio_clasificacion.ResumenClasificacio
     )
 
 
+def _encolar_revision(session) -> servicio_revision.ResumenEncolado:  # type: ignore[no-untyped-def]
+    """Etapa 6: mete en la cola del gate humano lo que el clasificador dejó con veredicto.
+
+    Va pegado a la clasificación en las dos rutas del worker (la pasada diaria y
+    `--reclasificar`) y no en un modo aparte, por el mismo motivo por el que el prefiltro va
+    pegado a la ingesta: separarlo abriría una ventana con detecciones clasificadas que no están
+    en ninguna cola, o sea que nadie va a mirar. Es barato —una consulta— e idempotente.
+    """
+    resumen = servicio_revision.encolar(session)
+    session.commit()
+    logger.info(
+        "Gate humano (regla de oro 4): %s detecciones con veredicto, %s encoladas para revisión. "
+        "Ninguna se emite sin que una persona la apruebe.",
+        resumen.candidatas,
+        resumen.encoladas,
+    )
+    return resumen
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parsear_argumentos(argv)
     logging.basicConfig(
@@ -207,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
             resumen_clasificacion = servicio_clasificacion.aplicar(
                 session, almacen_root=settings.almacen_root
             )
+            _encolar_revision(session)
         _registrar_clasificacion(resumen_clasificacion)
         return 0
 
@@ -284,6 +305,11 @@ def main(argv: list[str] | None = None) -> int:
             almacen_root=settings.almacen_root,
             documento_id=resultado.documento_id,
         )
+
+        # Etapa 6 (regla de oro 4, ADR 0003 y 0017). Barre **toda** la tabla y no solo el
+        # documento del día a propósito: la cola es el inventario de lo que falta por revisar,
+        # y un veredicto de anteayer que se quedó sin encolar seguiría sin encolarse nunca.
+        _encolar_revision(session)
 
     if resultado.creado:
         logger.info(

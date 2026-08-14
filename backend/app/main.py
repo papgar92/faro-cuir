@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.cobertura import router as cobertura_router
 from app.api.documentos import router as documentos_router
 from app.api.health import router as health_router
+from app.api.revision import router as revision_router
 from app.security.headers import SecurityHeadersMiddleware
 from app.security.rate_limit import RateLimitMiddleware
 
@@ -25,3 +26,8 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(health_router)
 app.include_router(documentos_router)
 app.include_router(cobertura_router)
+# El panel de revisión (gate humano, regla de oro 4): la única parte de la API que escribe y la
+# única con autenticación. Va detrás de los mismos dos middlewares que todo lo demás — el
+# limitador de peticiones también cuenta los intentos de login, además de la cadencia propia
+# del panel.
+app.include_router(revision_router)

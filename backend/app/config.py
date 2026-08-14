@@ -45,6 +45,18 @@ class Settings(BaseSettings):
     # haya que reponer.
     fase2_max_por_ejecucion: int = 500
 
+    # --- Panel de revisión: el gate humano (ADR 0017) -----------------------------------
+    # Sin valor por defecto y sin degradación posible: `security/panel.py` lanza si falta, con
+    # el mismo criterio que `suscriptor_pepper`. Un panel que se abre solo porque nadie
+    # configuró la contraseña es peor que un panel caído — es el único camino por el que una
+    # detección se convierte en alerta publicable (regla de oro 4).
+    panel_password_hash: str | None = None
+    # Una hora. Es una sesión de trabajo de revisión, no una sesión de red social: caducar
+    # pronto cuesta un login más y ahorra una sesión abierta en un portátil olvidado.
+    panel_sesion_ttl_segundos: int = 3600
+    # Techo de intentos de login por minuto, **global y sin IP** (6.4). Ver `CadenciaIntentos`.
+    panel_intentos_por_minuto: int = 10
+
     # --- LLM (ADR 0008) -----------------------------------------------------------------
     # Ollama en local por defecto: sin clave, sin coste y sin cuota. La URL es nuestra, no
     # viene de ninguna fuente externa; ver la nota sobre url_guard en `llm/ollama.py`.

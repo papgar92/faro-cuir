@@ -131,9 +131,20 @@ def test_el_tamano_de_pagina_lo_decide_el_servidor(client: TestClient) -> None:
 
 
 def test_la_api_publica_no_expone_ninguna_escritura(client: TestClient) -> None:
-    """Lo que modifica el estado es el worker; el panel de revision ira con autenticacion."""
+    """Lo que modifica el estado es el worker y el panel de revision, que va con autenticacion.
+
+    El panel (`/api/revision`, ADR 0017) es la **unica** excepcion y esta escrita aqui como
+    excepcion nombrada, no como un `<=` relajado: si manana aparece un POST en cualquier otro
+    sitio de la API publica, este test tiene que ponerse rojo. Que se pusiera rojo al montar el
+    panel es exactamente para lo que estaba.
+    """
     rutas = app.openapi()["paths"]
-    metodos = {metodo.upper() for ruta in rutas.values() for metodo in ruta}
+    metodos = {
+        metodo.upper()
+        for camino, ruta in rutas.items()
+        for metodo in ruta
+        if not camino.startswith("/api/revision")
+    }
     assert metodos <= {"GET"}, f"la API expone metodos de escritura: {metodos - {'GET'}}"
 
 
