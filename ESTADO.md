@@ -1592,3 +1592,83 @@ familias de reglas, a la espera del diff); **abiertas gold set y offsets**. El M
 haya datos, no de código. Es bastante mejor de lo que pintaba el aviso de esta mañana: lo que
 queda sin hacer es sobre todo **etiquetado humano**, que es exactamente lo que el plan avisó desde
 el principio que sería el cuello de botella.
+
+---
+
+### ✅ `version_norma` deja de estar vacía: el texto anterior existe (ADR 0018) — 2026-08-15
+
+Era el punto 1 de la lista anterior y **lo único del pipeline que quedaba sin cerrar**. El
+catálogo de reglas tenía dos familias —supresión y derogación— y no podía tener una tercera,
+porque las demás necesitan saber qué decía el artículo antes y el BOE modificativo publica solo
+la redacción nueva.
+
+**El texto anterior sale de la legislación consolidada del BOE**, y la estructura está verificada
+contra la API real (no deducida): cada norma consolidada se sirve en bloques, y **cada bloque
+conserva sus redacciones sucesivas con la norma que introdujo cada una**. De ahí sale el diff sin
+inventar nada.
+
+**El caso que lo justifica y que sale entero.** Sobre el consolidado real de `BOE-A-2016-6728`
+(Ley 2/2016 de Madrid, 81 bloques), la reforma madrileña de 2023 aparece en **34**. Su artículo 4
+pasa de «Reconocimiento del **derecho a la identidad de género libremente manifestada**» a
+«Reconocimiento del **respeto a la libertad y dignidad de las personas transexuales**». El
+precepto sigue ahí y sigue numerado igual; lo que se ha ido es el reconocimiento de la identidad
+manifestada. **Eso solo se ve comparando**, y hasta hoy el sistema no tenía con qué.
+
+Lo que se ha escrito:
+
+- `ingest/boe_consolidado.py` — módulo casi puro: compone la URL, lee bloques y versiones, y
+  empareja (texto_anterior, texto_nuevo). **Excluye las notas del consolidador**
+  (`<blockquote><p class="nota_pie">`, «Se suprime por el art. único.7…»): son metadato editorial
+  del BOE, no articulado, y dejarlas dentro haría que toda redacción tocada pareciera distinta
+  por la nota antes que por el cambio.
+- `services/versionado.py` — la cola, los frenos de red y la escritura. Idempotente: la cola son
+  las parejas (norma, norma vigilada) sin filas de versión, así que una segunda pasada no pide
+  nada. `commit` por pareja.
+- Migración **escrita a mano** (`f6b3d90c48a1`): `documento.tipo` admite `consolidado` —CHECK
+  sustituida, no añadida— y `version_norma` gana las cinco columnas de procedencia del diff.
+- `worker.run --versionar`, y la etapa enganchada a la pasada diaria **barriendo toda la tabla**,
+  no solo el documento del día: la consolidación llega con retraso, así que lo que hoy se puede
+  completar casi nunca es lo de hoy.
+- ADR 0018, `CLAUDE.md` 5, 7.6, 9 y 10 al día.
+
+**Tres decisiones que no son detalle de implementación:**
+
+1. **La URL se compone con el identificador de la watchlist, nunca con el del documento** (6.10).
+   El `<analisis>` solo decide *a cuál* de las entradas hay que mirar. Tres controles en serie
+   sobre el mismo dato —watchlist, `PATRON_IDENTIFICADOR` en el constructor de la URL, y
+   `url_guard` entero— porque es el único punto del sistema donde algo escrito por otros decide a
+   qué recurso se apunta.
+2. **El consolidado no es lo que se publicó aquel día**, así que entra en el archivo con
+   `tipo='consolidado'` y no como un `texto_norma` más. Mezclarlos haría que el archivo dejara de
+   poder afirmar «el día X esto decía exactamente esto», que es toda su utilidad (6.5).
+3. **`version_norma.norma_id` es la norma modificadora y la modificada va como texto**
+   (`norma_afectada`). No hay alternativa honesta: la Ley 2/2016 es de hace ocho años y no tiene
+   fila en `norma` porque nunca salió de un sumario nuestro.
+
+**Verificado:** 439 tests en verde + 9 saltados (26 nuevos), `ruff` y `mypy` limpios. Los tests
+del lector corren sobre un **recorte del consolidado real** —artículo intacto, modificado y
+suprimido—, y los del servicio sobre el cuerpo real de `BOE-A-2024-10767`. Uno de ellos encontró
+algo que conviene saber: al comprobar qué URL se pide, el destino registrado es **la IP**, porque
+`url_guard` clava la petición a la IP validada y manda el nombre en `Host` (defensa contra DNS
+rebinding). El test comprueba la pareja, que es lo que de verdad define el destino.
+
+**Lo que falta de esta tarea y no se puede dar por hecho:**
+
+- **La migración no se ha aplicado contra Postgres real** (Docker estaba parado al empezar). Toca
+  `tipodocumento`, que es justo la CHECK que el autogenerate ha propuesto borrar cinco veces:
+  hay que aplicar y comprobar que **siguen siendo 13** y que `origenclasificacion` sigue viva.
+- **No se ha ejecutado contra el BOE real desde el worker.** El lector sí está verificado contra
+  la API real; el servicio, solo con transporte simulado.
+- **Falta la auditoría de `revisor-seguridad`** sobre este diff, que abre una salida HTTP nueva.
+  No se lanzó porque la cuota iba por el 71 % y CLAUDE.md 13.4 pone el corte en el 60 %.
+
+#### Siguiente, por orden
+
+1. **Aplicar la migración y verificar contra la base real** — **~8k**. Es lo que cierra la tarea
+   de hoy; hasta entonces está escrita y probada, no ejecutada.
+2. **La familia de reglas de modificación (R-MOD)** — **~25k**. Es lo que el ADR 0018 desbloquea
+   y lo que convierte el diff en algo que llegue al gate humano. El ADR establece el hecho, no el
+   veredicto.
+3. **Gold set**: volumen del corpus y el caso de título anodino. Sigue siendo el trabajo humano
+   más lento y lo que no se puede recortar sin que la parte de IA deje de ser evaluable.
+4. **El Mapa con dato real**, cuando haya alertas de más de una comunidad.

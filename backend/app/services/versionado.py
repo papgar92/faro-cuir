@@ -1,4 +1,4 @@
-"""Etapa 5 del pipeline: poblar `version_norma` con el diff real. ADR 0018, CLAUDE.md 5 y 7.6.
+"""Poblar `version_norma`: el texto anterior de lo que se modifica. ADR 0018, CLAUDE.md 5 y 7.6.
 
 Separado de `ingest/boe_consolidado.py` con el mismo criterio que `services/clasificacion.py`
 frente a `pipeline/reglas.py`: allí vive qué es un cambio y cómo se lee del consolidado, aquí

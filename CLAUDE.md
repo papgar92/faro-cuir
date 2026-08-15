@@ -220,12 +220,18 @@ Entidades núcleo (nombres reales de tabla en snake_case):
   `activa`.
 - **documento** — un documento crudo ingerido. `id`, `fuente_id`, `identificador_oficial`,
   `fecha_publicacion`, `url_original`, `sha256`, `sello_tiempo`, `ruta_almacen`, `estado_pipeline`,
-  **`tipo`** (`sumario`|`texto_norma`). El `sha256` + `sello_tiempo` forman el **archivo íntegro
-  verificable** (ver sección 6.5). **Dos clases de fila desde el ADR 0015**: el sumario del día y
-  el cuerpo de cada norma. La garantía de 6.5 se implementa aquí una sola vez y por eso el cuerpo
-  no tiene tabla propia; `tipo` es una columna y no una convención porque
-  `GET /api/documentos` tiene que poder filtrarla — sin ella listaría cientos de cuerpos al día
-  como si fueran boletines, en silencio.
+  **`tipo`** (`sumario`|`texto_norma`|`consolidado`). El `sha256` + `sello_tiempo` forman el
+  **archivo íntegro verificable** (ver sección 6.5). **Tres clases de fila**: el sumario del día
+  y el cuerpo de cada norma (ADR 0015), más el **texto consolidado** de una norma vigilada (ADR
+  0018), que es de donde sale el texto anterior de un artículo modificado. La garantía de 6.5 se
+  implementa aquí una sola vez y por eso ninguna de las tres tiene tabla propia; `tipo` es una
+  columna y no una convención porque `GET /api/documentos` tiene que poder filtrarla — sin ella
+  listaría cientos de cuerpos al día como si fueran boletines, en silencio.
+  **`consolidado` no es un `texto_norma` más y la distinción es del ADR 0018**: `texto_norma` es
+  lo que la fuente publicó aquel día —el hecho que este archivo existe para conservar— y
+  `consolidado` es una elaboración posterior de la propia fuente, que cambia cada vez que alguien
+  modifica la norma. Confundirlos haría que el archivo dejara de poder afirmar «el día X esto
+  decía exactamente esto».
 - **norma** — un ítem normativo identificado dentro de un documento. `id`, `documento_id`,
   **`documento_texto_id`** (dónde está archivado su cuerpo; NULL = cola de la fase 2),
   `titulo`, `rango` (ley|decreto|orden|instruccion|resolucion|proposicion), `organo_emisor`,
@@ -235,6 +241,11 @@ Entidades núcleo (nombres reales de tabla en snake_case):
   valores** (ver 7.2): `pendiente` | `sospecha` | `relevante` | `descartada`.
 - **version_norma** — versionado. Una norma que modifica a otra genera una nueva versión con
   referencia a la anterior. Aquí vive el diff (texto_anterior / texto_nuevo por artículo).
+  **Se puebla desde el ADR 0018**, con el texto consolidado del BOE: `norma_id` es la norma
+  **modificadora** (la que ingerimos), `norma_afectada` el identificador de la modificada —que
+  casi nunca tiene fila en `norma`, porque es de hace años y no salió de ningún sumario nuestro—,
+  `bloque` el ancla dentro del consolidado y `documento_consolidado_id` la evidencia archivada
+  con su huella. `texto_anterior` a NULL significa **alta**, no «no lo sabemos».
 - **deteccion** — el resultado del pipeline sobre una norma. `id`, `norma_id`,
   `extraccion_json` (hechos del LLM, **con offsets**, ver 7.5), `clasificacion`
   (avance|retroceso|neutro|indeterminado), `severidad`, `confianza`, `origen`
@@ -585,9 +596,14 @@ regla necesita algo que el extractor no da como hecho objetivo, la regla está m
 **El catálogo vive en `pipeline/reglas.py` (`VERSION_REGLAS`) y lee el texto archivado, no la
 salida del modelo** (ADR 0016). La primera familia escrita es la **supresión**, y es la primera
 por una razón que conviene no olvidar: el BOE modificativo publica la redacción *nueva*, no la
-vieja, y `version_norma` está vacía, así que **el diff de una modificación todavía no se puede
-construir**. La supresión es el único cambio que no necesita texto anterior. Ese es el
-siguiente muro de esta sección y no lo tira el ADR 0016.
+vieja, así que hasta el ADR 0018 **el diff de una modificación no se podía construir**: la
+supresión y la derogación son los dos únicos cambios que no necesitan texto anterior.
+
+**Ese muro lo tira el ADR 0018**, que trae el texto anterior desde la legislación consolidada del
+BOE y puebla `version_norma`. Lo que eso desbloquea es una familia de reglas sobre modificación,
+y **no está escrita**: el ADR 0018 establece el hecho (antes decía esto, ahora dice esto otro),
+no el veredicto. Escribirla sigue exigiendo lo de siempre — `regla_aplicada`, spans de evidencia
+sobre el texto archivado, y nada que dependa del juicio del modelo.
 
 ### 7.7 Gate humano
 
@@ -665,8 +681,9 @@ Si te encuentras haciendo cualquiera de estas, para:
   Añadidos después: 0014 la capa local entra en alcance vía BOP, **0015 dónde vive el texto
   íntegro archivado** (tarea 0.c, escrito el 2026-08-09), **0016 cómo se representa una
   supresión sin texto** (escrito e implementado el 2026-08-09) y **0017 autenticación del panel
-  de revisión** (escrito e implementado el 2026-08-14). **0013 (trazabilidad por offsets) sigue
-  sin escribir y su número está reservado**: no reutilizarlo — el siguiente libre es el **0018**.
+  de revisión** (escrito e implementado el 2026-08-14) y **0018 de dónde sale el texto anterior**
+  (escrito e implementado el 2026-08-15). **0013 (trazabilidad por offsets) sigue
+  sin escribir y su número está reservado**: no reutilizarlo — el siguiente libre es el **0019**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).
@@ -701,6 +718,10 @@ python -m worker.run --reprefiltrar
 
 # Drenar la cola de la fase 2 (texto íntegro que falte de toda la tabla)
 python -m worker.run --fase2
+
+# Reintentar el versionado: texto consolidado de lo que se modifica (ADR 0018). Sale a la red.
+# El BOE consolida con retraso, así que lo normal es que hoy complete cambios de días atrás.
+python -m worker.run --versionar
 
 # Repasar el catálogo de reglas tras subir VERSION_REGLAS (ni red ni LLM)
 python -m worker.run --reclasificar

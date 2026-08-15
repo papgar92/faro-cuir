@@ -337,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
             session, almacen_root=settings.almacen_root, documento_id=resultado.documento_id
         )
 
-        # Etapa 5 (ADR 0018): el texto anterior de lo que las normas modifican, desde el
+        # Versionado (ADR 0018): el texto anterior de lo que las normas modifican, desde el
         # consolidado del BOE. Barre **toda** la tabla y no solo el documento del día, y esa es
         # justo la razón de que exista como etapa y no como un paso más de la ingesta: la
         # consolidación llega con retraso, así que lo que hoy se puede completar casi nunca es lo
