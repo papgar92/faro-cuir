@@ -1692,3 +1692,53 @@ el 60 %.
 3. **Gold set**: volumen del corpus y el caso de título anodino. Sigue siendo el trabajo humano
    más lento y lo que no se puede recortar sin que la parte de IA deje de ser evaluable.
 4. **El Mapa con dato real**, cuando haya alertas de más de una comunidad.
+
+---
+
+### ✅ Tercera familia del catálogo: modificación (R-MOD-001) — 2026-08-15
+
+Lo que el ADR 0018 desbloqueaba, hecho en la misma sesión. **Sin signo, como R-DER-001**: que un
+artículo se reescriba no dice hacia dónde. Lo que cambia no es el veredicto, es lo que la alerta
+puede **enseñar**.
+
+- **`_MODIFICACION` exige construcción operativa** («queda redactado como sigue», «con la
+  siguiente redacción») y un precepto en la misma cláusula. `se modifica` a secas queda fuera por
+  lo mismo que `se deroga` en R-DER-001: media exposición de motivos del BOE cita el título de
+  otra norma con esa fórmula.
+- **`terminos_perdidos()` es diagnóstico, no criterio**, con el contraejemplo escrito en el
+  código: las leyes de 2016 dicen «personas transexuales» y las reformas posteriores «personas
+  trans», así que un término directo que desaparece puede ser modernización del lenguaje y no
+  recorte. Y dice exactamente lo que dice — que el término estaba en la redacción anterior **de
+  ese precepto** y no está en la nueva—, no que haya desaparecido de la ley.
+- **`prefiltro.terminos_presentes()`** sale a la luz para que las dos redacciones se cuenten con
+  el mismo vocabulario versionado. Dos formas de contar términos serían dos vocabularios en
+  cuanto alguien tocara una.
+
+**La primera pasada real encontró un fallo de diseño mío y es lo más útil de este trabajo:** las
+dos reformas madrileñas disparan **R-SUP-001**, que va antes en el orden del catálogo, así que
+atar el diff a R-MOD-001 dejaba el caso insignia del proyecto **sin el antes y el después justo
+en la alerta donde más falta hacen**. Ahora el diff acompaña a toda regla que identifique una
+norma vigilada. Contra la base real:
+
+| norma | regla | preceptos con diff | vocabulario que desaparece de los artículos reescritos |
+|---|---|---|---|
+| `BOE-A-2024-10767` | R-SUP-001 | 34 | identidad de género, autodeterminación de género, menores trans, transfobia, expresión de género… (21) |
+| `BOE-A-2024-10768` | R-SUP-001 | 36 | lgtbi, terapias de aversión, coeducación, lesbofobia, transgénero… (22) |
+
+**Y una limitación que no se puede maquillar: R-MOD-001 no ha disparado ni una vez sobre el
+corpus de tres días**, porque las dos normas que reescriben preceptos de la watchlist también
+suprimen alguno. Su precisión sobre texto real está **sin observar**, al contrario que las otras
+dos familias. Está escrito en la cabecera del catálogo (regla de oro 8).
+
+449 tests en verde (10 nuevos), `ruff` y `mypy` limpios, `VERSION_REGLAS` a `2026.08.15.1` y
+reclasificación real ejecutada.
+
+#### Siguiente, por orden
+
+1. **Enseñar el diff en la alerta** — **~15k**. Es donde este trabajo se vuelve visible: hoy
+   `terminos_perdidos` y las 70 versiones están en la base y no salen ni por `/api/alertas` ni en
+   la pantalla. `DiffBlock` lleva esperando en el frontend desde S0 exactamente para esto.
+2. **`revisor-seguridad`** sobre el diff de la sesión (salida HTTP nueva). Pendiente por cuota.
+3. **Gold set**: volumen del corpus y el caso de título anodino. Sigue siendo el cuello de
+   botella y ahora también lo único que puede medir R-MOD-001.
+4. **El Mapa con dato real**, cuando haya alertas de más de una comunidad.
