@@ -38,6 +38,15 @@ que nadie tenga que acordarse. El coste de ese reintento está acotado por el to
 6.2, y las candidatas son pocas por definición — solo normas que tocan la watchlist, que en el
 corpus medido son del orden de una entre cientos.
 
+`sin_consolidar` mete en el mismo saco dos cosas que para quien lee el log significan lo mismo
+—«falta la mitad del hecho, vuelve a mirar»— pero que no son idénticas: que la fuente no haya
+consolidado todavía, y que el consolidado exista pero no atribuya ningún bloque a esta norma. El
+segundo caso tiene un ejemplo real y estable: la Ley 4/2023 **deroga entera** la Ley 3/2007, y
+una derogación total no cambia la redacción de ningún precepto, así que no hay diff que traer.
+Ese hecho ya lo ve el eje referencial y lo clasifica R-DER-001 leyendo el texto publicado. Separar
+los dos contadores costaría poco y hoy no aporta: lo que haría falta para el segundo es dejar de
+reintentarlo, y eso exige saber que la norma está derogada, no suponerlo.
+
 La contrapartida honesta: una norma cuya modificación **nunca** se consolide se reintenta cada
 pasada, para siempre. Es una petición al día contra una fuente pública; la alternativa —marcarla
 como agotada— haría que el sistema dejara de mirar justo lo que sí puede aparecer más tarde, que

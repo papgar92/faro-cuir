@@ -161,3 +161,29 @@ class TestCambios:
 
         assert cambio.fecha_vigencia is None
         assert cambio.texto_nuevo == "Texto."
+
+
+class TestBloquesEditoriales:
+    def test_ignora_la_nota_inicial_del_consolidador(self) -> None:
+        """La encontró la primera ejecución real, no un test: parecía un alta y no lo era.
+
+        El bloque `nota_inicial` lo añade la norma modificadora, así que llegaba como una
+        versión sin texto anterior — o sea, indistinguible de un precepto nuevo. Y no es
+        articulado: es la glosa del consolidador diciendo que la norma quedó derogada o
+        renombrada.
+        """
+        raiz = xml_safe.parse(
+            b"<response><status><code>200</code></status><data><texto>"
+            b'<bloque id="no" tipo="nota_inicial">'
+            b'<version id_norma="BOE-A-2024-10767"><p>Norma derogada, con efectos desde 2023.</p>'
+            b"</version></bloque>"
+            b'<bloque id="a1" tipo="precepto" titulo="Articulo 1">'
+            b'<version id_norma="BOE-A-2016-6728"><p>Original.</p></version>'
+            b'<version id_norma="BOE-A-2024-10767"><p>Nueva.</p></version>'
+            b"</bloque></texto></data></response>"
+        )
+
+        assert [b.id for b in boe_consolidado.extraer_bloques(raiz)] == ["a1"]
+        cambios = boe_consolidado.cambios_de(boe_consolidado.extraer_bloques(raiz), REFORMA)
+        assert [c.bloque for c in cambios] == ["a1"]
+        assert cambios[0].texto_anterior == "Original."

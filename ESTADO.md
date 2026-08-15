@@ -1652,20 +1652,40 @@ algo que conviene saber: al comprobar qué URL se pide, el destino registrado es
 `url_guard` clava la petición a la IP validada y manda el nombre en `Host` (defensa contra DNS
 rebinding). El test comprueba la pareja, que es lo que de verdad define el destino.
 
-**Lo que falta de esta tarea y no se puede dar por hecho:**
+**Ejecutado de verdad contra Postgres y contra el BOE, no solo con tests.** Migración aplicada:
+**13 CHECK, `origenclasificacion` viva** y `tipodocumento` con sus tres valores. Una pasada real
+de `--versionar` escribe **70 versiones** —34 de la Ley 2/2016 de Madrid y 36 de la Ley 3/2016—,
+con el artículo 4 y el 7 comprobados fila a fila con `psql`. Segunda pasada: 0 escrituras.
 
-- **La migración no se ha aplicado contra Postgres real** (Docker estaba parado al empezar). Toca
-  `tipodocumento`, que es justo la CHECK que el autogenerate ha propuesto borrar cinco veces:
-  hay que aplicar y comprobar que **siguen siendo 13** y que `origenclasificacion` sigue viva.
-- **No se ha ejecutado contra el BOE real desde el worker.** El lector sí está verificado contra
-  la API real; el servicio, solo con transporte simulado.
-- **Falta la auditoría de `revisor-seguridad`** sobre este diff, que abre una salida HTTP nueva.
-  No se lanzó porque la cuota iba por el 71 % y CLAUDE.md 13.4 pone el corte en el 60 %.
+**Y la ejecución real encontró dos defectos que ningún test veía. Los dos importan:**
+
+1. **El bloque `nota_inicial` entraba como si fuera un alta.** Es la glosa del consolidador
+   («Norma derogada, con efectos desde…», «Esta norma pasa a denominarse…»), la *añade* la norma
+   modificadora, y por tanto llegaba como una versión sin texto anterior: **indistinguible de un
+   precepto nuevo**. Una regla futura sobre modificaciones lo habría leído como cambio normativo.
+   Excluido por tipo de bloque, con la misma regla que ya excluía las notas `nota_pie`, y
+   `VERSION_CONSOLIDADO` sube a `2026.08.15.1`. Las tres «altas» que había desaparecen: ahora
+   **cero altas falsas**.
+2. **El `downgrade` de la migración estaba roto** y lo habría descubierto quien intentara bajar de
+   versión: borraba filas de `version_norma`, que tiene un trigger que rechaza todo DELETE
+   (`7f8c9d354e09`). Se desactiva el trigger alrededor del borrado y se reactiva. **No es una
+   excepción a la inmutabilidad, es su límite**: la garantía protege a la aplicación, y una bajada
+   de esquema está quitando la columna que da sentido a esas filas. Verificado haciendo
+   `downgrade` y `upgrade` de verdad.
+
+**Un caso real que conviene no leer mal:** la Ley 3/2007 sale como «sin consolidar todavía» en
+cada pasada, y no es un fallo. La Ley 4/2023 **la deroga entera**, y una derogación total no
+cambia la redacción de ningún precepto: no hay diff que traer. Ese hecho ya lo ve el eje
+referencial y lo clasifica R-DER-001 leyendo el texto publicado. Está escrito en el servicio.
+
+**Lo que sí queda pendiente:** la auditoría de `revisor-seguridad` sobre este diff, que abre una
+salida HTTP nueva. No se lanzó porque la cuota iba por el 71 % y CLAUDE.md 13.4 pone el corte en
+el 60 %.
 
 #### Siguiente, por orden
 
-1. **Aplicar la migración y verificar contra la base real** — **~8k**. Es lo que cierra la tarea
-   de hoy; hasta entonces está escrita y probada, no ejecutada.
+1. **`revisor-seguridad` sobre el diff de esta tarea** — **~10k**, en cuanto haya cuota. Es lo
+   único que queda abierto de hoy.
 2. **La familia de reglas de modificación (R-MOD)** — **~25k**. Es lo que el ADR 0018 desbloquea
    y lo que convierte el diff en algo que llegue al gate humano. El ADR establece el hecho, no el
    veredicto.

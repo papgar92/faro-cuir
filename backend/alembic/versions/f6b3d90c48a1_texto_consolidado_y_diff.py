@@ -100,12 +100,21 @@ def downgrade() -> None:
     # RESTRICT; y se borran, en vez de reetiquetarse como `texto_norma`, porque un consolidado
     # disfrazado de texto publicado es peor que no tenerlo: haría creer que el archivo conserva
     # lo que se publicó aquel día cuando conserva una elaboración posterior.
+    #
+    # **El trigger de inmutabilidad hay que desactivarlo para esto y no es una excepción a la
+    # regla, es su límite.** `trg_version_norma_inmutable` (migración `7f8c9d354e09`) rechaza
+    # todo DELETE sobre `version_norma`: esa garantía es para la aplicación, que jamás debe
+    # reescribir el histórico. Una bajada de versión de esquema es otra cosa —está quitando la
+    # columna que da sentido a esas filas— y sin desactivarlo el `downgrade` fallaría a mitad,
+    # que es peor: dejaría el esquema a medio bajar. Se vuelve a activar acto seguido.
+    op.execute(sa.text("ALTER TABLE version_norma DISABLE TRIGGER trg_version_norma_inmutable"))
     op.execute(
         sa.text(
             "DELETE FROM version_norma WHERE documento_consolidado_id IN "
             "(SELECT id FROM documento WHERE tipo = 'consolidado')"
         )
     )
+    op.execute(sa.text("ALTER TABLE version_norma ENABLE TRIGGER trg_version_norma_inmutable"))
     op.execute(sa.text("DELETE FROM documento WHERE tipo = 'consolidado'"))
 
     op.drop_constraint("uq_version_norma_bloque", "version_norma", type_="unique")

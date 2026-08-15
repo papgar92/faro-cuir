@@ -70,7 +70,7 @@ from app.pipeline.watchlist import PATRON_IDENTIFICADOR
 # `deteccion`: un diff guardado con otra derivación no es comparable con uno de hoy, y como la
 # tabla es inmutable (nunca se reescribe una versión), la única forma de saberlo es que la fila
 # lo diga.
-VERSION_CONSOLIDADO = "2026.08.15"
+VERSION_CONSOLIDADO = "2026.08.15.1"
 
 # Endpoint de legislación consolidada de la API de datos abiertos del BOE. Verificado el
 # 2026-08-15: responde 200 con `Accept: application/xml`, y **400 sin esa cabecera**.
@@ -79,6 +79,20 @@ URL_BASE = "https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/"
 CABECERAS = {"Accept": "application/xml"}
 
 _ESPACIOS = re.compile(r"\s+")
+
+# Bloques que **no son articulado** sino avisos del consolidador, y que por tanto no producen
+# diff. Es la misma regla que excluye las notas `nota_pie`, aplicada al nivel de bloque.
+#
+# **Lo encontró la primera ejecución real (2026-08-15), no un test.** El bloque `nota_inicial`
+# («Norma derogada, con efectos desde el 2 de marzo de 2023…», «Esta norma pasa a denominarse
+# …») lo *añade* la norma modificadora, así que aparecía como una versión sin texto anterior:
+# es decir, **como un alta de un precepto que nadie ha añadido**. Justo el tipo de hecho falso
+# que una regla futura sobre modificaciones leería como cambio normativo.
+#
+# La información de esos avisos no se pierde: que una norma derogue a otra ya lo ve el eje
+# referencial por el `<analisis>` y lo clasifica R-DER-001, leyendo el texto publicado en vez
+# de la glosa del consolidador.
+_TIPOS_EDITORIALES = frozenset({"nota_inicial"})
 
 
 class ConsolidadoError(RuntimeError):
@@ -216,6 +230,8 @@ def extraer_bloques(raiz: Element) -> tuple[BloqueConsolidado, ...]:
     """
     bloques: list[BloqueConsolidado] = []
     for nodo in raiz.iterfind(".//bloque"):
+        if (nodo.get("tipo") or "").strip() in _TIPOS_EDITORIALES:
+            continue
         versiones = tuple(
             VersionBloque(
                 id_norma=(v.get("id_norma") or "").strip(),
