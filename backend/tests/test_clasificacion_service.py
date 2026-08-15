@@ -360,9 +360,13 @@ def test_un_veredicto_obsoleto_no_se_retira_solo(
     session.commit()
     servicio.aplicar(session, almacen_root=tmp_path)
 
-    # El catálogo cambia y deja de encontrar supresiones donde antes las encontraba.
+    # El catálogo cambia y deja de encontrar nada donde antes encontraba. Se anulan los dos
+    # detectores que ve este documento y no solo el de supresiones: la reforma madrileña real
+    # también reescribe preceptos, así que desde R-MOD-001 (ADR 0018) seguiría teniendo
+    # veredicto y el test estaría comprobando otra cosa sin decirlo.
     monkeypatch.setattr(reglas, "VERSION_REGLAS", "9999.99.99")
     monkeypatch.setattr(reglas, "supresiones", lambda texto: ())
+    monkeypatch.setattr(reglas, "modificaciones", lambda texto: ())
 
     resumen = servicio.aplicar(session, almacen_root=tmp_path)
 

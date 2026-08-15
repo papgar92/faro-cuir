@@ -247,15 +247,21 @@ def test_el_catalogo_no_lee_ningun_campo_de_juicio_del_modelo() -> None:
     """7.6: ninguna regla puede depender de un campo que venga del juicio del modelo.
 
     `clasificar` recibe texto archivado, referencias del `<analisis>` oficial, la watchlist
-    versionada del repo y —solo para diagnóstico— los identificadores de los punteros. Si algún
-    día aparece aquí un parámetro que venga de la extracción, este test es el que tiene que
-    fallar, porque significaría que el veredicto ha dejado de ser reconstruible sin el modelo.
+    versionada del repo, los diffs archivados desde el consolidado (ADR 0018) y —solo para
+    diagnóstico— los identificadores de los punteros. Si algún día aparece aquí un parámetro que
+    venga de la extracción, este test es el que tiene que fallar, porque significaría que el
+    veredicto ha dejado de ser reconstruible sin el modelo.
+
+    **`diffs` entró en la lista con el ADR 0018 y no la debilita**: son dos textos archivados
+    con su `sha256`, sacados de la propia fuente, no una opinión de nadie. La comprobación que
+    de verdad sostiene esto es la de abajo — que el veredicto no cambie con los diffs presentes
+    o ausentes.
     """
     import inspect
 
     parametros = set(inspect.signature(reglas.clasificar).parameters)
 
-    assert parametros == {"texto", "referencias", "lista", "punteros"}
+    assert parametros == {"texto", "referencias", "lista", "punteros", "diffs"}
 
 
 class TestDocumentoRealCompleto:
@@ -458,3 +464,138 @@ class TestDerogacionEnElDocumentoRealCompleto:
         assert len(encontradas) == 1
         assert "Queda derogada la Ley" in encontradas[0].fragmento
         assert all(prueba.verifica(texto) for prueba in encontradas)
+
+
+# --- Tercera familia: modificación (R-MOD-001, ADR 0018) -----------------------------------
+
+DIFF_ARTICULO_4 = reglas.Diff(
+    norma_afectada="BOE-A-2016-6728",
+    bloque="a4",
+    articulo="Artículo 4",
+    # Las dos redacciones reales, sacadas del consolidado del BOE.
+    texto_anterior=(
+        "Artículo 4. Reconocimiento del derecho a la identidad de género libremente "
+        "manifestada. 1. Toda persona tiene derecho a construir para sí una autodefinición "
+        "con respecto a su cuerpo, sexo, género y su orientación sexual."
+    ),
+    texto_nuevo=(
+        "Artículo 4. Reconocimiento del respeto a la libertad y dignidad de las personas "
+        "transexuales. 1. Ninguna persona podrá ser presionada para ocultar, suprimir o negar "
+        "su condición sexual, ni su transexualidad."
+    ),
+)
+
+
+class TestModificacion:
+    def test_detecta_la_clausula_de_nueva_redaccion_y_no_la_cita_de_un_titulo(self) -> None:
+        """La línea es la misma que separó `queda derogada` de `se deroga` en R-DER-001."""
+        operativa = "El artículo 4 queda redactado como sigue: «Artículo 4. Reconocimiento…»"
+        cita = (
+            "Ley 17/2023, de 27 de diciembre, por la que se modifica la Ley 2/2016, de 29 de "
+            "marzo, de Identidad y Expresión de Género."
+        )
+
+        assert reglas.modificaciones(operativa)
+        assert reglas.modificaciones(cita) == ()
+
+    def test_exige_que_la_clausula_nombre_un_precepto(self) -> None:
+        assert reglas.modificaciones("El texto queda redactado como sigue: «cualquier cosa».") == ()
+
+    def test_una_norma_vigilada_reescrita_va_a_revision_sin_signo(self) -> None:
+        """Que un artículo se reescriba no dice hacia dónde. Regla de oro 2."""
+        texto = "Siete. El artículo 4 queda redactado como sigue: «Artículo 4. Reconocimiento…»"
+        referencias = (
+            ReferenciaAnterior(
+                identificador="BOE-A-2016-6728", verbo="MODIFICA", texto="el art. 4"
+            ),
+        )
+
+        veredicto = reglas.clasificar(
+            texto, referencias=referencias, lista=LEY_2_2016, diffs=(DIFF_ARTICULO_4,)
+        )
+
+        assert veredicto is not None
+        assert veredicto.regla == reglas.R_MOD_NORMA_VIGILADA
+        assert veredicto.clasificacion is Clasificacion.INDETERMINADO
+        assert veredicto.normas_vigiladas == ("BOE-A-2016-6728",)
+        assert veredicto.preceptos_con_diff == 1
+        assert all(prueba.verifica(texto) for prueba in veredicto.evidencia)
+
+    def test_el_diff_no_cambia_el_veredicto_solo_lo_que_se_puede_enseñar(self) -> None:
+        """El control que sostiene que `diffs` no debilita 7.6: no decide, ilustra."""
+        texto = "Siete. El artículo 4 queda redactado como sigue: «Artículo 4. Reconocimiento…»"
+        referencias = (
+            ReferenciaAnterior(
+                identificador="BOE-A-2016-6728", verbo="MODIFICA", texto="el art. 4"
+            ),
+        )
+
+        con = reglas.clasificar(
+            texto, referencias=referencias, lista=LEY_2_2016, diffs=(DIFF_ARTICULO_4,)
+        )
+        sin = reglas.clasificar(texto, referencias=referencias, lista=LEY_2_2016)
+
+        assert con is not None and sin is not None
+        assert (con.regla, con.clasificacion, con.severidad) == (
+            sin.regla,
+            sin.clasificacion,
+            sin.severidad,
+        )
+        assert con.evidencia == sin.evidencia
+        # Lo único que cambia es el diagnóstico, que es para quien revisa.
+        assert con.terminos_perdidos and not sin.terminos_perdidos
+
+    def test_una_reescritura_de_norma_no_vigilada_no_produce_veredicto(self) -> None:
+        texto = "El artículo 3 queda redactado como sigue: «Artículo 3. Plazos.»"
+        referencias = (
+            ReferenciaAnterior(
+                identificador="BOE-A-1999-00001", verbo="MODIFICA", texto="el art. 3"
+            ),
+        )
+
+        assert reglas.clasificar(texto, referencias=referencias, lista=LEY_2_2016) is None
+
+    def test_la_supresion_manda_sobre_la_modificacion(self) -> None:
+        """Orden del catálogo: la única regla que afirma signo va primero."""
+        texto = (
+            "Siete. Se suprime el artículo 7. Ocho. El artículo 8 queda redactado como sigue: «…»"
+        )
+        referencias = (
+            ReferenciaAnterior(identificador="BOE-A-2016-6728", verbo="MODIFICA", texto="arts."),
+        )
+
+        veredicto = reglas.clasificar(texto, referencias=referencias, lista=LEY_2_2016)
+
+        assert veredicto is not None and veredicto.regla == reglas.R_SUP_NORMA_VIGILADA
+
+
+class TestTerminosPerdidos:
+    def test_enumera_lo_que_estaba_y_ya_no_esta(self) -> None:
+        perdidos = reglas.terminos_perdidos((DIFF_ARTICULO_4,))
+
+        assert "identidad de genero" in [t.lower() for t in perdidos] or "identidad de género" in [
+            t.lower() for t in perdidos
+        ]
+
+    def test_un_alta_no_pierde_nada(self) -> None:
+        """Sin texto anterior no hay comparación posible, y no se inventa una."""
+        alta = reglas.Diff(
+            norma_afectada="BOE-A-2016-6728",
+            bloque="da1",
+            articulo="Disposición adicional primera",
+            texto_anterior=None,
+            texto_nuevo="Las personas trans tendrán derecho a…",
+        )
+
+        assert reglas.terminos_perdidos((alta,)) == ()
+
+    def test_no_cuenta_como_perdido_lo_que_sigue_estando(self) -> None:
+        igual = reglas.Diff(
+            norma_afectada="BOE-A-2016-6728",
+            bloque="a1",
+            articulo="Artículo 1",
+            texto_anterior="Las personas trans tienen derecho a la identidad de género.",
+            texto_nuevo="Las personas trans tienen derecho a la identidad de género y a más cosas.",
+        )
+
+        assert reglas.terminos_perdidos((igual,)) == ()

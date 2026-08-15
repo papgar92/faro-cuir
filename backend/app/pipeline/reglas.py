@@ -12,10 +12,11 @@ modelo de 3B parámetros no lo comprueba nadie. Ese fue el argumento central del
 
 ## Por qué la primera familia de reglas es la supresión
 
-Porque es la única clasificable con lo que hoy está archivado. Una norma modificativa del BOE
-publica la redacción **nueva** («El artículo 4 queda redactado como sigue: …»), no la vieja, y
-`version_norma` está vacía: el diff de una *modificación* todavía no se puede construir. La
-supresión, en cambio, no necesita texto anterior — el hecho es que el precepto deja de existir.
+Porque era la única clasificable con lo que había archivado cuando se escribió. Una norma
+modificativa del BOE publica la redacción **nueva** («El artículo 4 queda redactado como sigue:
+…»), no la vieja, y `version_norma` estaba vacía: el diff de una *modificación* no se podía
+construir. La supresión, en cambio, no necesita texto anterior — el hecho es que el precepto deja
+de existir. (El ADR 0018 llenó `version_norma`; ver la tercera familia, más abajo.)
 
 ## La segunda familia: derogación, y por qué NO produce «retroceso»
 
@@ -30,13 +31,31 @@ existe. El supuesto de R-SUP-001 —la watchlist son normas protectoras, luego q
 quita protección— **no se transporta a la derogación**, porque derogar una norma entera es lo que
 hace tanto quien la desmonta como quien la sustituye por otra mejor.
 
-Distinguir los dos casos exige saber **qué ocupa el lugar de la norma derogada**, y eso es el
-diff contra `version_norma`, que está vacía. Así que la decisión honesta es la que 7.6 llama el
-umbral de recall alto: severidad alta, sin signo, a la cola de revisión con su evidencia para que
-la mire una persona. Afirmar el signo aquí sería exactamente lo que la regla de oro 2 prohíbe.
+Distinguir los dos casos exige saber **qué ocupa el lugar de la norma derogada**. Así que la
+decisión honesta es la que 7.6 llama el umbral de recall alto: severidad alta, sin signo, a la
+cola de revisión con su evidencia para que la mire una persona. Afirmar el signo aquí sería
+exactamente lo que la regla de oro 2 prohíbe.
 
-Hoy `BOE-A-2023-5366` no produce **ninguna** fila: ninguna regla lo ve. Ese es el valor de esta
-familia, y no es el veredicto: es que la norma más importante del corpus deje de ser invisible.
+## La tercera familia: modificación (R-MOD-001), desde el ADR 0018
+
+`version_norma` **ya no está vacía**: el texto anterior de un precepto modificado se archiva
+desde el consolidado del BOE. Eso no cambia lo que el catálogo puede *afirmar* —una reescritura
+sigue sin decir hacia dónde, y por eso R-MOD-001 tampoco emite signo— pero cambia por completo lo
+que puede **enseñar**. Una alerta que decía «han modificado el artículo 4» pasa a enseñar que
+pasó de «reconocimiento del derecho a la identidad de género libremente manifestada» a
+«reconocimiento del respeto a la libertad y dignidad de las personas transexuales», con las dos
+redacciones sacadas de documentos archivados con su huella.
+
+El diff entra en el veredicto como **evidencia y diagnóstico, nunca como criterio**: ver
+`terminos_perdidos`, donde está escrito el contraejemplo que impide convertirlo en signo. Y
+acompaña a **todas** las reglas que identifican una norma vigilada, no solo a esta: lo enseñó la
+primera pasada real, donde las dos reformas madrileñas disparan R-SUP-001 —que va antes— y
+atarlo a R-MOD-001 habría dejado el caso insignia del proyecto sin el antes y el después.
+
+**R-MOD-001 no ha disparado ni una vez sobre el corpus de tres días**, porque las dos normas que
+reescriben preceptos de la watchlist también suprimen alguno y R-SUP-001 manda. O sea que su
+precisión sobre texto real está **sin observar**, al contrario que las otras dos familias. Dicho
+aquí para que nadie la cuente como comprobada (regla de oro 8).
 
 ## Qué se midió antes de escribir esto, y qué no
 
@@ -62,6 +81,7 @@ import re
 from dataclasses import dataclass, field
 
 from app.models.deteccion import Clasificacion
+from app.pipeline import prefiltro
 from app.pipeline.referencias import ReferenciaAnterior
 from app.pipeline.watchlist import Watchlist
 
@@ -69,7 +89,7 @@ from app.pipeline.watchlist import Watchlist
 # cada detección y obliga a reevaluar lo anterior, igual que `VERSION_VOCABULARIO` y la versión
 # de la watchlist: sin esto, dos alertas de fechas distintas no serían comparables porque no se
 # sabría si las produjo el mismo catálogo.
-VERSION_REGLAS = "2026.08.14"
+VERSION_REGLAS = "2026.08.15.1"
 
 # --- Identificadores estables de regla ---------------------------------------------------
 # Van a `deteccion.regla_aplicada` y son parte del contrato de auditoría: no se renombran. Si
@@ -78,6 +98,7 @@ VERSION_REGLAS = "2026.08.14"
 R_SUP_NORMA_VIGILADA = "R-SUP-001"
 R_SUP_SIN_NORMA_VIGILADA = "R-SUP-002"
 R_DER_NORMA_VIGILADA = "R-DER-001"
+R_MOD_NORMA_VIGILADA = "R-MOD-001"
 
 # Construcciones **operativas** de supresión: las que un texto normativo usa para borrar algo,
 # no para hablar de borrar. La distinción no es gramatical por gusto — es la que rechaza el
@@ -147,6 +168,23 @@ _NORMA_CITADA = re.compile(
     re.IGNORECASE,
 )
 
+# Construcciones **operativas** de nueva redacción: las que reescriben un precepto. Tercera
+# familia (R-MOD-001), posible desde el ADR 0018 — antes se podía detectar la cláusula pero no
+# había con qué enseñar qué cambiaba, y una alerta que dice «han modificado el artículo 4» sin
+# poder decir de qué a qué no sirve para revisar nada.
+#
+# `se modifica` a secas queda fuera **por la misma razón que `se deroga`** en `_DEROGACION`, y
+# el ruido es aún más abundante: media exposición de motivos del BOE dice «Real Decreto por el
+# que se modifica el Real Decreto …» citando el título de otra norma. Lo que distingue a una
+# modificación operativa es que **anuncia el texto que viene detrás**.
+_MODIFICACION = re.compile(
+    r"\bqueda(?:n)?\s+redactad[oa]s?\b"
+    r"|\bcon\s+la\s+siguiente\s+redacci[óo]n\b"
+    r"|\bpasa(?:n)?\s+a\s+tener\s+la\s+siguiente\s+redacci[óo]n\b"
+    r"|\bqueda(?:n)?\s+modificad[oa]s?\s+(?:en\s+)?los?\s+siguientes\s+t[ée]rminos\b",
+    re.IGNORECASE,
+)
+
 # Cómo se nombra un precepto. Se exige que aparezca **en la misma cláusula** que la
 # construcción de supresión: sin este requisito, «se suprime la referencia a…» o una frase del
 # preámbulo pasarían igual.
@@ -206,6 +244,22 @@ class Evidencia:
 
 
 @dataclass(frozen=True)
+class Diff:
+    """Una redacción anterior y la nueva, tal como las archivó el ADR 0018.
+
+    Llega como **dato ya leído**, no como una consulta: este módulo es puro y no toca la base de
+    datos ni la red. Quien lo llama (`services/clasificacion.py`) traduce las filas de
+    `version_norma` a esto.
+    """
+
+    norma_afectada: str
+    bloque: str | None
+    articulo: str | None
+    texto_anterior: str | None
+    texto_nuevo: str | None
+
+
+@dataclass(frozen=True)
 class Veredicto:
     """Lo que una regla concluye, con todo lo que hace falta para rebatirlo.
 
@@ -226,6 +280,14 @@ class Veredicto:
     # ven, que es la condición que el ADR pone para reabrirse.
     punteros_corroborados: tuple[str, ...] = ()
     punteros_sin_corroborar: tuple[str, ...] = ()
+    # Diagnóstico de R-MOD-001: términos directos del vocabulario que estaban en la redacción
+    # anterior y no están en la nueva (ADR 0018). **Tampoco participa en el veredicto** — ver
+    # `terminos_perdidos`, donde está el contraejemplo que lo impide.
+    terminos_perdidos: tuple[str, ...] = ()
+    # Cuántos preceptos de normas vigiladas trae el diff archivado. Va como cifra y no como
+    # texto: los textos ya están en `version_norma`, y duplicarlos dentro de `deteccion` haría
+    # que la misma cita viviera en dos sitios que pueden dejar de coincidir.
+    preceptos_con_diff: int = 0
     version_reglas: str = field(default=VERSION_REGLAS)
 
 
@@ -320,6 +382,48 @@ def derogaciones(texto: str) -> tuple[Evidencia, ...]:
     return _clausulas_con(texto, _DEROGACION, _NORMA_CITADA)
 
 
+def modificaciones(texto: str) -> tuple[Evidencia, ...]:
+    """Cláusulas del texto archivado que dan nueva redacción a un precepto, con sus offsets.
+
+    Mismas dos condiciones que las otras dos familias: construcción **operativa** —una que
+    anuncia el texto que viene detrás, no una que cite el título de otra norma— y una referencia
+    a precepto en la misma cláusula.
+    """
+    return _clausulas_con(texto, _MODIFICACION, _PRECEPTO)
+
+
+def terminos_perdidos(diffs: tuple[Diff, ...]) -> tuple[str, ...]:
+    """Términos **directos** del vocabulario que estaban en la redacción anterior y ya no están.
+
+    **Es un diagnóstico, no una entrada del veredicto**, exactamente igual que `corroborar` con
+    los punteros del extractor. Se calcula porque es lo primero que quiere saber quien revisa
+    —«¿qué ha desaparecido?»— y porque es reproducible: mismo vocabulario versionado que el
+    prefiltro, mismos textos archivados.
+
+    **Y no decide el signo, por un contraejemplo real que está en este mismo corpus.** Las leyes
+    autonómicas de 2016 dicen «personas transexuales» y las reformas posteriores suelen decir
+    «personas trans»: ahí desaparece un término directo y es modernización del lenguaje, no
+    recorte. Al revés también pasa —el artículo 4 de la Ley 2/2016 madrileña cambia
+    «identidad de género libremente manifestada» por «personas transexuales», y eso sí recorta—.
+    La diferencia entre los dos casos no está en qué término desaparece sino en qué dice el
+    precepto, y eso lo lee una persona. Convertir esta lista en un veredicto sería justamente lo
+    que la regla de oro 2 prohíbe.
+
+    **Lo que dice, con precisión, para que nadie lo lea de más:** que el término estaba en la
+    redacción **anterior de ese precepto** y no está en la **nueva del mismo precepto**. No dice
+    que haya desaparecido de la ley — puede seguir en otro artículo que nadie tocó. Es una pista
+    de por dónde empezar a leer, no un recuento de lo perdido.
+    """
+    perdidos: list[str] = []
+    for diff in diffs:
+        if not diff.texto_anterior:
+            continue
+        antes = set(prefiltro.terminos_presentes(diff.texto_anterior, solo_directos=True))
+        despues = set(prefiltro.terminos_presentes(diff.texto_nuevo or "", solo_directos=True))
+        perdidos.extend(sorted(antes - despues))
+    return tuple(dict.fromkeys(perdidos))
+
+
 def corroborar(
     punteros: tuple[str, ...], evidencia: tuple[Evidencia, ...]
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -385,6 +489,7 @@ def clasificar(
     referencias: tuple[ReferenciaAnterior, ...] = (),
     lista: Watchlist,
     punteros: tuple[str, ...] = (),
+    diffs: tuple[Diff, ...] = (),
 ) -> Veredicto | None:
     """Aplica el catálogo. Devuelve `None` cuando ninguna regla dispara.
 
@@ -408,6 +513,16 @@ def clasificar(
       segunda familia» de la cabecera. Derogar es lo que hace tanto quien desmonta una ley como
       quien la sustituye por otra mejor, y cuál de las dos cosas es exige el diff contra
       `version_norma`, que está vacía.
+    - **R-MOD-001 → `indeterminado`.** El documento da **nueva redacción** a un precepto y el
+      `<analisis>` declara que modifica una norma de la watchlist. Es la familia que abre el ADR
+      0018, y **sigue sin afirmar signo**, por lo mismo que R-DER-001: que un artículo se
+      reescriba no dice hacia dónde. Lo que cambia respecto a antes no es el veredicto, es la
+      evidencia — el diff archivado permite enseñar el antes y el después literales, y
+      `terminos_perdidos` dice qué vocabulario protector desapareció. Eso convierte una alerta
+      que decía «han tocado el artículo 4» en una que enseña que pasó de «reconocimiento del
+      derecho a la identidad de género libremente manifestada» a otra cosa. **Dispara aunque el
+      diff todavía no esté** (la consolidación llega con retraso, ADR 0018): la modificación de
+      una norma vigilada merece revisión humana igual, y sin diff la alerta trae la cláusula.
     - **R-SUP-002 → `indeterminado`.** Hay supresión pero no se identifica norma vigilada. Es
       el umbral de recall alto de 7.6: entra en la cola de revisión sin afirmar nada. Se
       distingue del centinela del ADR 0009 (`indeterminado`/`heuristica`/`regla_aplicada NULL`)
@@ -427,11 +542,20 @@ def clasificar(
     """
     supresion = supresiones(texto)
     derogacion = derogaciones(texto)
-    if not supresion and not derogacion:
+    modificacion = modificaciones(texto)
+    if not supresion and not derogacion and not modificacion:
         return None
 
     vigiladas = _vigiladas(referencias, lista)
     derogadas = _derogadas(referencias, lista)
+
+    # El diff archivado acompaña a **toda** regla que identifique una norma vigilada, no solo a
+    # R-MOD-001. Lo enseñó la primera pasada real: las dos reformas madrileñas disparan
+    # R-SUP-001, que va antes en el orden, así que atar el diff a R-MOD-001 dejaba el caso
+    # insignia del proyecto sin el antes y el después justo en la alerta donde más falta hacen.
+    # Sigue sin decidir nada: es material para quien revisa, en las tres reglas igual.
+    propios = tuple(d for d in diffs if d.norma_afectada in vigiladas)
+    perdidos = terminos_perdidos(propios)
 
     if supresion and vigiladas:
         corroborados, sin_corroborar = corroborar(punteros, supresion)
@@ -444,10 +568,13 @@ def clasificar(
             normas_vigiladas=vigiladas,
             punteros_corroborados=corroborados,
             punteros_sin_corroborar=sin_corroborar,
+            terminos_perdidos=perdidos,
+            preceptos_con_diff=len(propios),
         )
 
     if derogacion and derogadas:
         corroborados, sin_corroborar = corroborar(punteros, derogacion)
+        derogados = tuple(d for d in diffs if d.norma_afectada in derogadas)
         return Veredicto(
             regla=R_DER_NORMA_VIGILADA,
             clasificacion=Clasificacion.INDETERMINADO,
@@ -457,6 +584,23 @@ def clasificar(
             normas_vigiladas=derogadas,
             punteros_corroborados=corroborados,
             punteros_sin_corroborar=sin_corroborar,
+            terminos_perdidos=terminos_perdidos(derogados),
+            preceptos_con_diff=len(derogados),
+        )
+
+    if modificacion and vigiladas:
+        corroborados, sin_corroborar = corroborar(punteros, modificacion)
+        return Veredicto(
+            regla=R_MOD_NORMA_VIGILADA,
+            clasificacion=Clasificacion.INDETERMINADO,
+            severidad=3,
+            confianza=0.5,
+            evidencia=modificacion,
+            normas_vigiladas=vigiladas,
+            punteros_corroborados=corroborados,
+            punteros_sin_corroborar=sin_corroborar,
+            terminos_perdidos=perdidos,
+            preceptos_con_diff=len(propios),
         )
 
     if supresion:

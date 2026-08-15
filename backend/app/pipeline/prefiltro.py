@@ -285,6 +285,25 @@ def _contiene(texto_normalizado: str, termino_normalizado: str) -> bool:
     return re.search(patron, texto_normalizado) is not None
 
 
+def terminos_presentes(texto: str, *, solo_directos: bool = False) -> tuple[str, ...]:
+    """Qué términos del vocabulario aparecen en un texto. Sin decidir nada.
+
+    Se saca del cuerpo de `evaluar` para que el catálogo de reglas (7.6) pueda preguntar lo
+    mismo sobre otro material —las dos redacciones de un artículo modificado, ADR 0018— **con
+    el mismo vocabulario y la misma normalización**. Dos formas de contar términos serían dos
+    vocabularios en cuanto alguien tocara uno, y entonces "este término estaba y ya no está"
+    dejaría de ser comprobable.
+
+    No decide: devuelve presencia. Quien llame pone el significado.
+    """
+    normalizado = _normalizar(texto)
+    return tuple(
+        original
+        for termino, (original, categoria) in _VOCABULARIO_NORMALIZADO.items()
+        if (not solo_directos or categoria is Categoria.DIRECTO) and _contiene(normalizado, termino)
+    )
+
+
 def evaluar(
     titulo: str,
     *,
@@ -306,13 +325,7 @@ def evaluar(
     """
     sobre_texto_integro = texto_integro is not None
     base = texto_integro if sobre_texto_integro else titulo
-    texto = _normalizar(f"{base} {organo_emisor or ''}")
-
-    coincidencias = tuple(
-        original
-        for normalizado, (original, _) in _VOCABULARIO_NORMALIZADO.items()
-        if _contiene(texto, normalizado)
-    )
+    coincidencias = terminos_presentes(f"{base} {organo_emisor or ''}")
     directos = sum(
         1
         for termino in coincidencias

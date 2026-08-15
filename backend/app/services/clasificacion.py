@@ -37,8 +37,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.deteccion import Deteccion, OrigenClasificacion
-from app.models.norma import EstadoPrefiltro, Norma
-from app.pipeline import reglas, watchlist
+from app.models.norma import EstadoPrefiltro, Norma, VersionNorma
+from app.pipeline import prefiltro, reglas, watchlist
 from app.pipeline.texto import VERSION_TEXTO_PLANO
 from app.services.cuerpo import leer_cuerpo
 
@@ -138,6 +138,33 @@ def _punteros(deteccion: Deteccion | None) -> tuple[str, ...]:
     )
 
 
+def _diffs(session: Session, norma_id: int) -> tuple[reglas.Diff, ...]:
+    """Las redacciones anterior y nueva que el ADR 0018 archivó para esta norma.
+
+    Se leen aquí y no en `pipeline/reglas.py` porque aquel módulo es puro: recibe datos, no
+    consulta. Mismo reparto que con el texto archivado, que también lo lee este servicio.
+
+    Orden por `ordinal` para que el diagnóstico sea determinista: dos pasadas sobre la misma
+    base tienen que producir la misma lista de términos perdidos, o `VERSION_REGLAS` deja de
+    significar «esto se puede reproducir».
+    """
+    filas = session.scalars(
+        select(VersionNorma)
+        .where(VersionNorma.norma_id == norma_id)
+        .order_by(VersionNorma.ordinal, VersionNorma.id)
+    ).all()
+    return tuple(
+        reglas.Diff(
+            norma_afectada=fila.norma_afectada,
+            bloque=fila.bloque,
+            articulo=fila.articulo,
+            texto_anterior=fila.texto_anterior,
+            texto_nuevo=fila.texto_nuevo,
+        )
+        for fila in filas
+    )
+
+
 def _evidencia_json(veredicto: reglas.Veredicto, *, ahora: datetime.datetime) -> dict[str, object]:
     """Lo que hace falta para que un tercero rebata el veredicto sin ejecutar nuestro código.
 
@@ -158,6 +185,12 @@ def _evidencia_json(veredicto: reglas.Veredicto, *, ahora: datetime.datetime) ->
         # que dejan claro que no sostiene nada.
         "punteros_corroborados": list(veredicto.punteros_corroborados),
         "punteros_sin_corroborar": list(veredicto.punteros_sin_corroborar),
+        # Diagnóstico de R-MOD-001 (ADR 0018). `preceptos_con_diff` es una cifra y no los
+        # textos: esos viven en `version_norma`, y copiarlos aquí crearía dos sitios donde
+        # leer la misma cita, que es como acaban dejando de coincidir.
+        "terminos_perdidos": list(veredicto.terminos_perdidos),
+        "preceptos_con_diff": veredicto.preceptos_con_diff,
+        "version_vocabulario": prefiltro.VERSION_VOCABULARIO,
         "clasificado_en": ahora.isoformat(),
     }
 
@@ -204,6 +237,7 @@ def aplicar(
             referencias=cuerpo.referencias,
             lista=lista,
             punteros=_punteros(deteccion),
+            diffs=_diffs(session, norma.id),
         )
 
         if veredicto is None:
