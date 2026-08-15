@@ -67,4 +67,11 @@ def obtener_alerta(alerta_id: int, session: Session = Depends(get_session)) -> A
     fila = session.execute(servicio.consulta().where(Alerta.id == alerta_id)).first()
     if fila is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alerta no encontrada")
-    return servicio.a_publica(*fila)
+    alerta, deteccion, norma = fila
+    # El detalle es el único sitio donde viajan las redacciones enteras (ADR 0018). En el listado
+    # serían varios megas por página; aquí son lo que se ha venido a ver.
+    publica = servicio.a_publica(alerta, deteccion, norma)
+    cambios = servicio.cambios_de(
+        session, norma.id, [vigilada.identificador for vigilada in publica.normas_vigiladas]
+    )
+    return publica.model_copy(update={"cambios": cambios})

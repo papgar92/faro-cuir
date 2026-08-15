@@ -1742,3 +1742,33 @@ reclasificación real ejecutada.
 3. **Gold set**: volumen del corpus y el caso de título anodino. Sigue siendo el cuello de
    botella y ahora también lo único que puede medir R-MOD-001.
 4. **El Mapa con dato real**, cuando haya alertas de más de una comunidad.
+
+---
+
+### ✅ El diff se ve: `/api/alertas/{id}`, feed y pantalla de Alertas — 2026-08-15
+
+El punto 1 de la lista anterior. Las 70 versiones estaban en la base y no salían por ninguna
+parte; ahora la alerta enseña **qué decía el artículo y qué dice**.
+
+- **Listado y detalle publican cosas distintas, y es una decisión**: `GET /api/alertas` trae
+  `terminos_perdidos` y `preceptos_con_diff` (una cifra, para que un listado sin textos no se lea
+  como «no hay diff»); `GET /api/alertas/{id}` trae `cambios` con las redacciones enteras. Una
+  alerta puede llevar 36 preceptos con sus dos textos: meterlos en cada elemento del listado
+  convertiría una página de titulares en varios megas.
+- **Cada cambio viaja con el `sha256` del consolidado y con la advertencia de qué es**: una
+  elaboración de la fuente, no el boletín de aquel día. Sin eso, el diff hay que creérselo.
+- **El feed lleva el resumen, no el diff entero**: cuántos preceptos hay archivados y qué
+  vocabulario desapareció, con la salvedad de que es una pista y no una conclusión.
+- **`DiffBlock` sigue sin usarse, y ahora con motivo escrito**: espera segmentos ya calculados
+  (qué palabra exacta cambió) y los datos reales son dos textos enteros. Resaltar palabra a
+  palabra es una interpretación nuestra sobre una cita literal, y eso merece su propia decisión.
+  Se pinta a dos columnas y se deja leer (regla de oro 2).
+
+**Verificado en navegador de verdad, y encontró dos fallos que ningún test veía:** abrir los 34
+preceptos de golpe **bloqueó la pestaña más de 30 segundos** (el preámbulo entero son miles de
+caracteres), y un precepto largo enterraba a los siguientes. Se pintan de seis en seis, con cada
+redacción en una caja con desplazamiento propio. Nada se oculta: se despliega a petición y se
+dice cuántos quedan. Consola limpia, `tsc` y `vite build` limpios, 453 tests en verde.
+
+**Aviso operativo:** el puerto 5173 lo ocupa otro proyecto del humano, así que Vite arrancó en el
+**5174**. No es del proyecto, pero conviene saberlo antes de dar por caído el frontend.

@@ -54,6 +54,32 @@ class NormaVigiladaAfectada(BaseModel):
     ambito: str
 
 
+class CambioPrecepto(BaseModel):
+    """Un precepto reescrito: qué decía y qué dice, con la huella de dónde salió (ADR 0018).
+
+    Es la pieza que convierte una alerta en algo verificable de un vistazo. Hasta el ADR 0018 el
+    sistema podía decir «han modificado el artículo 4» y no podía enseñar de qué a qué, porque el
+    BOE modificativo publica solo la redacción nueva.
+
+    **`consolidado_sha256` no es decorativo y no es el mismo hash que el de la norma.** Estos dos
+    textos salen del *consolidado* del BOE, que es una elaboración de la fuente y no lo que se
+    publicó aquel día; sin decir de qué documento salen y con qué huella, quien quiera rebatir el
+    diff no sabe contra qué contrastarlo.
+    """
+
+    norma_afectada: str
+    articulo: str | None
+    bloque: str | None
+    texto_anterior: str | None
+    texto_nuevo: str | None
+    fecha_vigencia: datetime.date | None
+    consolidado_sha256: str
+    # `true` cuando alguno de los dos textos se ha recortado para publicarlo. Se dice en el dato
+    # y no solo en la documentación: un artículo cortado que no avisa de que está cortado es una
+    # cita falsa, y aquí la cita literal es todo el valor.
+    truncado: bool = False
+
+
 class NormaAlerta(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -94,6 +120,20 @@ class AlertaPublica(BaseModel):
 
     normas_vigiladas: list[NormaVigiladaAfectada] = Field(default_factory=list)
     spans: list[SpanEvidenciaPublico] = Field(default_factory=list)
+
+    # --- El diff (ADR 0018) ---------------------------------------------------------------
+    # Vocabulario protector que estaba en la redacción anterior de un precepto y no está en la
+    # nueva. **Es un diagnóstico y así hay que leerlo**: no dice que el término haya desaparecido
+    # de la ley —puede seguir en otro artículo que nadie tocó— ni decide el signo de la alerta,
+    # que lo pone la regla. Se publica porque es por donde empieza a leer quien revisa.
+    terminos_perdidos: list[str] = Field(default_factory=list)
+    # Cuántos preceptos reescritos tiene archivado el sistema para esta alerta. Va siempre, en el
+    # listado y en el detalle, para que un listado sin `cambios` no se lea como "no hay diff".
+    preceptos_con_diff: int = 0
+    # Las redacciones enteras. **Solo en el detalle** (`GET /api/alertas/{id}`): una alerta puede
+    # traer 36 preceptos con sus dos textos, y meter eso en cada elemento del listado convertiría
+    # una página de titulares en varios megas. El listado dice cuántos hay y dónde mirarlos.
+    cambios: list[CambioPrecepto] = Field(default_factory=list)
 
     norma: NormaAlerta
     texto_archivado: TextoArchivadoAlerta | None

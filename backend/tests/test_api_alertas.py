@@ -25,6 +25,7 @@ from sqlalchemy.pool import StaticPool
 from app.api import alertas as api_alertas
 from app.database import Base
 from app.models.deteccion import (
+    Alerta,
     Clasificacion,
     ColaRevision,
     Deteccion,
@@ -33,7 +34,7 @@ from app.models.deteccion import (
 )
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.fuente import AmbitoTerritorial, FormatoFuente, Fuente, TipoFuente
-from app.models.norma import EstadoPrefiltro, Norma
+from app.models.norma import EstadoPrefiltro, Norma, VersionNorma
 from app.pipeline import watchlist
 from app.pipeline.watchlist import NormaVigilada, Watchlist
 from app.services import revision as servicio
@@ -61,6 +62,10 @@ EVIDENCIA = {
     "spans": [{"inicio": 100, "fin": 140, "fragmento": "Se suprime el artículo 7."}],
     "punteros_corroborados": [],
     "punteros_sin_corroborar": [],
+    # Diagnóstico del ADR 0018. La cifra viaja en la evidencia y no se cuenta al vuelo: es lo que
+    # permite que el listado, que no trae los textos, diga cuántos preceptos hay archivados.
+    "terminos_perdidos": ["identidad de genero", "autodeterminacion de genero"],
+    "preceptos_con_diff": 2,
 }
 
 
@@ -327,3 +332,121 @@ def test_el_tamano_de_pagina_lo_decide_el_servidor(client: TestClient) -> None:
 
 def test_alerta_inexistente_da_404(client: TestClient) -> None:
     assert client.get("/api/alertas/9999").status_code == 404
+
+
+# --- El diff en la alerta (ADR 0018) --------------------------------------------------------
+
+
+def _aprobar(session: Session, deteccion: Deteccion) -> Alerta:
+    session.add(ColaRevision(deteccion_id=deteccion.id, estado=EstadoRevision.APROBADA))
+    alerta = Alerta(deteccion_id=deteccion.id, emitida_en=datetime.datetime.now(datetime.UTC))
+    session.add(alerta)
+    session.commit()
+    return alerta
+
+
+def _versionar(session: Session, norma_id: int, *, afectada: str = "BOE-A-2016-6728") -> None:
+    """Archiva un consolidado y dos preceptos reescritos, como haría `services/versionado`."""
+    consolidado = Documento(
+        fuente_id=1,
+        identificador_oficial=f"{afectada}-consolidado-abc123abc123",
+        fecha_publicacion=datetime.date(2026, 8, 15),
+        url_original=(
+            f"https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/{afectada}"
+        ),
+        sha256="c" * 64,
+        sello_tiempo=datetime.datetime.now(datetime.UTC),
+        ruta_almacen="cc/dd/consolidado.xml",
+        estado_pipeline=EstadoPipeline.INGERIDO,
+        tipo=TipoDocumento.CONSOLIDADO,
+    )
+    session.add(consolidado)
+    session.flush()
+    for ordinal, (bloque, articulo, antes, ahora) in enumerate(
+        [
+            (
+                "a4",
+                "Artículo 4",
+                "Reconocimiento del derecho a la identidad de género libremente manifestada.",
+                "Reconocimiento del respeto a la libertad y dignidad de las personas transexuales.",
+            ),
+            ("a7", "Artículo 7", "Documentación administrativa. 1. Las Administraciones…", None),
+        ],
+        start=1,
+    ):
+        session.add(
+            VersionNorma(
+                norma_id=norma_id,
+                norma_afectada=afectada,
+                bloque=bloque,
+                articulo=articulo,
+                documento_consolidado_id=consolidado.id,
+                texto_anterior=antes,
+                texto_nuevo=ahora,
+                ordinal=ordinal,
+                version_derivacion="2026.08.15.1",
+            )
+        )
+    session.commit()
+
+
+class TestDiffPublicado:
+    def test_el_listado_dice_cuantos_hay_pero_no_trae_los_textos(
+        self, client: TestClient, sesion_db: Session
+    ) -> None:
+        """36 preceptos con sus dos redacciones en cada elemento del listado son varios megas."""
+        deteccion = _norma_con_deteccion(sesion_db, ident="BOE-A-2024-10767")
+        _versionar(sesion_db, deteccion.norma_id)
+        _aprobar(sesion_db, deteccion)
+
+        cuerpo = client.get("/api/alertas").json()
+
+        assert len(cuerpo) == 1
+        assert cuerpo[0]["preceptos_con_diff"] == 2
+        assert cuerpo[0]["terminos_perdidos"] == [
+            "identidad de genero",
+            "autodeterminacion de genero",
+        ]
+        assert cuerpo[0]["cambios"] == []
+
+    def test_el_detalle_trae_las_dos_redacciones_con_la_huella_del_consolidado(
+        self, client: TestClient, sesion_db: Session
+    ) -> None:
+        """Sin decir de qué documento salen y con qué huella, el diff hay que creérselo."""
+        deteccion = _norma_con_deteccion(sesion_db, ident="BOE-A-2024-10767")
+        _versionar(sesion_db, deteccion.norma_id)
+        alerta = _aprobar(sesion_db, deteccion)
+
+        cuerpo = client.get(f"/api/alertas/{alerta.id}").json()
+
+        assert [c["bloque"] for c in cuerpo["cambios"]] == ["a4", "a7"]
+        a4 = cuerpo["cambios"][0]
+        assert "identidad de género libremente manifestada" in a4["texto_anterior"]
+        assert "personas transexuales" in a4["texto_nuevo"]
+        assert a4["consolidado_sha256"] == "c" * 64
+        assert a4["truncado"] is False
+        # Una supresión llega con la redacción nueva a NULL, y eso significa "ya no hay texto".
+        assert cuerpo["cambios"][1]["texto_nuevo"] is None
+
+    def test_no_se_cuela_el_diff_de_otra_norma_afectada(
+        self, client: TestClient, sesion_db: Session
+    ) -> None:
+        """Una versión de otra norma vigilada no sostiene esta alerta, así que no se publica."""
+        deteccion = _norma_con_deteccion(sesion_db, ident="BOE-A-2024-10767")
+        _versionar(sesion_db, deteccion.norma_id)
+        _versionar(sesion_db, deteccion.norma_id, afectada="BOE-A-2016-11096")
+        alerta = _aprobar(sesion_db, deteccion)
+
+        cuerpo = client.get(f"/api/alertas/{alerta.id}").json()
+
+        assert {c["norma_afectada"] for c in cuerpo["cambios"]} == {"BOE-A-2016-6728"}
+
+    def test_una_alerta_sin_diff_no_finge_tenerlo(
+        self, client: TestClient, sesion_db: Session
+    ) -> None:
+        deteccion = _norma_con_deteccion(sesion_db, ident="BOE-A-2024-0009")
+        alerta = _aprobar(sesion_db, deteccion)
+
+        cuerpo = client.get(f"/api/alertas/{alerta.id}").json()
+
+        assert cuerpo["cambios"] == []

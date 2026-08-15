@@ -94,6 +94,24 @@ def _resumen(alerta: AlertaPublica) -> str:
             f"  «{span.fragmento}» (caracteres {span.inicio}–{span.fin})" for span in alerta.spans
         ]
         lineas.append("")
+    if alerta.preceptos_con_diff:
+        # El diff entero (ADR 0018) no cabe en una entrada de feed —36 preceptos con sus dos
+        # redacciones—, así que aquí va lo que orienta y el enlace lleva al detalle. Lo que sí
+        # viaja es la lista de vocabulario, porque es lo que dice **por dónde** mirar.
+        lineas.append(
+            f"El sistema tiene archivada la redacción anterior de {alerta.preceptos_con_diff} "
+            "precepto(s) de la norma afectada."
+        )
+        if alerta.terminos_perdidos:
+            lineas.append(
+                "Vocabulario que estaba en la redacción anterior de esos preceptos y no está en "
+                "la nueva: " + ", ".join(alerta.terminos_perdidos) + "."
+            )
+            lineas.append(
+                "Es una pista de por dónde leer, no una conclusión: un término puede seguir "
+                "vigente en otro artículo que la reforma no tocó."
+            )
+        lineas.append("")
     lineas.append(
         f"Clasificado por la regla {alerta.regla_aplicada or '—'}"
         + (f" del catálogo {alerta.version_reglas}" if alerta.version_reglas else "")

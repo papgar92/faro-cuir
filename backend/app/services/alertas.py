@@ -17,23 +17,74 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy import Select, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.deteccion import Alerta, Deteccion
 from app.models.documento import Documento
-from app.models.norma import Norma
+from app.models.norma import Norma, VersionNorma
 from app.pipeline import watchlist
 from app.schemas.alerta import (
     AlertaPublica,
+    CambioPrecepto,
     NormaAlerta,
     NormaVigiladaAfectada,
     SpanEvidenciaPublico,
     TextoArchivadoAlerta,
 )
 
+# Tope por redacción publicada. El artículo más largo del corpus no llega, así que hoy no recorta
+# nada; existe para que un precepto desmesurado —o un consolidado manipulado— no convierta una
+# respuesta de la API en un problema de memoria de quien la consuma. Cuando recorta, la fila lo
+# dice con `truncado`, porque una cita cortada que no avisa es una cita falsa.
+MAX_CARACTERES_REDACCION = 8_000
+
 
 def _lista(valor: Any) -> list[Any]:
     return valor if isinstance(valor, list) else []
+
+
+def _recortar(texto: str | None) -> tuple[str | None, bool]:
+    if texto is None or len(texto) <= MAX_CARACTERES_REDACCION:
+        return texto, False
+    return texto[:MAX_CARACTERES_REDACCION] + " […]", True
+
+
+def cambios_de(session: Session, norma_id: int, vigiladas: list[str]) -> list[CambioPrecepto]:
+    """Los preceptos reescritos que el ADR 0018 archivó para esta norma.
+
+    **Filtrado por las normas vigiladas que declara la propia alerta**, y no simplemente por
+    `norma_id`: una fila de `version_norma` de otra norma afectada no sostiene *esta* alerta, y
+    publicarla dentro sería enseñar como evidencia algo que el veredicto no miró.
+
+    Consulta aparte y no dentro de `consulta()` porque solo la usa el detalle: el listado publica
+    cuántos hay, no sus textos.
+    """
+    if not vigiladas:
+        return []
+    filas = session.execute(
+        select(VersionNorma, Documento.sha256)
+        .join(Documento, Documento.id == VersionNorma.documento_consolidado_id)
+        .where(VersionNorma.norma_id == norma_id, VersionNorma.norma_afectada.in_(vigiladas))
+        .order_by(VersionNorma.ordinal, VersionNorma.id)
+    ).all()
+
+    cambios = []
+    for version, sha256 in filas:
+        anterior, corte_anterior = _recortar(version.texto_anterior)
+        nuevo, corte_nuevo = _recortar(version.texto_nuevo)
+        cambios.append(
+            CambioPrecepto(
+                norma_afectada=version.norma_afectada,
+                articulo=version.articulo,
+                bloque=version.bloque,
+                texto_anterior=anterior,
+                texto_nuevo=nuevo,
+                fecha_vigencia=version.fecha_vigencia,
+                consolidado_sha256=sha256,
+                truncado=corte_anterior or corte_nuevo,
+            )
+        )
+    return cambios
 
 
 def consulta() -> Select[tuple[Alerta, Deteccion, Norma]]:
@@ -50,7 +101,13 @@ def consulta() -> Select[tuple[Alerta, Deteccion, Norma]]:
     )
 
 
-def a_publica(alerta: Alerta, deteccion: Deteccion, norma: Norma) -> AlertaPublica:
+def a_publica(
+    alerta: Alerta,
+    deteccion: Deteccion,
+    norma: Norma,
+    *,
+    cambios: list[CambioPrecepto] | None = None,
+) -> AlertaPublica:
     """Arma la vista pública. Tolerante con la forma de `evidencia_json` a propósito.
 
     Una fila escrita por una versión anterior del clasificador tiene que producir una alerta con
@@ -93,6 +150,12 @@ def a_publica(alerta: Alerta, deteccion: Deteccion, norma: Norma) -> AlertaPubli
             for span in _lista(evidencia.get("spans"))
             if isinstance(span, dict) and {"inicio", "fin", "fragmento"} <= span.keys()
         ],
+        # Diagnóstico del ADR 0018, no criterio: ver `pipeline/reglas.terminos_perdidos`.
+        terminos_perdidos=[str(t) for t in _lista(evidencia.get("terminos_perdidos"))],
+        # La cifra sale de la evidencia guardada al clasificar y no de contar `cambios`: así el
+        # listado, que no trae los textos, dice igualmente cuántos preceptos hay archivados.
+        preceptos_con_diff=int(evidencia.get("preceptos_con_diff") or 0),
+        cambios=cambios or [],
         norma=NormaAlerta.model_validate(norma),
         texto_archivado=(
             TextoArchivadoAlerta.model_validate(cuerpo) if cuerpo is not None else None

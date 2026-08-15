@@ -218,6 +218,19 @@ export interface NormaVigiladaAfectadaApi {
   ambito: string;
 }
 
+/** Un precepto reescrito: qué decía y qué dice (ADR 0018). Solo viaja en el detalle. */
+export interface CambioPreceptoApi {
+  norma_afectada: string;
+  articulo: string | null;
+  bloque: string | null;
+  texto_anterior: string | null;
+  texto_nuevo: string | null;
+  fecha_vigencia: string | null;
+  /** Del consolidado del BOE, que **no** es el texto publicado aquel día sino su elaboración. */
+  consolidado_sha256: string;
+  truncado: boolean;
+}
+
 export interface AlertaApi {
   id: number;
   emitida_en: string;
@@ -232,6 +245,15 @@ export interface AlertaApi {
   version_texto_plano: string | null;
   normas_vigiladas: NormaVigiladaAfectadaApi[];
   spans: SpanEvidenciaApi[];
+  /**
+   * Vocabulario protector que estaba en la redacción anterior de un precepto y no está en la
+   * nueva. **Diagnóstico, no veredicto**: no dice que el término haya desaparecido de la ley
+   * —puede seguir en otro artículo que la reforma no tocó— y no decide el signo de la alerta.
+   */
+  terminos_perdidos: string[];
+  /** Cuántos preceptos reescritos hay archivados. Viaja siempre; `cambios` solo en el detalle. */
+  preceptos_con_diff: number;
+  cambios: CambioPreceptoApi[];
   norma: {
     id: number;
     identificador_oficial: string;
@@ -260,6 +282,17 @@ export function listarAlertas(
   }
   const sufijo = query.size > 0 ? `?${query}` : "";
   return pedir<AlertaApi[]>(`/api/alertas${sufijo}`, signal);
+}
+
+/**
+ * El detalle de una alerta, que es lo único que trae las redacciones enteras (`cambios`).
+ *
+ * Va aparte del listado a propósito y no por comodidad de la API: una alerta puede llevar 36
+ * preceptos con su texto de antes y el de ahora, y meter eso en cada elemento del listado
+ * convertiría una página de titulares en varios megas.
+ */
+export function obtenerAlerta(id: number, signal?: AbortSignal): Promise<AlertaApi> {
+  return pedir<AlertaApi>(`/api/alertas/${id}`, signal);
 }
 
 // --- Panel de revisión: el gate humano (ADR 0017) ---------------------------------------

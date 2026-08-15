@@ -1,7 +1,10 @@
-import type { AlertaApi } from "../../api/client";
+import { useEffect, useState } from "react";
+
+import { obtenerAlerta, type AlertaApi, type CambioPreceptoApi } from "../../api/client";
 import { COLOR_CLASSES, type ClassificationMeta } from "../../lib/classification";
 import { formatearFecha, formatearSelloTiempo } from "../../lib/formato";
 import { nombreTerritorio } from "../../lib/territorio";
+import { CambiosPrecepto } from "../CambiosPrecepto/CambiosPrecepto";
 import { ClassificationBadge } from "../ClassificationBadge/ClassificationBadge";
 
 /**
@@ -39,6 +42,26 @@ export function AlertCard({ alerta }: AlertCardProps) {
   const colors = COLOR_CLASSES[meta.color];
   const territorios = alerta.normas_vigiladas.map((n) => nombreTerritorio(n.ambito));
 
+  // El diff se pide **al abrirlo**, no al pintar la lista: el listado no trae las redacciones
+  // (serían varios megas por página) y la mayoría de quien lee una lista no abre ninguna.
+  const [abierto, setAbierto] = useState(false);
+  const [cambios, setCambios] = useState<CambioPreceptoApi[] | null>(null);
+  const [fallo, setFallo] = useState(false);
+
+  useEffect(() => {
+    if (!abierto || cambios !== null) return;
+    const control = new AbortController();
+    obtenerAlerta(alerta.id, control.signal)
+      .then((detalle) => setCambios(detalle.cambios))
+      .catch((error: unknown) => {
+        // Una cancelación al cerrar o cambiar de filtro no es un fallo que enseñar.
+        if (control.signal.aborted) return;
+        setFallo(true);
+        console.error(error);
+      });
+    return () => control.abort();
+  }, [abierto, cambios, alerta.id]);
+
   return (
     <article
       className={`mb-3 max-w-[900px] rounded border border-line ${colors.borderLeft} border-l-4 bg-surface p-4`}
@@ -68,6 +91,51 @@ export function AlertCard({ alerta }: AlertCardProps) {
             {alerta.spans.length > 1 &&
               ` · y ${alerta.spans.length - 1} fragmento${alerta.spans.length > 2 ? "s" : ""} más`}
           </p>
+        </div>
+      )}
+
+      {alerta.terminos_perdidos.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs leading-relaxed text-ink-2">
+            Vocabulario que estaba en la redacción anterior de los preceptos reescritos y no está
+            en la nueva:
+          </p>
+          <ul className="mt-1.5 flex flex-wrap gap-1.5">
+            {alerta.terminos_perdidos.map((termino) => (
+              <li
+                key={termino}
+                className="rounded border border-line-2 bg-inset px-1.5 py-0.5 font-mono text-[11px] text-ink-2"
+              >
+                {termino}
+              </li>
+            ))}
+          </ul>
+          {/* La salvedad va pegada a la lista y no en una nota al pie: sin ella, «desaparece
+              identidad de género» se lee como que ya no está en la ley. */}
+          <p className="mt-1.5 text-[11px] leading-relaxed text-ink-3">
+            Es una pista de por dónde leer, no una conclusión: un término puede seguir vigente en
+            otro artículo que la reforma no tocó.
+          </p>
+        </div>
+      )}
+
+      {alerta.preceptos_con_diff > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setAbierto((previo) => !previo)}
+            aria-expanded={abierto}
+            className="rounded border border-line-2 bg-inset px-2.5 py-1.5 text-xs font-medium text-ink hover:border-line"
+          >
+            {abierto ? "Ocultar" : "Ver"} qué cambió · {alerta.preceptos_con_diff} precepto
+            {alerta.preceptos_con_diff > 1 ? "s" : ""} con la redacción anterior archivada
+          </button>
+          {abierto && fallo && (
+            <p className="mt-2 text-xs text-ink-2">
+              No se ha podido cargar el texto anterior. La alerta y su evidencia siguen arriba.
+            </p>
+          )}
+          {abierto && cambios !== null && <CambiosPrecepto cambios={cambios} />}
         </div>
       )}
 
