@@ -45,6 +45,17 @@ class Settings(BaseSettings):
     # haya que reponer.
     fase2_max_por_ejecucion: int = 500
 
+    # --- Versionado: el texto anterior desde el consolidado (ADR 0018) -------------------
+    # Los mismos dos frenos de la 6.2, con números distintos porque el tráfico es distinto: un
+    # consolidado es un documento grande (la Ley 2/2016 de Madrid son 277 KB; el Estatuto de los
+    # Trabajadores, 1,5 MB) y las candidatas son poquísimas — solo normas que tocan la watchlist,
+    # del orden de una entre cientos en el corpus medido. Por eso la pausa es larga y el tope
+    # pequeño: no hay ninguna prisa y sí una fuente pública que no conviene castigar.
+    versionado_pausa_segundos: float = 1.0
+    # Tope por ejecución, no cuota: lo que no entra hoy sigue en cola y entra mañana, porque la
+    # cola es una consulta (¿hay ya filas de `version_norma` para esta pareja?) y no un estado.
+    versionado_max_por_ejecucion: int = 20
+
     # --- Panel de revisión: el gate humano (ADR 0017) -----------------------------------
     # Sin valor por defecto y sin degradación posible: `security/panel.py` lanza si falta, con
     # el mismo criterio que `suscriptor_pepper`. Un panel que se abre solo porque nadie

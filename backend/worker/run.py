@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.database import SessionLocal
+from app.ingest import boe_consolidado
 from app.ingest.boe import BoeIngestError, SumarioNoDisponible
 from app.llm.ollama import ProveedorOllama
 from app.llm.provider import VERSION_PROMPT
@@ -27,7 +28,7 @@ from app.security.url_guard import UrlGuardError
 from app.security.xml_safe import XmlSafeError
 from app.services import clasificacion as servicio_clasificacion
 from app.services import extraccion as servicio_extraccion
-from app.services import ingesta, texto_integro
+from app.services import ingesta, texto_integro, versionado
 from app.services import prefiltro as servicio_prefiltro
 from app.services import revision as servicio_revision
 
@@ -75,6 +76,16 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--versionar",
+        action="store_true",
+        help=(
+            "No ingiere nada: descarga el texto consolidado de las normas vigiladas que alguna "
+            "norma ya ingerida modifica, y guarda el diff en version_norma (ADR 0018). Barre "
+            "toda la tabla. Es lo que hay que lanzar a mano cuando se quiera forzar el "
+            "reintento de lo que el BOE todavía no había consolidado."
+        ),
+    )
+    parser.add_argument(
         "--reclasificar",
         action="store_true",
         help=(
@@ -85,10 +96,14 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         ),
     )
     args = parser.parse_args(argv)
-    # `--fuente` deja de ser obligatorio porque ninguno de los tres modos de mantenimiento
-    # ingiere; se sigue exigiendo para todo lo demás, que sí necesita saber de dónde descargar.
-    if not (args.reprefiltrar or args.fase2 or args.reclasificar) and args.fuente is None:
-        parser.error("--fuente es obligatorio salvo con --reprefiltrar, --fase2 o --reclasificar")
+    # `--fuente` deja de ser obligatorio porque ninguno de los modos de mantenimiento ingiere;
+    # se sigue exigiendo para todo lo demás, que sí necesita saber de dónde descargar.
+    mantenimiento = args.reprefiltrar or args.fase2 or args.reclasificar or args.versionar
+    if not mantenimiento and args.fuente is None:
+        parser.error(
+            "--fuente es obligatorio salvo con --reprefiltrar, --fase2, --versionar "
+            "o --reclasificar"
+        )
     return args
 
 
@@ -168,6 +183,39 @@ def _registrar_clasificacion(resumen: servicio_clasificacion.ResumenClasificacio
     )
 
 
+def _registrar_versionado(resumen: versionado.ResumenVersionado) -> None:
+    """Escribe el resultado del versionado, con lo que la fuente aún no ha consolidado.
+
+    `sin_consolidar` es la cifra que no se puede omitir y la que más se malinterpreta: no
+    significa que la norma no cambiara nada, sino que el BOE todavía no lo ha incorporado a su
+    texto consolidado. Un log que solo diga "0 diffs" se lee como lo primero y es mentira.
+    """
+    logger.info(
+        "Versionado (consolidado %s): %s candidatas → %s consultadas, %s con diff "
+        "(%s versiones), %s sin consolidar todavía, %s fallidas. Quedan %s en cola. "
+        "Por norma vigilada: %s.",
+        boe_consolidado.VERSION_CONSOLIDADO,
+        resumen.candidatas,
+        resumen.consultadas,
+        resumen.con_diff,
+        resumen.filas,
+        resumen.sin_consolidar,
+        resumen.fallidas,
+        resumen.pendientes_restantes,
+        resumen.por_norma_afectada or "ninguna",
+    )
+
+
+def _versionar(session) -> versionado.ResumenVersionado:  # type: ignore[no-untyped-def]
+    settings = get_settings()
+    return versionado.poblar(
+        session,
+        almacen_root=settings.almacen_root,
+        pausa=settings.versionado_pausa_segundos,
+        limite=settings.versionado_max_por_ejecucion,
+    )
+
+
 def _encolar_revision(session) -> servicio_revision.ResumenEncolado:  # type: ignore[no-untyped-def]
     """Etapa 6: mete en la cola del gate humano lo que el clasificador dejó con veredicto.
 
@@ -220,6 +268,12 @@ def main(argv: list[str] | None = None) -> int:
             resumen = servicio_prefiltro.aplicar(session, almacen_root=settings.almacen_root)
         _registrar_fase2(resumen_fase2)
         _registrar_embudo(resumen, reaplicado=True)
+        return 0
+
+    if args.versionar:
+        with SessionLocal() as session:
+            resumen_versionado = _versionar(session)
+        _registrar_versionado(resumen_versionado)
         return 0
 
     if args.reclasificar:
@@ -282,6 +336,13 @@ def main(argv: list[str] | None = None) -> int:
         resumen = servicio_prefiltro.aplicar(
             session, almacen_root=settings.almacen_root, documento_id=resultado.documento_id
         )
+
+        # Etapa 5 (ADR 0018): el texto anterior de lo que las normas modifican, desde el
+        # consolidado del BOE. Barre **toda** la tabla y no solo el documento del día, y esa es
+        # justo la razón de que exista como etapa y no como un paso más de la ingesta: la
+        # consolidación llega con retraso, así que lo que hoy se puede completar casi nunca es lo
+        # de hoy, sino lo de días anteriores. Sale a la red, con el tope y la pausa de 6.2.
+        resumen_versionado = _versionar(session)
 
         # Etapa 3, acoplada a la misma pasada por la misma razón: sin esto habría una ventana
         # con normas relevantes y nadie las habría mirado. Ya no toca la red (lee el cuerpo del
@@ -350,6 +411,7 @@ def main(argv: list[str] | None = None) -> int:
         resumen_extraccion.fallidas,
         resumen_extraccion.punteros,
     )
+    _registrar_versionado(resumen_versionado)
     _registrar_clasificacion(resumen_clasificacion)
     return 0
 

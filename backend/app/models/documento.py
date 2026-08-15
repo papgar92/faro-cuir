@@ -48,6 +48,13 @@ class TipoDocumento(enum.StrEnum):
 
     SUMARIO = "sumario"
     TEXTO_NORMA = "texto_norma"
+    # Texto **consolidado** de una norma vigilada (ADR 0018). Es un tercer valor y no un
+    # `texto_norma` más porque no es lo mismo: `texto_norma` es lo que la fuente publicó aquel
+    # día —el hecho que este archivo existe para conservar (6.5)— y `consolidado` es una
+    # elaboración posterior de la propia fuente, que cambia cada vez que alguien modifica la
+    # norma. Mezclarlos haría que el archivo dejara de poder afirmar "el día X esto decía
+    # exactamente esto", que es toda su utilidad.
+    CONSOLIDADO = "consolidado"
 
 
 class Documento(Base):

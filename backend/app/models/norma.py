@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     JSON,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -268,11 +269,47 @@ class VersionNorma(Base):
     """
 
     __tablename__ = "version_norma"
+    __table_args__ = (
+        # Clave natural del diff (ADR 0018): esta norma, sobre esta otra, en este bloque. Es lo
+        # que hace idempotente al servicio de versionado — reejecutarlo sobre lo mismo no puede
+        # duplicar filas — y vive en la base de datos y no solo en el `SELECT` previo del
+        # código, porque la tabla es de solo inserción: una fila duplicada **no se puede
+        # borrar** (el trigger rechaza DELETE), así que aquí prevenir es la única opción.
+        UniqueConstraint("norma_id", "norma_afectada", "bloque", name="uq_version_norma_bloque"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # La norma **modificadora**: la que se publicó y estamos analizando, no la que resulta
+    # modificada. El diff que guarda esta fila es lo que esta norma le hizo a otra, y es así
+    # porque la modificada casi nunca está en `norma` — la Ley 2/2016 de Madrid es de hace ocho
+    # años y no salió de ningún sumario que hayamos ingerido. Ver ADR 0018.
     norma_id: Mapped[int] = mapped_column(
         ForeignKey("norma.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+    # Identificador oficial de la norma **modificada** (`BOE-A-2016-6728`). Se guarda como texto
+    # y no como FK precisamente por lo anterior: apuntar a una fila que no existe obligaría a
+    # inventarse una `norma` sin sumario del que colgar, y el identificador oficial es el dato
+    # que de verdad la nombra en cualquier fuente.
+    norma_afectada: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    # Bloque del texto consolidado al que corresponde el diff ("a7", "dd", "ti"). NULL si la
+    # fuente no lo identifica. No es lo mismo que `articulo`: aquel es el rótulo legible
+    # («Artículo 7») y este el ancla con la que se vuelve al documento archivado.
+    bloque: Mapped[str | None] = mapped_column(String(100))
+    # Dónde está archivado —con su `sha256` y su sello (6.5)— el documento del que salió este
+    # diff. NOT NULL a propósito: una versión sin la evidencia que la sostiene sería justo lo
+    # que este proyecto no publica. Es el consolidado del BOE, que **no es el texto publicado
+    # aquel día** sino una elaboración posterior de la propia fuente; por eso se archiva aparte
+    # y se declara con `tipo='consolidado'`.
+    documento_consolidado_id: Mapped[int] = mapped_column(
+        ForeignKey("documento.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    # Desde cuándo rige la redacción nueva, según la fuente. Contexto, no evidencia.
+    fecha_vigencia: Mapped[datetime.date | None] = mapped_column(Date)
+    # Versión de la derivación con la que se extrajo el texto de cada bloque
+    # (`ingest/boe_consolidado.VERSION_CONSOLIDADO`). Va en la fila porque la tabla es inmutable:
+    # si la derivación cambia, las filas viejas se quedan como están y lo único que permite
+    # saber que no son comparables con las nuevas es esta columna.
+    version_derivacion: Mapped[str] = mapped_column(String(20), nullable=False)
     # Encadenamiento: una norma que modifica a otra genera una versión nueva que apunta a la
     # anterior. NULL en la primera versión conocida de una norma.
     version_anterior_id: Mapped[int | None] = mapped_column(

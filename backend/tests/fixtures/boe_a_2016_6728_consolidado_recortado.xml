@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<response>
+  <status>
+    <code>200</code>
+    <text>ok</text>
+  </status>
+  <data>
+    <metadatos>
+      <fecha_actualizacion>20251219T191839Z</fecha_actualizacion>
+      <identificador>BOE-A-2016-6728</identificador>
+      <ambito codigo="2">Autonómico</ambito>
+      <rango codigo="1300">Ley</rango>
+      <titulo>Ley 2/2016, de 29 de marzo, de Identidad y Expresión de Género e Igualdad Social y no Discriminación de la Comunidad de Madrid.</titulo>
+      </metadatos>
+    <analisis>
+      <materias>
+        <materia codigo="232">Ancianos</materia>
+        <materia codigo="327">Asistencia sanitaria</materia>
+        <materia codigo="329">Asistencia social</materia>
+        <materia codigo="2463">Derechos de los ciudadanos</materia>
+        <materia codigo="3060">Discriminación</materia>
+        <materia codigo="4051">Igualdad de oportunidades</materia>
+        <materia codigo="4831">Madrid</materia>
+        <materia codigo="4925">Menores</materia>
+        <materia codigo="6657">Sistema Nacional de Salud</materia>
+      </materias>
+      <notas>
+        <nota>Publicada en el BOCM núm. 98, de 26 de abril de 2016.</nota>
+      </notas>
+      <referencias>
+        <anteriores>
+          <anterior>
+            <id_norma />
+            <relacion codigo="270">MODIFICA</relacion>
+            <texto>el art. 2.d) del Decreto 72/2001, de 31 de mayo (BOCM núm. 131, de 4 de junio)</texto>
+          </anterior>
+          <anterior>
+            <id_norma />
+            <relacion codigo="270">MODIFICA</relacion>
+            <texto>el art. 3.d) del Reglamento aprobado por Orden 766/1993, de 10 de junio (BOCM núm. 145, del 21)</texto>
+          </anterior>
+          <anterior>
+            <id_norma>BOE-A-1983-6317</id_norma>
+            <relacion codigo="440">DE CONFORMIDAD con</relacion>
+            <texto>el Estatuto aprobado por Ley Orgánica 3/1983, de 25 de febrero</texto>
+          </anterior>
+          <anterior>
+            <id_norma>BOE-A-2015-8222</id_norma>
+            <relacion codigo="330">CITA</relacion>
+            <texto>Ley Orgánica 8/2015, de 22 de julio</texto>
+          </anterior>
+          <anterior>
+            <id_norma>BOE-A-2007-5585</id_norma>
+            <relacion codigo="330">CITA</relacion>
+            <texto>Ley 3/2007, de 15 de marzo</texto>
+          </anterior>
+        </anteriores>
+        <posteriores>
+          <posterior>
+            <id_norma>BOE-A-2024-10767</id_norma>
+            <relacion codigo="270">SE MODIFICA</relacion>
+            <texto>el título, el preámbulo y determinados preceptos; y SE SUPRIME los arts. 7, 24 y 45, 48 y los títulos X y XIV, por Ley 17/2023, de 27 de diciembre</texto>
+          </posterior>
+          <posterior>
+            <id_norma>BOCM-m-2016-90511</id_norma>
+            <relacion codigo="331">SE DICTA EN RELACIÓN</relacion>
+            <texto>redacción armónica del art. 56, por Acuerdo  de 17 de noviembre de 2016</texto>
+          </posterior>
+          <posterior>
+            <id_norma>BOE-A-2024-27142</id_norma>
+            <relacion codigo="470">SE DECLARA</relacion>
+            <texto>en el Recurso 4925/2024, el mantenimiento de la suspensión de vigencia y aplicación de lo indicado del art. 14.2.b), en la redacción dada el artículo único.12 de la Ley 17/2023, de 27 de diciembre y el levantamiento de la suspensión en el resto de preceptos impugnados, por Auto 126/2024, de 19 de noviembre</texto>
+          </posterior>
+          <posterior>
+            <id_norma>BOE-A-2024-9530</id_norma>
+            <relacion codigo="552">Recurso</relacion>
+            <texto>2220/2024, promovido contra el inciso indicado del art. 14.2.b), en la redacción dada por el art. único.12 de la Ley 17/2023, de 27 de diciembre</texto>
+          </posterior>
+          <posterior>
+            <id_norma>BOE-A-2024-14994</id_norma>
+            <relacion codigo="694">Recurso</relacion>
+            <texto>4925/2024, planteado en relación con los arts. 13.3, 14.2.b), 23.1.f), 30.5 y 47.d), en la redacción dada por los apartados 11, 12, 15, 17 y 22 bis del artículo único de la Ley 17/2023, de 27 de diciembre, con suspensión, desde el 22 de julio de 2024, de vigencia y aplicación de los preceptos impugnados y, desde el 26 de junio de 2024, para las partes legitimadas</texto>
+          </posterior>
+        </posteriores>
+      </referencias>
+    </analisis>
+    <texto>
+      <bloque id="a2" tipo="precepto" titulo="Artículo 2">
+        <version id_norma="BOE-A-2016-6728" fecha_publicacion="20160426" fecha_vigencia="20160427">
+          <p class="articulo">Artículo 2. Ámbito de la Ley.</p>
+          <p class="parrafo">1. La presente Ley será de aplicación a cualquier persona física o jurídica, pública o privada, cualquiera que sea su domicilio o residencia, que se encuentre o actúe en el ámbito territorial de la Co […]</p>
+          <p class="parrafo">2. La Asamblea de Madrid, las entidades locales de Madrid, así como cualquier entidad de derecho público o privado vinculada o dependiente de las mismas, y la Federación Madrileña de Municipios, garan […]</p>
+          <p class="parrafo">3. La presente Ley se aplicará a cualquier etapa de la vida de las personas.</p>
+        </version>
+      </bloque>
+      <bloque id="a4" tipo="precepto" titulo="Artículo 4">
+        <version id_norma="BOE-A-2016-6728" fecha_publicacion="20160426" fecha_vigencia="20160427">
+          <p class="articulo">Artículo 4. Reconocimiento del derecho a la identidad de género libremente manifestada.</p>
+          <p class="parrafo">1. Toda persona tiene derecho a construir para sí una autodefinición con respecto a su cuerpo, sexo, género y su orientación sexual. La orientación, sexualidad e identidad de género que cada persona d […]</p>
+          <p class="parrafo">2. Ninguna persona será objeto de requerimiento alguno de pruebas de realización total o parcial de cirugías genitales, tratamientos hormonales o pruebas psiquiátricas, psicológicas o tratamientos méd […]</p>
+          <p class="parrafo">3. Quedan prohibidas en los servicios sanitarios de la Comunidad de Madrid las terapias de aversión o de conversión de las manifestaciones de identidad de género libremente manifestadas por las person […]</p>
+        </version>
+        <version id_norma="BOE-A-2024-10767" fpub="20240529" fecha_publicacion="20231229" fecha_vigencia="20231230">
+          <p class="articulo">Artículo 4. Reconocimiento del respeto a la libertad y dignidad de las personas transexuales.</p>
+          <p class="parrafo">1. Ninguna persona podrá ser presionada para ocultar, suprimir o negar su condición sexual, ni su transexualidad, con independencia de la fase en que se encuentre, siempre con respeto a la libertad pe […]</p>
+          <p class="parrafo">2. Ninguna persona será objeto de requerimiento alguno de pruebas de realización total o parcial de cirugías genitales, tratamientos hormonales o tratamientos médicos para hacer uso de su libertad en […]</p>
+          <p class="parrafo">3. Quedan prohibidas en los servicios sanitarios de la Comunidad de Madrid las terapias de aversión o de conversión, así como las cirugías genitales de las personas intersexuales que no obedezcan a la […]</p>
+          <blockquote>
+            <p class="nota_pie">Se modifica por el art. único.4 de la Ley 17/2023, de 27 de diciembre. <a class="refPost">Ref. BOE-A-2024-10767</a></p>
+          </blockquote>
+        </version>
+      </bloque>
+      <bloque id="a7" tipo="precepto" titulo="Artículo 7">
+        <version id_norma="BOE-A-2016-6728" fecha_publicacion="20160426" fecha_vigencia="20160427">
+          <p class="articulo">Artículo 7. Documentación administrativa.</p>
+          <p class="parrafo">1. Las Administraciones Públicas de la Comunidad de Madrid, en el ámbito de sus competencias, deberán adoptar todas las medidas administrativas y de cualquier otra índole que sean necesarias a fin de […]</p>
+          <p class="parrafo">2. Al objeto de favorecer una mejor integración y evitar situaciones de sufrimiento por exposición pública o discriminación, la Comunidad de Madrid proveerá a toda persona que lo solicite de las acred […]</p>
+          <p class="parrafo">3. Reglamentariamente se establecerá el procedimiento de acreditación en base a los siguientes criterios:</p>
+          <p class="parrafo_2">a) Las solicitudes serán formuladas por las personas interesadas o, en su caso, por sus representantes legales.</p>
+          <p class="parrafo">b) Los trámites para la expedición de la documentación administrativa prevista en la presente Ley serán gratuitos, no requerirán de intermediación alguna, y en ningún caso implicarán la obligación de […]</p>
+          <p class="parrafo">c) Se garantizará que las personas sean tratadas de acuerdo con su identidad de género libremente determinada y se respetará la dignidad y privacidad de la persona concernida.</p>
+          <p class="parrafo">d) No se alterará la titularidad jurídica de los derechos y obligaciones que correspondan a la persona ni se prescindirá del número del documento nacional de identidad, siempre que este deba figurar. […]</p>
+          <p class="parrafo">e) Se habilitarán los mecanismos administrativos oportunos y coordinados para adaptar los archivos, bases de datos y demás ficheros de las Administraciones, eliminando toda referencia a la identificac […]</p>
+          <p class="parrafo_2">4. La Comunidad de Madrid facilitará el asesoramiento necesario para realizar los cambios oportunos en ficheros de organismos privados o de carácter estatal, de acuerdo con lo recogido en la Ley Orgán […]</p>
+        </version>
+        <version id_norma="BOE-A-2024-10767" fpub="20240529" fecha_publicacion="20231229" fecha_vigencia="20231230">
+          <p class="articulo">Artículo 7. Documentación administrativa.</p>
+          <p class="parrafo">
+            <strong>(Suprimido)</strong>
+          </p>
+          <blockquote>
+            <p class="nota_pie">Se suprime por el art. único.7 de la Ley 17/2023, de 27 de diciembre. <a class="refPost">Ref. BOE-A-2024-10767</a></p>
+          </blockquote>
+        </version>
+      </bloque>
+      </texto>
+  </data>
+</response>
