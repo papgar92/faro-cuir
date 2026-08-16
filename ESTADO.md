@@ -1802,3 +1802,93 @@ inyección nuevas leídas con criterio adversario (no solo comprobadas contra la
 y el repaso línea a línea de todo el diff, que son 118 ficheros.
 
 453 tests en verde.
+
+---
+
+### ✅ `revisor-seguridad` sobre el ADR 0018, y el gold set pasa de 4 a 14 casos — 2026-08-16
+
+#### La auditoría encontró un agujero real del gate humano, y estaba en producción
+
+**Hallazgo 1 (ALTO), arreglado:** `GET /api/alertas/{id}` consultaba `version_norma` **en tiempo
+de petición**. Como R-MOD-001 dispara aunque el diff todavía no exista —la consolidación del BOE
+tarda días— la secuencia normal era: se clasifica sin diff → una persona aprueba viendo solo la
+cláusula → días después `--versionar` inserta las filas → **la alerta ya emitida empieza a
+publicar dos redacciones literales que nadie revisó nunca**. Contenido nuevo colgado de una
+aprobación vieja, que es exactamente lo que prohíben la regla de oro 4 y 7.7. Y encima invisible
+en la web, porque la tarjeta solo pinta el botón si `preceptos_con_diff > 0`, que sí está
+congelado en la evidencia.
+
+Arreglado con el filtro `creada_en <= alerta.emitida_en`: **una alerta publica el archivo tal y
+como estaba cuando se aprobó**, y hay un test que lo fija. Lo demás que salió y se ha cerrado:
+
+- **Reclasificar una detección ya emitida** reescribía en silencio lo que lee quien recibió la
+  alerta. No se impide —el catálogo nuevo puede ser mejor— pero ahora **grita en el log**.
+- **Sin tope de preceptos publicados**: el tamaño de una respuesta pública lo decidía el número
+  de bloques del consolidado. Ahora hay tope.
+- **El consolidado se archivaba bajo la fuente de la norma que lo motivó.** Hoy inocuo (solo hay
+  BOE), pero el caso que lo rompe está buscado a propósito por la watchlist: una ley autonómica
+  que modifique una norma estatal habría dejado una fila diciendo «fuente: BOJA» para un fichero
+  bajado de boe.es (6.5). Ahora se archiva bajo la fuente de la que se descarga.
+- **El comentario del UNIQUE de `version_norma` prometía una garantía que PostgreSQL no da** con
+  `bloque` NULL (un UNIQUE sin `NULLS NOT DISTINCT` no compara NULLs). Corregido para que diga
+  dónde acaba, que en este proyecto el comentario que explica un control es parte del control.
+
+**Lo que la auditoría revisó y dio por bueno**, con el camino recorrido: la inyección desde el
+consolidado (DB → Pydantic → JSON → Atom escapado por ElementTree → JSX sin
+`dangerouslySetInnerHTML`), la composición de la URL (el identificador del `<analisis>` solo
+busca en la watchlist; la URL se compone con el nuestro y `PATRON_IDENTIFICADOR` está anclado por
+los dos extremos), la separación consolidado/publicado y la migración.
+
+#### Dos hallazgos ALTO/MEDIO que quedan ABIERTOS, con su análisis
+
+1. **La cola de versionado se muere de hambre.** El tope (20) se aplica sobre una cola ordenada
+   por `norma.id` ascendente, y las parejas irresolubles —derogaciones totales, consolidados que
+   nunca incorporen el cambio, fallos permanentes— nunca salen de ella y ocupan siempre las
+   primeras posiciones. Con 20 parejas muertas, **el versionado deja de mirar lo nuevo y el
+   resumen sigue diciendo «20 consultadas»**. Hoy hay una (la Ley 3/2007). Con 61 fuentes en el
+   horizonte esto es cuestión de semanas. Hace falta una marca de último intento o un orden que
+   no premie siempre a las mismas.
+2. **Un fallo duro se reintenta para siempre y escribe `CONTROL DE SEGURIDAD` en cada pasada.**
+   `ResponseTooLarge` o un XML roto no se arreglan mañana, y convertir la línea más grave del log
+   en ruido diario es el mecanismo por el que un control de verdad deja de leerse.
+
+Y una tercera, que es de producto y no de seguridad: **el panel de revisión no enseña el diff**,
+así que quien aprueba sigue sin ver lo que se va a publicar. El filtro por fecha impide publicar
+lo que llegó después, pero no hace que se haya mirado lo que llegó antes.
+
+#### El gold set: de 4 a 14 casos, y un test que mentía
+
+Etiquetados a mano **leyendo el texto íntegro archivado**, no el título, y seleccionados con
+sondas escritas aparte del vocabulario del prefiltro (si se seleccionara con su propio
+diccionario, el corpus solo tendría lo que ya sabe encontrar y el recall saldría inflado):
+
+- **`BOE-A-2023-5365`, Ley 3/2023 de Empleo: el caso de título anodino que 7.8 pedía.** Se titula
+  «de Empleo» y en su articulado declara a «las personas LGTBI, en particular trans» colectivo de
+  atención prioritaria, con un «Artículo 39. No discriminación». Relevante, y ningún título lo
+  anuncia.
+- `BOE-A-2024-10768`, la **segunda** reforma madrileña: relevante por los dos ejes.
+- Tres **negativos difíciles**: dos temarios de oposición que citan la Ley 4/2023 (la familia de
+  falsos positivos que el ADR 0011 midió) y un convenio de Sanidad sobre VIH que menciona el
+  Orgullo LGTBI sin regular nada. Los tres, `sospecha`: ante la duda, sospecha.
+- Una **trampa de subcadena**: un extracto de subvenciones agrarias donde «trans» aparece dentro
+  de las URL de `infosubvenciones.es/bdnstrans/…`. Descartada, y comprueba que los límites de
+  palabra del prefiltro siguen vivos.
+- Cuatro negativos triviales (nombramiento, licitación, convocatoria local, anuncio portuario).
+
+**El caso de título anodino tumbó un test, y el test estaba mal.** `test_el_titulo_no_descarta_lo_
+que_deberia_pasar` exigía que un caso relevante por el eje léxico entrara en la cola **ya con el
+título**, dando por hecho que «si es relevante, el título lo dice». La Ley de Empleo prueba que
+no: sobre el título sale `pendiente`, que **no es un descarte** sino «esperando su texto íntegro»
+(7.2). El test trataba como fallo justo el comportamiento que 7.1 exige. Corregido.
+
+474 tests en verde.
+
+#### Siguiente, por orden
+
+1. **Medir de verdad con el gold set**: un test que evalúe sobre el **cuerpo archivado** (no el
+   título) y reporte el desglose por eje, saltándose si no hay almacén, como ya hace
+   `TestDocumentoRealCompleto`. Es lo que convierte los 14 casos en una medición — **~15k**.
+2. **Los dos hallazgos abiertos de la auditoría** (hambre de la cola y reintento de fallos
+   duros) — **~15k**.
+3. **El diff en el panel de revisión**, para que quien aprueba vea lo que se publica — **~15k**.
+4. Seguir dando volumen al gold set. Sigue siendo el trabajo humano más lento.
