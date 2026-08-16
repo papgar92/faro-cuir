@@ -72,6 +72,10 @@ def obtener_alerta(alerta_id: int, session: Session = Depends(get_session)) -> A
     # serían varios megas por página; aquí son lo que se ha venido a ver.
     publica = servicio.a_publica(alerta, deteccion, norma)
     cambios = servicio.cambios_de(
-        session, norma.id, [vigilada.identificador for vigilada in publica.normas_vigiladas]
+        session,
+        norma.id,
+        [vigilada.identificador for vigilada in publica.normas_vigiladas],
+        # Lo que se publica es el archivo tal y como estaba al aprobarse, no el de hoy.
+        emitida_en=alerta.emitida_en,
     )
     return publica.model_copy(update={"cambios": cambios})

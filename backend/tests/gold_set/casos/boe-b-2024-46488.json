@@ -1,0 +1,11 @@
+{
+  "identificador_oficial": "BOE-B-2024-46488",
+  "fuente": "boe",
+  "fecha_publicacion": "2024-12-19",
+  "titulo": "Extracto de la Orden de 30 de octubre de 2024 por la que se convocan las subvenciones previstas en el Real Decreto 388/2021, de 1 de junio, por el que se establecen las bases reguladoras de las subvenciones destinadas a la obtención de avales de la Sociedad Anónima Estatal de Caución Agraria S.M.E. (SAECA) por titulares de explotaciones agrarias, de operadores económicos del sector pesquero o de industrias agroalimentarias que garanticen préstamos para su financiación.",
+  "organo_emisor": "MINISTERIO DE AGRICULTURA, PESCA Y ALIMENTACIÓN",
+  "prefiltro_esperado": "descartada",
+  "ejes_esperados": [],
+  "clasificacion_esperada": null,
+  "notas": "TRAMPA DE SUBCADENA, y por eso entra en el corpus: el texto contiene «trans» tres veces, pero dentro de las URL de la Base de Datos Nacional de Subvenciones (infosubvenciones.es/bdnstrans/...). Un prefiltro sin límites de palabra lo marcaría; el de este proyecto los tiene (pipeline/prefiltro), así que este caso comprueba que ese control sigue vivo. Subvenciones agrarias: sin ninguna relación con el ámbito."
+}

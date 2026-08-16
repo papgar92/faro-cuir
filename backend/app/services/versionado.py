@@ -68,6 +68,7 @@ from sqlalchemy.orm import Session
 from app.ingest import boe_consolidado
 from app.ingest.boe_consolidado import ConsolidadoError, NoConsolidado
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
+from app.models.fuente import Fuente, TipoFuente
 from app.models.norma import EstadoPrefiltro, Norma, VersionNorma
 from app.pipeline import watchlist
 from app.pipeline.watchlist import NormaVigilada
@@ -216,6 +217,20 @@ def poblar(
     una pasada larga que falle al final no puede tirar peticiones ya gastadas contra el BOE.
     """
     lista = watchlist.watchlist()
+    # **El consolidado se archiva bajo la fuente de la que se descarga, no bajo la de la norma
+    # que lo motivó.** Lo señaló la auditoría del 2026-08-16 y hoy es inocuo porque solo se
+    # ingiere BOE, pero el caso que lo rompe está buscado a propósito por la watchlist: una ley
+    # autonómica que modifique una norma estatal dejaría en el archivo una fila diciendo
+    # «fuente: BOJA» para un fichero bajado de boe.es, con su sha256 y su sello. El archivo
+    # tiene que poder decir de dónde salió cada byte (6.5).
+    fuente_boe = session.scalar(select(Fuente).where(Fuente.tipo == TipoFuente.BOE))
+    if fuente_boe is None:
+        logger.error(
+            "No hay fuente de tipo 'boe' en la base de datos: no se puede archivar un "
+            "consolidado sin decir de dónde salió. ¿Faltan las migraciones?"
+        )
+        return ResumenVersionado(0, 0, 0, 0, 0, 0)
+
     normas = list(session.scalars(_cola(documento_id)))
 
     candidatas = consultadas = con_diff = filas = sin_consolidar = fallidas = 0
@@ -320,7 +335,7 @@ def poblar(
             ruta = archivar(contenido, digest, almacen_root=almacen_root)
             documento = _documento_consolidado(
                 session,
-                fuente_id=norma.documento.fuente_id,
+                fuente_id=fuente_boe.id,
                 identificador=vigilada.identificador,
                 digest=digest,
                 ruta=ruta,

@@ -1,0 +1,13 @@
+{
+  "identificador_oficial": "BOE-A-2024-26507",
+  "fuente": "boe",
+  "fecha_publicacion": "2024-12-19",
+  "titulo": "Orden PJC/1437/2024, de 3 de diciembre, por la que se convocan procesos selectivos para el acceso por turno libre, a los Cuerpos de Gestión Procesal y Administrativa, Tramitación Procesal y Administrativa y Auxilio Judicial de la Administración de Justicia.",
+  "organo_emisor": "MINISTERIO DE LA PRESIDENCIA, JUSTICIA Y RELACIONES CON LAS CORTES",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "notas": "El falso positivo que el ADR 0011 midió y que el eje léxico produce a destajo sobre texto íntegro: una convocatoria de oposición cuyo TEMARIO cita la Ley 4/2023 y la Ley 15/2022. Menciona pero no regula, así que la guía de etiquetado manda «sospecha» y no «descartada»: cuesta un puesto en la cola, no una norma perdida. Es el caso con el que se mide la PRECISION del eje léxico, que hoy está sin medir."
+}

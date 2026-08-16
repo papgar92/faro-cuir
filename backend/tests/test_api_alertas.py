@@ -18,7 +18,7 @@ from collections.abc import Iterator
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -446,6 +446,28 @@ class TestDiffPublicado:
     ) -> None:
         deteccion = _norma_con_deteccion(sesion_db, ident="BOE-A-2024-0009")
         alerta = _aprobar(sesion_db, deteccion)
+
+        cuerpo = client.get(f"/api/alertas/{alerta.id}").json()
+
+        assert cuerpo["cambios"] == []
+
+    def test_un_diff_archivado_despues_de_aprobar_no_se_publica(
+        self, client: TestClient, sesion_db: Session
+    ) -> None:
+        """Regla de oro 4 aplicada a un dato que llega tarde. Lo encontró la auditoría del 16/08.
+
+        R-MOD-001 dispara aunque el diff no exista todavía, y la consolidación del BOE tarda días.
+        Sin este filtro, una alerta aprobada el martes empezaba a publicar el viernes dos
+        redacciones literales que **nadie revisó nunca**, colgadas de una aprobación vieja.
+        """
+        deteccion = _norma_con_deteccion(sesion_db, ident="BOE-A-2024-10767")
+        alerta = _aprobar(sesion_db, deteccion)
+        # El versionado llega después: es el caso normal, no un ataque.
+        _versionar(sesion_db, deteccion.norma_id)
+        sesion_db.execute(
+            update(VersionNorma).values(creada_en=alerta.emitida_en + datetime.timedelta(hours=2))
+        )
+        sesion_db.commit()
 
         cuerpo = client.get(f"/api/alertas/{alerta.id}").json()
 

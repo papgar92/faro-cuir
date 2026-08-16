@@ -14,6 +14,7 @@ consulta sobre `deteccion`, no lo hereda, y por eso conviene que esto sea lo obv
 
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 from sqlalchemy import Select, select
@@ -38,6 +39,13 @@ from app.schemas.alerta import (
 # dice con `truncado`, porque una cita cortada que no avisa es una cita falsa.
 MAX_CARACTERES_REDACCION = 8_000
 
+# Tope de preceptos publicados por alerta. El consolidado de una norma grande tiene cientos de
+# bloques y `MAX_CARACTERES_REDACCION` acota cada texto pero no cuántos hay: sin este tope, el
+# tamaño de una respuesta pública lo decide la fuente. 100 cubre con holgura el caso mayor
+# conocido (81 bloques en la Ley 2/2016) y quien necesite el resto tiene el consolidado entero
+# con su `sha256`.
+MAX_CAMBIOS_PUBLICADOS = 100
+
 
 def _lista(valor: Any) -> list[Any]:
     return valor if isinstance(valor, list) else []
@@ -49,12 +57,26 @@ def _recortar(texto: str | None) -> tuple[str | None, bool]:
     return texto[:MAX_CARACTERES_REDACCION] + " […]", True
 
 
-def cambios_de(session: Session, norma_id: int, vigiladas: list[str]) -> list[CambioPrecepto]:
-    """Los preceptos reescritos que el ADR 0018 archivó para esta norma.
+def cambios_de(
+    session: Session,
+    norma_id: int,
+    vigiladas: list[str],
+    *,
+    emitida_en: datetime.datetime,
+) -> list[CambioPrecepto]:
+    """Los preceptos reescritos que el ADR 0018 archivó para esta norma, **tal y como estaban
+    cuando una persona aprobó la alerta**.
 
-    **Filtrado por las normas vigiladas que declara la propia alerta**, y no simplemente por
-    `norma_id`: una fila de `version_norma` de otra norma afectada no sostiene *esta* alerta, y
-    publicarla dentro sería enseñar como evidencia algo que el veredicto no miró.
+    Dos filtros, y los dos son controles:
+
+    - **Por las normas vigiladas que declara la propia alerta**, no solo por `norma_id`: una fila
+      de `version_norma` de otra norma afectada no sostiene *esta* alerta.
+    - **Por `creada_en <= emitida_en`**, que es la regla de oro 4 aplicada a un dato que llega
+      tarde. Lo encontró la auditoría del 2026-08-16 y era un agujero real: R-MOD-001 dispara
+      aunque el diff no exista todavía (la consolidación tarda días), así que sin este filtro una
+      alerta aprobada el martes podía empezar a publicar el viernes dos redacciones literales que
+      **nadie revisó nunca**, colgadas de una aprobación vieja. Material nuevo exige revisión
+      nueva; mientras no exista ese flujo, no se publica.
 
     Consulta aparte y no dentro de `consulta()` porque solo la usa el detalle: el listado publica
     cuántos hay, no sus textos.
@@ -64,8 +86,13 @@ def cambios_de(session: Session, norma_id: int, vigiladas: list[str]) -> list[Ca
     filas = session.execute(
         select(VersionNorma, Documento.sha256)
         .join(Documento, Documento.id == VersionNorma.documento_consolidado_id)
-        .where(VersionNorma.norma_id == norma_id, VersionNorma.norma_afectada.in_(vigiladas))
+        .where(
+            VersionNorma.norma_id == norma_id,
+            VersionNorma.norma_afectada.in_(vigiladas),
+            VersionNorma.creada_en <= emitida_en,
+        )
         .order_by(VersionNorma.ordinal, VersionNorma.id)
+        .limit(MAX_CAMBIOS_PUBLICADOS)
     ).all()
 
     cambios = []

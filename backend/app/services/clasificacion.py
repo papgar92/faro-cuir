@@ -36,7 +36,7 @@ from pathlib import Path
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.models.deteccion import Deteccion, OrigenClasificacion
+from app.models.deteccion import Alerta, Deteccion, OrigenClasificacion
 from app.models.norma import EstadoPrefiltro, Norma, VersionNorma
 from app.pipeline import prefiltro, reglas, watchlist
 from app.pipeline.texto import VERSION_TEXTO_PLANO
@@ -262,6 +262,21 @@ def aplicar(
             deteccion.regla_aplicada = veredicto.regla
             deteccion.severidad = veredicto.severidad
             deteccion.confianza = veredicto.confianza
+            if session.scalar(select(Alerta.id).where(Alerta.deteccion_id == deteccion.id)):
+                # La otra cara del hallazgo 1 de la auditoría del 2026-08-16: esta detección ya
+                # se publicó, así que reescribir su evidencia cambia lo que lee quien recibió la
+                # alerta. No se impide —el catálogo nuevo puede ser mejor y ocultarlo sería peor—
+                # pero **no puede pasar en silencio**: es material publicado que cambia sin que
+                # nadie lo revise, y hasta que exista un flujo de re-revisión (7.7) esto es lo
+                # único que lo hace visible.
+                logger.warning(
+                    "La detección %s de %s YA TIENE ALERTA EMITIDA y el catálogo %s reescribe su "
+                    "evidencia. Lo que se publicó y lo que se publica dejan de coincidir: "
+                    "revísalo.",
+                    deteccion.id,
+                    norma.identificador_oficial,
+                    reglas.VERSION_REGLAS,
+                )
             deteccion.evidencia_json = _evidencia_json(veredicto, ahora=ahora)
             con_veredicto += 1
             por_regla[veredicto.regla] = por_regla.get(veredicto.regla, 0) + 1

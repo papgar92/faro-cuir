@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2024-10768",
+  "fuente": "boe",
+  "fecha_publicacion": "2024-05-29",
+  "titulo": "Ley 18/2023, de 27 de diciembre, por la que se modifica la Ley 3/2016, de 22 de julio, de Protección Integral Contra la LGTBIfobia y la discriminación por razón de orientación e identidad sexual en la Comunidad de Madrid.",
+  "organo_emisor": "COMUNIDAD DE MADRID",
+  "prefiltro_esperado": "relevante",
+  "ejes_esperados": [
+    "lexico",
+    "referencial"
+  ],
+  "clasificacion_esperada": null,
+  "notas": "La SEGUNDA reforma madrileña de 2023, hermana de BOE-A-2024-10767 y hasta ahora ausente del corpus. Regula sobre el ámbito y ademas modifica BOE-A-2016-11096, que está en la watchlist, así que los dos ejes deberían dispararse. Etiquetado leyendo el texto íntegro archivado: el preámbulo y el articulado reescriben la ley de protección contra la LGTBIfobia. Es el positivo con el que se puede comprobar que el eje referencial no depende de que el título lo delate."
+}

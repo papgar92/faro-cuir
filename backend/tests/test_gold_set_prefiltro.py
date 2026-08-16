@@ -65,13 +65,16 @@ def test_el_titulo_no_descarta_lo_que_deberia_pasar(caso: CasoGoldSet) -> None:
         f"descarte definitivo solo ocurre tras leer el documento completo. {caso.notas}"
     )
 
-    if caso.prefiltro_esperado == "relevante" and "lexico" in caso.ejes_esperados:
-        # Un caso etiquetado como relevante por el eje léxico y cuyo título ya lo dice es lo
-        # más barato de detectar que hay. Si esto falla, el vocabulario ha perdido un término.
-        assert resultado.entra_en_la_cola, (
-            f"{caso.identificador_oficial}: el título contiene la señal y aun así no entra en "
-            f"la cola. {caso.notas}"
-        )
+    # **Aquí había una segunda comprobación y la ha tumbado un caso real**: se exigía que un
+    # caso relevante por el eje léxico entrara en la cola ya con el título, dando por hecho que
+    # «si es relevante, el título lo dice». La Ley 3/2023 de Empleo (`BOE-A-2023-5365`) prueba
+    # que no: se titula «de Empleo», declara a las personas trans colectivo de atención
+    # prioritaria en su articulado, y sobre el título sale `pendiente`.
+    #
+    # `pendiente` **no es un descarte**, es «esperando su texto íntegro» (7.2), así que el test
+    # estaba tratando como fallo justamente el comportamiento que 7.1 exige. Lo que se puede
+    # afirmar sobre un título es lo de arriba y nada más; medir de verdad es cosa del test que
+    # lee el cuerpo archivado.
 
 
 @pytest.mark.parametrize("caso", CASOS, ids=lambda c: c.identificador_oficial)

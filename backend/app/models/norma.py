@@ -270,11 +270,18 @@ class VersionNorma(Base):
 
     __tablename__ = "version_norma"
     __table_args__ = (
-        # Clave natural del diff (ADR 0018): esta norma, sobre esta otra, en este bloque. Es lo
-        # que hace idempotente al servicio de versionado — reejecutarlo sobre lo mismo no puede
-        # duplicar filas — y vive en la base de datos y no solo en el `SELECT` previo del
-        # código, porque la tabla es de solo inserción: una fila duplicada **no se puede
-        # borrar** (el trigger rechaza DELETE), así que aquí prevenir es la única opción.
+        # Clave natural del diff (ADR 0018): esta norma, sobre esta otra, en este bloque. Hace
+        # idempotente al servicio de versionado en la base de datos y no solo en el `SELECT`
+        # previo del código, porque la tabla es de solo inserción: una fila duplicada **no se
+        # puede borrar** (el trigger rechaza DELETE), así que prevenir es la única opción.
+        #
+        # **Dónde acaba esa garantía, que el comentario anterior no decía** (auditoría del
+        # 2026-08-16): `bloque` es nullable, y en PostgreSQL un UNIQUE sin `NULLS NOT DISTINCT`
+        # no compara los NULL entre sí. Para una fila sin bloque identificado, lo único que
+        # evita el duplicado es el `SELECT` previo — justo lo que aquí se dice que no basta. Hoy
+        # el consolidado del BOE siempre da `id` de bloque, así que el caso no se ha dado; si
+        # aparece otra fuente que no lo dé, esto se arregla con `NULLS NOT DISTINCT` (PG 15+) y
+        # no con más cuidado al escribir.
         UniqueConstraint("norma_id", "norma_afectada", "bloque", name="uq_version_norma_bloque"),
     )
 
