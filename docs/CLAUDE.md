@@ -726,6 +726,11 @@ ruff check . && ruff format --check . && mypy backend/app && pytest --cov
 # Ingesta manual (una fecha concreta)
 python -m worker.run --fuente boe --fecha 2024-12-19
 
+# Backfill: un rango de días, sin llamar al LLM. Es lo que hace viable traer meses de boletín
+# (una extracción cuesta 133,9 s, ADR 0011). Lo que se salta NO se pierde: la cola del extractor
+# es una consulta, así que una pasada normal posterior lo recoge.
+python -m worker.run --fuente boe --fecha 2024-11-15 --hasta 2024-12-16 --sin-extraccion
+
 # Reevaluar prefiltro tras subir VERSION_VOCABULARIO o VERSION_WATCHLIST
 python -m worker.run --reprefiltrar
 

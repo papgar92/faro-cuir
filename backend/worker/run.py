@@ -13,10 +13,11 @@ import argparse
 import datetime
 import logging
 import sys
+import time
 
 from sqlalchemy import select
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.database import SessionLocal
 from app.ingest import boe_consolidado
 from app.ingest.boe import BoeIngestError, SumarioNoDisponible
@@ -54,6 +55,25 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         type=_fecha,
         default=datetime.date.today(),
         help="Fecha del sumario en formato AAAA-MM-DD. Por defecto, hoy.",
+    )
+    parser.add_argument(
+        "--hasta",
+        type=_fecha,
+        help=(
+            "Ingiere el rango [--fecha, --hasta], un día por pasada. Existe para poder traer "
+            "meses de boletín sin lanzar treinta órdenes a mano; un día sin boletín (domingo, "
+            "festivo) no interrumpe el rango, se registra y se sigue."
+        ),
+    )
+    parser.add_argument(
+        "--sin-extraccion",
+        action="store_true",
+        help=(
+            "Ingiere, archiva, prefiltra y clasifica, pero NO llama al LLM. Es lo que hace "
+            "viable un backfill: una extracción cuesta 133,9 s (ADR 0011), así que un mes de "
+            "BOE serían horas de CPU. Lo que quede sin extraer sigue en cola y se procesa "
+            "después con una pasada normal, sin perder nada."
+        ),
     )
     parser.add_argument(
         "--reprefiltrar",
@@ -235,6 +255,13 @@ def _encolar_revision(session) -> servicio_revision.ResumenEncolado:  # type: ig
     return resumen
 
 
+def _dias(desde: datetime.date, hasta: datetime.date | None) -> list[datetime.date]:
+    """Los días del rango, en orden. Sin `--hasta`, solo el día pedido."""
+    if hasta is None or hasta <= desde:
+        return [desde]
+    return [desde + datetime.timedelta(days=n) for n in range((hasta - desde).days + 1)]
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parsear_argumentos(argv)
     logging.basicConfig(
@@ -285,6 +312,33 @@ def main(argv: list[str] | None = None) -> int:
         _registrar_clasificacion(resumen_clasificacion)
         return 0
 
+    dias = _dias(args.fecha, args.hasta)
+    if len(dias) > 1:
+        logger.info(
+            "Backfill de %s días, del %s al %s.%s",
+            len(dias),
+            dias[0],
+            dias[-1],
+            " Sin extracción: el LLM no se toca." if args.sin_extraccion else "",
+        )
+
+    codigo = 0
+    for indice, dia in enumerate(dias):
+        resultado_dia = _ingerir_dia(dia, settings, sin_extraccion=args.sin_extraccion)
+        # Un día sin boletín o un fallo de red **no interrumpe el rango**: un domingo por medio
+        # no puede dejar sin ingerir el resto del mes. Se queda el peor código de salida para
+        # que el cron se entere igualmente de que algo fue mal.
+        codigo = max(codigo, resultado_dia)
+        if len(dias) > 1 and indice < len(dias) - 1:
+            # Cortesía con la fuente entre días, igual que dentro de la fase 2 (6.2).
+            time.sleep(settings.fase2_pausa_segundos)
+    return codigo
+
+
+def _ingerir_dia(  # noqa: C901
+    fecha: datetime.date, settings: Settings, *, sin_extraccion: bool = False
+) -> int:
+    """Una pasada completa del pipeline sobre un día de boletín."""
     with SessionLocal() as session:
         fuente = session.scalar(select(Fuente).where(Fuente.tipo == TipoFuente.BOE))
         if fuente is None:
@@ -301,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
             resultado = ingesta.ingerir_sumario_boe(
                 session,
                 fuente_id=fuente.id,
-                fecha=args.fecha,
+                fecha=fecha,
                 almacen_root=settings.almacen_root,
             )
         except SumarioNoDisponible as exc:
@@ -315,7 +369,7 @@ def main(argv: list[str] | None = None) -> int:
             logger.error("CONTROL DE SEGURIDAD: %s: %s", type(exc).__name__, exc)
             return 3
         except BoeIngestError as exc:
-            logger.error("No se pudo ingerir el sumario del %s: %s", args.fecha, exc)
+            logger.error("No se pudo ingerir el sumario del %s: %s", fecha, exc)
             return 1
 
         # Fase 2 (ADR 0011 y 0015): el texto íntegro del día entero, **antes** del prefiltro.
@@ -348,11 +402,18 @@ def main(argv: list[str] | None = None) -> int:
         # con normas relevantes y nadie las habría mirado. Ya no toca la red (lee el cuerpo del
         # almacén, ADR 0015) pero sí el LLM (Ollama local, ADR 0008) y puede tardar; es
         # aceptable en un worker cron diario, no lo sería en una petición HTTP.
-        resumen_extraccion = servicio_extraccion.aplicar(
-            session,
-            ProveedorOllama(),
-            almacen_root=settings.almacen_root,
-            documento_id=resultado.documento_id,
+        # `--sin-extraccion` es lo que hace viable un backfill (133,9 s por norma, ADR 0011).
+        # Lo que se salta **no se pierde**: la cola del extractor es una consulta —normas en
+        # cola sin `deteccion`— así que una pasada normal posterior las recoge todas.
+        resumen_extraccion = (
+            servicio_extraccion.ResumenExtraccion(evaluadas=0, extraidas=0, fallidas=0, punteros=0)
+            if sin_extraccion
+            else servicio_extraccion.aplicar(
+                session,
+                ProveedorOllama(),
+                almacen_root=settings.almacen_root,
+                documento_id=resultado.documento_id,
+            )
         )
 
         # Etapa 4 (ADR 0016): el catálogo de reglas sobre el texto archivado. Va **después**
