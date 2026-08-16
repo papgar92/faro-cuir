@@ -67,6 +67,15 @@ class CasoGoldSet(BaseModel):
     # Etapa 3, todavía sin construir. NULL a propósito: poner un valor ahora sería adivinar
     # qué diría un clasificador que no existe (regla de oro 8: nunca inventar).
     clasificacion_esperada: Literal["avance", "retroceso", "neutro", "indeterminado"] | None = None
+    # `sha256` del **cuerpo archivado** de esta norma, que es lo que permite evaluar el caso
+    # sobre el texto íntegro y no sobre el título (7.1). La ruta se deriva del hash igual que en
+    # el almacén (`security/hashing.py`), así que con esto un test encuentra el fichero sin
+    # tocar la base de datos.
+    #
+    # Opcional a propósito: un caso se etiqueta leyendo la **fuente oficial**, y debe poder
+    # existir antes de que el documento esté archivado aquí. Sin él, el caso mide lo que se
+    # puede medir con el título y nada más.
+    sha256_cuerpo: str | None = None
     # Por qué este caso importa (positivo conocido, negativo difícil, caso histórico citado
     # en el TFM...). Sin esto, dentro de seis meses nadie sabe por qué se eligió justo este
     # documento y no otro cualquiera del mismo boletín.

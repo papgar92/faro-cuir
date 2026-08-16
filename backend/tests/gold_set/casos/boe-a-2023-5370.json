@@ -7,5 +7,6 @@
   "prefiltro_esperado": "descartada",
   "ejes_esperados": [],
   "clasificacion_esperada": null,
+  "sha256_cuerpo": "ea137b19202ca8f47a66a22411b2a895fd42cd37b821af4b069c497c0961dcf3",
   "notas": "Negativo trivial: política agraria, sin ninguna relación temática. Sirve de contraste con el negativo difícil (BOE-A-2023-5364) — un gold set con solo casos difíciles tampoco sería representativo del día a día del BOE. Verificado contra la base de datos real (documento BOE-S-2023-51, ya ingerido). MIGRADO al formato de 7.8 (tarea 0.b): 'descartada' sigue siendo correcto leido el texto completo, y por eso ejes_esperados va vacio."
 }

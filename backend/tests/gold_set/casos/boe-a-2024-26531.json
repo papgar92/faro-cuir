@@ -7,5 +7,6 @@
   "prefiltro_esperado": "descartada",
   "ejes_esperados": [],
   "clasificacion_esperada": null,
+  "sha256_cuerpo": "8f0efee1ba285ec8155286d664e4960d9849ecf7cb2f7d54d3cd7d16fa758134",
   "notas": "Negativo trivial de administración local. Interesa además por el ADR 0014: así es como el BOE refleja lo municipal —un aviso de que las bases se publicaron en otro boletín—, y confirma que la capa local no se vigila desde aquí."
 }

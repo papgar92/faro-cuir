@@ -7,5 +7,6 @@
   "prefiltro_esperado": "descartada",
   "ejes_esperados": [],
   "clasificacion_esperada": null,
+  "sha256_cuerpo": "877f307df356f22522d81a5a829bf244276278c4fd9dc1d22824199093966a74",
   "notas": "TRAMPA DE SUBCADENA, y por eso entra en el corpus: el texto contiene «trans» tres veces, pero dentro de las URL de la Base de Datos Nacional de Subvenciones (infosubvenciones.es/bdnstrans/...). Un prefiltro sin límites de palabra lo marcaría; el de este proyecto los tiene (pipeline/prefiltro), así que este caso comprueba que ese control sigue vivo. Subvenciones agrarias: sin ninguna relación con el ámbito."
 }

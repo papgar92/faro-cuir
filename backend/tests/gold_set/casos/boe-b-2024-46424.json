@@ -7,5 +7,6 @@
   "prefiltro_esperado": "descartada",
   "ejes_esperados": [],
   "clasificacion_esperada": null,
+  "sha256_cuerpo": "5b6987b5f6edc40e9a22c131216b27663d1bcebb94b6c55097849c7807597116",
   "notas": "Negativo trivial, familia de contratación pública. Entra porque el corpus tiene que parecerse al BOE real: si solo llevara casos difíciles, cualquier cifra de precisión saldría deprimida respecto al día a día."
 }

@@ -9,5 +9,6 @@
     "lexico"
   ],
   "clasificacion_esperada": null,
+  "sha256_cuerpo": "adce8f22578177cf38b7dae8e0a6a09b52e92fc1a7d74c8b10e7b8b0bbaf5db4",
   "notas": "Negativo difícil, no un negativo trivial: publicada el mismo día que la Ley 4/2023, del mismo órgano, y también sobre derechos sexuales/reproductivos. No es competencia de este proyecto (aborto, no LGTBI+/trans) y hoy el prefiltro la descarta correctamente, pero es justo el tipo de título donde un vocabulario mal ajustado podría empezar a dar falsos positivos. Verificado contra la base de datos real (documento BOE-S-2023-51, ya ingerido). MIGRADO al formato de 7.8 (tarea 0.b), y el cambio de etiqueta es lo interesante: pasa de 'no relevante' a SOSPECHA. Sobre el TEXTO INTEGRO —que es como manda etiquetar 7.8, no sobre el titulo— una ley de salud sexual y reproductiva contiene terminos del vocabulario de contexto. No hay con que descartarla sin leerla, y la guia del esquema es explicita: ante la duda, sospecha. Sospecha cuesta un puesto en la cola; descartada costaria perder la norma. Sigue sin ser competencia del proyecto."
 }

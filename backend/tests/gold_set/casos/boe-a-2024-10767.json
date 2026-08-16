@@ -5,7 +5,11 @@
   "titulo": "Ley 17/2023, de 27 de diciembre, por la que se modifica la Ley 2/2016, de 29 de marzo, de Identidad y Expresión de Género e Igualdad Social y no Discriminación de la Comunidad de Madrid.",
   "organo_emisor": "Comunidad de Madrid",
   "prefiltro_esperado": "relevante",
-  "ejes_esperados": ["lexico", "referencial"],
+  "ejes_esperados": [
+    "lexico",
+    "referencial"
+  ],
   "clasificacion_esperada": "retroceso",
+  "sha256_cuerpo": "5e420c30ba9913f578dd394a63d7be1a56a08c50dfc458cae922b0521df24317",
   "notas": "LA REFORMA MADRILEÑA DE 2023, que CLAUDE.md 7.8 pide expresamente para el gold set y que hasta ahora faltaba. Es el caso más importante del corpus por lo que demuestra: un retroceso real y consumado, verificado contra el BOE el 2026-08-08 — suprime los artículos 7, 24, 45 y 48 y los títulos X y XIV de la Ley 2/2016. CLASIFICACIÓN ETIQUETADA el 2026-08-09, al implementar el ADR 0016: 'retroceso' no se deduce de lo que diga el clasificador —eso sería medir el sistema contra sí mismo— sino del hecho ya verificado contra el BOE que estas mismas notas recogían desde el 2026-08-08, y que el cuerpo archivado corrobora con doce cláusulas de supresión sobre una ley de protección. Es la única etiqueta de clasificación del corpus a día de hoy: las demás siguen en null porque nadie las ha etiquetado a mano todavía, no porque el clasificador no opine. Se esperan LOS DOS ejes, y por motivos distintos: el LÉXICO porque el título contiene 'Expresión de Género' (ojo: 'identidad de género' NO cruza aquí, porque el título dice 'Identidad Y EXPRESIÓN de Género' y la 'y' rompe la secuencia — es justo el tipo de detalle que un vocabulario de presencia se traga), y el REFERENCIAL porque modifica la Ley 2/2016, que está en config/watchlist.json. Sirve además de caso de control del eje referencial sobre una norma AUTONÓMICA republicada en el BOE, que es la vía por la que este proyecto puede vigilar leyes autonómicas sin ingerir todavía sus boletines. Documento NO ingerido todavía en la base de datos: al etiquetar sobre texto íntegro (7.8) hará falta traerlo, y es candidato natural para la tarea 0.c."
 }

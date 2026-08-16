@@ -9,5 +9,6 @@
     "lexico"
   ],
   "clasificacion_esperada": null,
+  "sha256_cuerpo": "5bfde7216553b2b0f562975ab6d66ceb4316c162a03571bca268e42be3a80f39",
   "notas": "El falso positivo que el ADR 0011 midió y que el eje léxico produce a destajo sobre texto íntegro: una convocatoria de oposición cuyo TEMARIO cita la Ley 4/2023 y la Ley 15/2022. Menciona pero no regula, así que la guía de etiquetado manda «sospecha» y no «descartada»: cuesta un puesto en la cola, no una norma perdida. Es el caso con el que se mide la PRECISION del eje léxico, que hoy está sin medir."
 }

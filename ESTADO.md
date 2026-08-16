@@ -1892,3 +1892,51 @@ no: sobre el título sale `pendiente`, que **no es un descarte** sino «esperand
    duros) — **~15k**.
 3. **El diff en el panel de revisión**, para que quien aprueba vea lo que se publica — **~15k**.
 4. Seguir dando volumen al gold set. Sigue siendo el trabajo humano más lento.
+
+---
+
+### ✅ El gold set mide de verdad: primera evaluación sobre texto íntegro — 2026-08-16
+
+`tests/test_gold_set_cuerpo.py`. Hasta ahora el corpus solo se comparaba contra una evaluación
+**del título**, que únicamente puede comprobar el límite superior del recall. Ahora se evalúa lo
+que de verdad decide el pipeline desde el ADR 0011: el cuerpo archivado, con la watchlist real.
+Cada caso lleva el `sha256` de su cuerpo, así que el test encuentra el fichero sin base de datos,
+y se salta con el motivo escrito si no hay almacén (`backend/data/` está en `.gitignore`).
+
+**Qué es rojo y qué solo se informa, que no es lo mismo:** falla que un caso no entre en la cola
+debiendo entrar (o al revés) y que no dispare un eje declarado; **no** falla la diferencia entre
+`relevante` y `sospecha`, porque el umbral que los separa está declarado provisional y sin
+calibrar y **ninguno de los dos descarta nada**. Convertir en rojo una diferencia de orden sería
+fijar como verdad un número que nadie ha medido.
+
+**Resultado de la primera pasada: 13 de 14 casos coinciden exactamente, 14 de 14 en la decisión
+que importa** (entrar o no en la cola). Ningún falso negativo, ningún falso positivo de descarte.
+
+**Y la primera observación real del gold set, que es para lo que existe:**
+
+| caso | etiqueta | prefiltro | términos directos |
+|---|---|---|---|
+| Ley 2/2016 Madrid reformada (`10767`) | relevante | relevante | 22 |
+| Ley 3/2016 Madrid reformada (`10768`) | relevante | relevante | 7 (+ eje referencial) |
+| **Ley 3/2023 de Empleo** (`5365`) | **relevante** | **sospecha** | **4** |
+| LO 1/2023 (negativo difícil) | sospecha | sospecha | 5 |
+| Temarios de oposición | sospecha | sospecha | 1 y 2 |
+
+El positivo de título anodino aterriza en **4 términos directos**, o sea en la misma banda que el
+negativo difícil (5) y por encima de los temarios (1-2) — pero muy por debajo del umbral de 8.
+**Contar términos directos no separa el positivo real del ruido en la banda media**, y eso no se
+sabía: los cuatro números del ADR 0011 contaban todos los términos y no eran comparables. No se
+toca el umbral todavía —14 casos no bastan para recalibrar nada y el umbral no descarta— pero
+queda escrito que la señal que hoy ordena la cola del LLM no discrimina donde hace falta. La
+densidad por longitud es la candidata obvia (la Ley de Empleo son 271 KB con 4 términos; un
+temario, 112 KB con 2), y no se implementa sin más corpus.
+
+504 tests en verde.
+
+#### Siguiente, por orden
+
+1. **Los dos hallazgos abiertos de la auditoría**: hambre de la cola de versionado y reintento
+   eterno de fallos duros — **~15k**.
+2. **El diff en el panel de revisión**, para que quien aprueba vea lo que se publica — **~15k**.
+3. **Más corpus**, que es lo único que permite tocar el umbral con fundamento. Sigue siendo el
+   trabajo humano más lento y ahora tiene una pregunta concreta que contestar.

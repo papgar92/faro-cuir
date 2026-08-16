@@ -10,5 +10,6 @@
     "referencial"
   ],
   "clasificacion_esperada": null,
+  "sha256_cuerpo": "dad330d3c8cd8f152775ab9cfe5ca2254dc11fde6e02b7b2df4601435f97d87a",
   "notas": "Positivo conocido y ya ingerido en la base de datos (BOE-S-2023-51, 2023-03-01). Es la norma que ha servido para verificar el prefiltro y el extractor de punta a punta en S1: pasa el prefiltro por 'lgtbi' y 'personas trans', y el worker.run produce una fila real en deteccion contra Ollama. MIGRADO al formato de 7.8 (tarea 0.b): 'relevante' porque regula el ambito de forma directa, y se esperan LOS DOS ejes — el lexico por su vocabulario y el referencial porque la propia Ley 4/2023 esta en config/watchlist.yaml, asi que cualquier norma que la modifique dispara. Sobre este documento el eje referencial no se ha verificado en vivo: el worker todavia no descarga texto integro (tarea 0.c)."
 }
