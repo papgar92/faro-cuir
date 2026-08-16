@@ -85,9 +85,14 @@ class DocumentoResumen(BaseModel):
     sha256: str
     sello_tiempo: datetime.datetime
     estado_pipeline: str
-    # `sumario` o `texto_norma` (ADR 0015). Se publica porque sin él dos filas con la misma
-    # forma significan cosas distintas, y quien consuma la API no tendría cómo saber cuál está
-    # mirando. El listado devuelve solo sumarios; por id se puede pedir cualquiera.
+    # `sumario`, `texto_norma` (ADR 0015) o `consolidado` (ADR 0018). Se publica porque sin él
+    # tres filas con la misma forma significan cosas distintas, y quien consuma la API no tendría
+    # cómo saber cuál está mirando. El listado devuelve solo sumarios; por id se puede pedir
+    # cualquiera, y ahí este campo es lo único que separa **lo que se publicó aquel día** de una
+    # elaboración posterior de la fuente. Un `consolidado` tiene además dos rasgos que conviene
+    # no leer mal: su `identificador_oficial` lo componemos nosotros (lleva el hash del
+    # contenido, porque el consolidado de una norma cambia cada vez que alguien la modifica) y su
+    # `fecha_publicacion` es el día en que lo descargamos, no una fecha de boletín.
     tipo: str
     # `ruta_almacen` NO se expone: es una ruta del sistema de ficheros del servidor y no le
     # sirve de nada a un cliente. Publicar rutas internas solo regala información.

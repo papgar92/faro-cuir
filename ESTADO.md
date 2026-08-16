@@ -1772,3 +1772,33 @@ dice cuántos quedan. Consola limpia, `tsc` y `vite build` limpios, 453 tests en
 
 **Aviso operativo:** el puerto 5173 lo ocupa otro proyecto del humano, así que Vite arrancó en el
 **5174**. No es del proyecto, pero conviene saberlo antes de dar por caído el frontend.
+
+---
+
+### ✅ Auditoría de seguridad del trabajo del ADR 0018 — 2026-08-16
+
+**Hecha a mano sobre el diff, no por `revisor-seguridad`**, y eso hay que leerlo como lo que es:
+cubre las invariantes duras del proyecto, no sustituye a la pasada del subagente, que sigue
+pendiente. Lo que se ha comprobado, con lo que lo respalda:
+
+| Invariante | Resultado |
+|---|---|
+| Todo el HTTP saliente por `url_guard` (ADR 0006) | ✔ Ni un `httpx.get/post/Client(...)` en `app/`. `versionado.py` recibe el cliente y descarga siempre por `url_guard.fetch`. |
+| Todo el XML por `xml_safe` (6.1) | ✔ La única coincidencia fuera es el docstring de `feed.py`, que **serializa** datos propios. |
+| Una sola escritura en `alerta` (regla de oro 4) | ✔ `services/revision.py:142`, dentro de `aprobar`. Nada de lo nuevo abre otro camino. |
+| La salida del modelo no acciona nada (6.10) | ✔ `extraccion_json` no aparece en `versionado.py`, `boe_consolidado.py` ni `alertas.py`. La URL del consolidado se compone con el identificador **de la watchlist**. |
+| Logs sin datos personales (6.4) | ✔ El servicio nuevo registra solo identificadores oficiales (`BOE-A-…`), el de la watchlist y la excepción. Ni IP de nadie ni contenido de documento. |
+
+**Y un hallazgo, menor pero real:** `GET /api/documentos/{id}` no filtra por tipo —a propósito,
+está escrito desde el ADR 0015— así que desde ayer también devuelve consolidados. No es una fuga:
+el esquema publica `tipo` y el listado sigue devolviendo solo sumarios. Pero **el comentario que
+lo explicaba se quedó viejo** («`sumario` o `texto_norma`»), y ese comentario es justo lo único
+que separa «lo que se publicó aquel día» de una elaboración posterior de la fuente. Corregido, y
+de paso dice las dos cosas que un consolidado tiene y que se leen mal: su `identificador_oficial`
+lo componemos nosotros y su `fecha_publicacion` es el día que lo descargamos.
+
+**Lo que esta auditoría NO cubre y sigue siendo el encargo del subagente:** superficies de
+inyección nuevas leídas con criterio adversario (no solo comprobadas contra la lista de puertas),
+y el repaso línea a línea de todo el diff, que son 118 ficheros.
+
+453 tests en verde.
