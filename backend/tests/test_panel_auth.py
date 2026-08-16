@@ -29,11 +29,11 @@ class TestContrasena:
 
     def test_el_hash_no_contiene_la_contrasena(self) -> None:
         assert PASSWORD not in HASH
-        assert HASH.startswith("scrypt$")
+        assert HASH.startswith("scrypt:")
 
     def test_los_parametros_viajan_dentro_del_hash(self) -> None:
         """Para poder subirlos mañana sin invalidar lo ya generado."""
-        etiqueta, n, r, p, sal, clave = HASH.split("$")
+        etiqueta, n, r, p, sal, clave = HASH.split(":")
         assert (etiqueta, int(n), int(r), int(p)) == ("scrypt", 2**14, 8, 1)
         assert len(bytes.fromhex(sal)) == 16
         assert len(bytes.fromhex(clave)) == 32
@@ -139,3 +139,24 @@ class TestCadencia:
         cadencia.registrar_fallo()
         cadencia.registrar_fallo()
         assert cadencia.fallos_en_la_ventana() == 2
+
+
+class TestSeparadorDelHash:
+    """El hash viaja por un `.env` que lee Docker Compose, y compose interpola `$`.
+
+    Costó una tarde (2026-08-16): con el formato clásico `scrypt$n$r$p$sal$clave`, compose
+    sustituía `$<sal>` por la cadena vacía y el contenedor recibía el hash **sin sal**. El panel
+    quedaba entre un 401 inexplicable —con la contraseña correcta— y un 500 al verificar. Estos
+    dos tests existen para que nadie devuelva el `$` por parecer más canónico.
+    """
+
+    def test_el_hash_generado_no_contiene_el_caracter_que_compose_interpola(self) -> None:
+        assert "$" not in panel.generar_hash("una contraseña larguísima")
+
+    def test_un_hash_del_formato_viejo_lo_dice_en_vez_de_reventar(self) -> None:
+        viejo = panel.generar_hash("una contraseña larguísima").replace(":", "$")
+
+        with pytest.raises(panel.HashPanelInvalido) as error:
+            panel.verificar_password("una contraseña larguísima", hash_almacenado=viejo)
+
+        assert "Docker Compose" in str(error.value) or "$" in str(error.value)

@@ -39,7 +39,7 @@ sin dependencia nueva y sin identidad de la persona en ninguna fila.
 Las piezas, todas en `security/panel.py` (puerta única, igual que `url_guard` con el HTTP
 saliente) y `api/revision.py`:
 
-- **`PANEL_PASSWORD_HASH`**, formato `scrypt$n$r$p$sal$clave`, con los parámetros dentro del
+- **`PANEL_PASSWORD_HASH`**, formato `scrypt:n:r:p:sal:clave`, con los parámetros dentro del
   propio hash para poder subirlos mañana sin invalidar lo ya generado. `hashlib.scrypt` es
   biblioteca estándar: nada que instalar. Se genera con
   `python -m scripts.generar_hash_panel`, que pide la contraseña por `getpass` para que no pase
@@ -189,3 +189,25 @@ La primera alerta aprobada del proyecto es `BOE-A-2024-10767`, la reforma madril
 sus doce spans de evidencia sobre el texto archivado. Es el caso que el proyecto usa para
 explicar por qué existe, y ahora ha recorrido el pipeline entero: ingesta → archivo con huella →
 prefiltro por dos ejes → catálogo de reglas → **una persona mirándolo** → alerta.
+
+## Corrección posterior (2026-08-16): el separador no puede ser `$`
+
+El formato original era `scrypt$n$r$p$sal$clave`, que es el clásico de este tipo de hashes. **Y
+era incompatible con el despliegue del propio proyecto**: el valor vive en un `.env` que lee
+Docker Compose, y compose **interpola variables** en ese fichero. `$d923ee28…` no es una variable
+definida, así que compose la sustituye por la cadena vacía y **el contenedor recibe el hash sin
+sal**, con cinco campos en vez de seis.
+
+Lo que se ve desde fuera no dice nada de eso: el panel devuelve **401 con la contraseña correcta**
+si el hash mutilado aún parsea, o **500** si no. Se depuró comparando el valor del `.env` con el
+que `printenv` daba dentro del contenedor, que es la comprobación que lo delata en un minuto.
+
+**Se arregla en el formato y no en el `.env`.** Escapar los `$` como `$$` habría funcionado para
+compose y roto la lectura directa del mismo fichero por `pydantic-settings` fuera de docker: el
+valor tiene que significar lo mismo para las tres cosas que lo leen —compose, la aplicación y una
+persona—. Ni la etiqueta, ni los parámetros, ni el hexadecimal contienen `:`.
+
+Consecuencia práctica: **un hash del formato viejo ya no vale**. `verificar_password` lo detecta y
+lo dice con esas palabras en vez de fallar con un «expected 6, got 5», y dos tests impiden que el
+`$` vuelva por parecer más canónico. Los hashes existentes se convierten cambiando `$` por `:`,
+sin volver a teclear la contraseña: los seis campos son los mismos.

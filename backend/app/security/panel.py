@@ -69,6 +69,16 @@ class HashPanelInvalido(ValueError):
 # (no aquí como constantes de verificación) para poder subirlos mañana sin invalidar lo que ya
 # hay generado — el hash lleva sus propios parámetros, como cualquier formato serio.
 _ETIQUETA = "scrypt"
+# **El separador es `:` y no `$`, y esto costó una tarde de depuración (2026-08-16).**
+# El formato clásico de estos hashes usa `$`, pero este valor viaja en un `.env` que Docker
+# Compose lee con **interpolación de variables**: `scrypt$16384$8$1$d923ee...$5fcc...` llega al
+# contenedor convertido en `scrypt$16384$8$1$5fcc...`, porque compose sustituye `$d923ee...` por
+# la cadena vacía al no existir esa variable. O sea que **la sal desaparece por el camino**, sin
+# que nada avise, y el panel se queda entre un 401 imposible de explicar y un 500 al verificar.
+# Se arregla en el formato y no en el `.env` (donde habría que escribir `$$`) porque el mismo
+# fichero lo leen pydantic-settings, compose y una persona: el valor tiene que significar lo
+# mismo para los tres. Ni la etiqueta, ni los parámetros, ni el hexadecimal contienen `:`.
+_SEPARADOR = ":"
 _N = 2**14
 _R = 8
 _P = 1
@@ -85,8 +95,10 @@ _MAXIMO_SESIONES = 20
 def generar_hash(password: str, *, sal: bytes | None = None) -> str:
     """Deriva el hash que va en `PANEL_PASSWORD_HASH`.
 
-    Formato: `scrypt$n$r$p$<sal hex>$<clave hex>`. Los parámetros viajan dentro para que
-    verificar no dependa de que las constantes de este módulo no hayan cambiado nunca.
+    Formato: `scrypt:n:r:p:<sal hex>:<clave hex>`. Los parámetros viajan dentro para que
+    verificar no dependa de que las constantes de este módulo no hayan cambiado nunca. El
+    separador **no es `$`** por lo que explica el comentario de `_SEPARADOR`: lo interpolaba
+    Docker Compose y se comía la sal.
 
     `sal` solo se pasa en los tests, para poder comprobar la derivación contra un valor fijo.
     En uso real sale de `secrets`.
@@ -97,7 +109,7 @@ def generar_hash(password: str, *, sal: bytes | None = None) -> str:
     clave = hashlib.scrypt(
         password.encode("utf-8"), salt=sal, n=_N, r=_R, p=_P, dklen=_LONGITUD_CLAVE
     )
-    return f"{_ETIQUETA}${_N}${_R}${_P}${sal.hex()}${clave.hex()}"
+    return _SEPARADOR.join([_ETIQUETA, str(_N), str(_R), str(_P), sal.hex(), clave.hex()])
 
 
 def verificar_password(password: str, *, hash_almacenado: str | None) -> bool:
@@ -114,7 +126,14 @@ def verificar_password(password: str, *, hash_almacenado: str | None) -> bool:
             "Genera uno con: python -m scripts.generar_hash_panel"
         )
     try:
-        etiqueta, n, r, p, sal_hex, clave_hex = hash_almacenado.split("$")
+        if "$" in hash_almacenado:
+            # Mensaje propio para el hash del formato viejo: sin esto, un `.env` traído de otra
+            # máquina falla con un «expected 6, got 5» que no dice absolutamente nada.
+            raise ValueError(
+                "el hash usa el separador '$', que Docker Compose interpola y corrompe. "
+                "Regenéralo con: python -m scripts.generar_hash_panel"
+            )
+        etiqueta, n, r, p, sal_hex, clave_hex = hash_almacenado.split(_SEPARADOR)
         if etiqueta != _ETIQUETA:
             raise ValueError(f"algoritmo no soportado: {etiqueta!r}")
         candidata = hashlib.scrypt(
