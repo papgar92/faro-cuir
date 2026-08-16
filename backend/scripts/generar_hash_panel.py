@@ -1,6 +1,6 @@
 """Genera el valor de `PANEL_PASSWORD_HASH` para el panel de revisión (ADR 0017).
 
-    docker compose exec backend python -m scripts.generar_hash_panel
+    docker compose exec -it backend python -m scripts.generar_hash_panel
 
 Como `medir_fase2.py`, se ejecuta **como módulo**: por ruta, `sys.path` apunta a `scripts/` y
 el paquete `app` no se encuentra.
@@ -25,12 +25,38 @@ from app.security.panel import generar_hash
 LONGITUD_MINIMA = 12
 
 
+def _pedir(prompt: str) -> str:
+    """`getpass` o un mensaje que se entienda, nunca un traceback.
+
+    Sin un terminal de verdad —una tubería, un `docker exec` sin `-t`, el prefijo `!` de Claude
+    Code— `getpass` no puede apagar el eco y acaba lanzando `EOFError`. Eso salían veinte líneas
+    de traza de Python que no dicen qué hacer, y en un script cuyo único trabajo es que alguien
+    pueda entrar a aprobar alertas, ese es el peor momento para no explicarse.
+
+    Y **no hay respaldo por `input()` a propósito**: teclear la contraseña con eco es justo lo
+    que este script existe para evitar.
+    """
+    try:
+        return getpass.getpass(prompt)
+    except (EOFError, OSError):
+        for linea in (
+            "",
+            "Hace falta un terminal interactivo: esta contraseña se teclea sin eco y no se",
+            "puede leer de una tubería.",
+            "Abre un terminal normal (no el prefijo '!' de Claude Code) y ejecuta:",
+            "    docker compose exec -it backend python -m scripts.generar_hash_panel",
+            "o, sin docker, desde backend/:  python -m scripts.generar_hash_panel",
+        ):
+            print(linea, file=sys.stderr)
+        raise SystemExit(2) from None
+
+
 def main() -> int:
-    password = getpass.getpass("Contraseña del panel de revisión: ")
+    password = _pedir("Contraseña del panel de revisión: ")
     if len(password) < LONGITUD_MINIMA:
         print(f"Demasiado corta: mínimo {LONGITUD_MINIMA} caracteres.", file=sys.stderr)
         return 1
-    if password != getpass.getpass("Repítela: "):
+    if password != _pedir("Repítela: "):
         print("No coinciden.", file=sys.stderr)
         return 1
 
