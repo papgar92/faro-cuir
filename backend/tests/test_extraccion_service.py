@@ -42,8 +42,12 @@ EXTRACCION_VALIDA = {
     "articulos": [
         {
             "identificador": "art. 19",
-            "texto_anterior": "texto anterior",
-            "texto_nuevo": "texto nuevo",
+            # **Estos dos textos están literalmente en `XML_NORMA`, y tienen que estarlo.**
+            # Desde la regla de oro 9 una extracción que cite algo que no aparece en el
+            # documento archivado se descarta entera, así que un modelo falso que "extraiga"
+            # frases inventadas ya no prueba el camino feliz: prueba el control.
+            "texto_anterior": "La cartera de servicios incluye la prestacion.",
+            "texto_nuevo": "La cartera de servicios excluye la prestacion.",
         }
     ],
 }
@@ -52,7 +56,10 @@ EXTRACCION_VALIDA = {
 XML_NORMA = (
     b"<documento><metadatos><identificador>BOE-A-2023-5366</identificador></metadatos>"
     b"<analisis><anterior><texto>ruido de metadatos</texto></anterior></analisis>"
-    b"<texto><p>Contenido real de la disposicion.</p></texto></documento>"
+    b"<texto><p>Contenido real de la disposicion.</p>"
+    b"<p>La cartera de servicios incluye la prestacion.</p>"
+    b"<p>Uno. El articulo 19 queda redactado como sigue: "
+    b"La cartera de servicios excluye la prestacion.</p></texto></documento>"
 )
 
 
@@ -386,3 +393,82 @@ class TestRecortar:
 
         assert len(recortado) == servicio.MAX_CARACTERES_DOCUMENTO
         assert "BOE-A-2023-5366" in caplog.text
+
+
+class TestAnclajeRegla9:
+    """Lo que el modelo no puede señalar en el archivo no se guarda (regla de oro 9, ADR 0013)."""
+
+    def test_una_extraccion_con_texto_inventado_no_deja_fila(
+        self, session: Session, documento: Documento, almacen: Path
+    ) -> None:
+        """Y se descarta ENTERA: si se inventó una redacción, lo demás tampoco merece crédito."""
+        cuerpo = _cuerpo_archivado(session, documento, "BOE-A-2023-5366", XML_NORMA, almacen)
+        session.add(_norma_relevante(documento, "BOE-A-2023-5366", cuerpo=cuerpo))
+        session.commit()
+        inventada = {
+            **EXTRACCION_VALIDA,
+            "articulos": [
+                {
+                    "identificador": "art. 19",
+                    "texto_anterior": "El Gobierno garantizara la prestacion sanitaria integral.",
+                    "texto_nuevo": None,
+                }
+            ],
+        }
+
+        resumen = servicio.aplicar(
+            session,
+            _proveedor([json.dumps(inventada)]),
+            almacen_root=almacen,
+            documento_id=documento.id,
+        )
+
+        assert (resumen.extraidas, resumen.fallidas) == (0, 1)
+        assert session.scalar(select(Deteccion)) is None
+
+    def test_lo_que_se_guarda_es_el_recorte_del_archivo_con_sus_offsets(
+        self, session: Session, documento: Documento, almacen: Path
+    ) -> None:
+        cuerpo = _cuerpo_archivado(session, documento, "BOE-A-2023-5366", XML_NORMA, almacen)
+        session.add(_norma_relevante(documento, "BOE-A-2023-5366", cuerpo=cuerpo))
+        session.commit()
+
+        servicio.aplicar(
+            session,
+            _proveedor([json.dumps(EXTRACCION_VALIDA)]),
+            almacen_root=almacen,
+            documento_id=documento.id,
+        )
+
+        deteccion = session.scalar(select(Deteccion))
+        assert deteccion is not None
+        anclas = deteccion.extraccion_json["anclas"]
+        assert [a["campo"] for a in anclas] == ["texto_anterior", "texto_nuevo"]
+        assert all(a["fin"] > a["inicio"] for a in anclas)
+        assert deteccion.extraccion_json["version_anclaje"]
+        assert deteccion.extraccion_json["version_texto_plano"]
+
+    def test_un_puntero_no_necesita_anclaje_y_no_tumba_la_extraccion(
+        self, session: Session, documento: Documento, almacen: Path
+    ) -> None:
+        """ADR 0016: un precepto citado sin texto no tiene cita que verificar."""
+        cuerpo = _cuerpo_archivado(session, documento, "BOE-A-2023-5366", XML_NORMA, almacen)
+        session.add(_norma_relevante(documento, "BOE-A-2023-5366", cuerpo=cuerpo))
+        session.commit()
+        con_puntero = {
+            **EXTRACCION_VALIDA,
+            "articulos": [
+                {"identificador": "art. 24", "texto_anterior": None, "texto_nuevo": None}
+            ],
+        }
+
+        resumen = servicio.aplicar(
+            session,
+            _proveedor([json.dumps(con_puntero)]),
+            almacen_root=almacen,
+            documento_id=documento.id,
+        )
+
+        assert resumen.extraidas == 1
+        deteccion = session.scalar(select(Deteccion))
+        assert deteccion is not None and deteccion.extraccion_json["anclas"] == []

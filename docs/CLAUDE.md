@@ -560,22 +560,34 @@ acciona nada por sí solo** (regla de oro 10; solo el catálogo de 7.6, leyendo 
 archivado, produce clasificación) y **cuántos trae cada extracción se registra**. El resto del
 contrato no se toca.
 
-### 7.5 Trazabilidad por offsets (NUEVO)
+### 7.5 Trazabilidad por offsets — **implementada el 2026-08-16 (ADR 0013)**
 
-Cada hecho extraído lleva `offset_inicio` y `offset_fin` sobre el **texto normalizado** del
-documento archivado. Esto convierte la revisión humana en verificación en lugar de confianza,
-y hace que una alucinación se detecte sola.
+Cada texto que la extracción afirma haber leído se localiza en el texto archivado y se guarda
+con su rango de caracteres. Esto convierte la revisión humana en verificación en lugar de
+confianza, y hace que una alucinación se detecte sola.
 
-- `pipeline/normalizacion.py`: función **pura y versionada** (`VERSION_NORMALIZACION`) que
-  deriva el texto normalizado del crudo archivado. Determinista: mismo crudo → mismo texto →
-  mismos offsets. Si cambia, se reextrae; por eso la versión viaja en `extraccion_json`.
+**Dos cosas cambiaron respecto a como estaba escrita esta sección, y las dos están razonadas en
+el ADR 0013:**
+
+- **Los offsets los calcula el sistema (`pipeline/anclaje.py`), no los pide al modelo.** Pedirle
+  a un modelo de 3B parámetros que cuente caracteres añade un modo de fallo —un error de
+  aritmética descartaría una cita correcta— y no quita ninguno, porque habría que buscar el
+  texto igualmente para validar lo que dijera. La búsqueda **es** el control.
+- **No hay una segunda normalización.** Se ancla sobre el mismo texto que usan las reglas
+  (`pipeline/texto.texto_plano`, con `VERSION_TEXTO_PLANO`). Dos derivaciones del mismo
+  documento son dos sistemas de coordenadas, y entonces un span del clasificador y un offset de
+  la extracción no se pueden contrastar entre sí. `pipeline/normalizacion.py` **no existe y no
+  hace falta**.
 - Los offsets son **absolutos sobre el documento entero**, no relativos a la ventana enviada
   al modelo. Con truncado o ventana deslizante (6.9.7) hay que sumar el desplazamiento de la
   ventana antes de persistir. Test explícito de esto: es el error fácil.
-- **Validación automática:** `texto_normalizado[inicio:fin]` debe contener el texto que el
-  modelo afirma haber encontrado (comparación tras colapsar espacios). Si no, la extracción es
-  inválida y sigue la misma vía que un fallo de esquema (6.9.3). Esto es también control
-  anti-inyección (6.7).
+- **Lo que no ancla se descarta, y se descarta la extracción entera** (no el campo): si el
+  modelo se ha inventado una redacción, lo demás tampoco merece crédito. Sigue la misma vía que
+  un fallo de esquema (6.9.3) — sin fila, la norma vuelve sola a la cola. Es también control
+  anti-inyección (6.7). **La única licencia al comparar es colapsar espacios**; una paráfrasis
+  no ancla.
+- **Lo que se guarda es el recorte del archivo, no la cadena del modelo**, que solo sirve para
+  localizar y después se tira. Un **puntero** (ADR 0016) no ancla nada y no invalida nada.
 - El frontend enseña el fragmento resaltado sobre el texto archivado, no el texto que devolvió
   el modelo. Lo que ve el revisor humano es la fuente.
 
@@ -677,13 +689,14 @@ Si te encuentras haciendo cualquiera de estas, para:
   implementado el 2026-08-14**, ~~0011 ingesta en dos
   fases con umbral asimétrico~~ (7.1) — **escrito el 2026-08-07**, con el título ajustado a lo
   que la medición decidió: `0011-ingesta-en-dos-fases-y-umbral-de-la-fase-2.md`,
-  **0012 prefiltro de tres ejes y watchlist** (7.3), **0013 trazabilidad por offsets** (7.5).
+  **0012 prefiltro de tres ejes y watchlist** (7.3), ~~**0013 trazabilidad por offsets**~~ (7.5)
+  — **escrito e implementado el 2026-08-16**.
   Añadidos después: 0014 la capa local entra en alcance vía BOP, **0015 dónde vive el texto
   íntegro archivado** (tarea 0.c, escrito el 2026-08-09), **0016 cómo se representa una
   supresión sin texto** (escrito e implementado el 2026-08-09) y **0017 autenticación del panel
   de revisión** (escrito e implementado el 2026-08-14) y **0018 de dónde sale el texto anterior**
-  (escrito e implementado el 2026-08-15). **0013 (trazabilidad por offsets) sigue
-  sin escribir y su número está reservado**: no reutilizarlo — el siguiente libre es el **0019**.
+  (escrito e implementado el 2026-08-15). Con el 0013 escrito **ya no queda ningún número
+  reservado**: el siguiente libre es el **0019**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).

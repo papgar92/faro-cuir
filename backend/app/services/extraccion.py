@@ -45,6 +45,8 @@ from sqlalchemy.orm import Session
 from app.llm.provider import LLMError, ProveedorLLM, extraer
 from app.models.deteccion import Clasificacion, Deteccion, OrigenClasificacion
 from app.models.norma import EstadoPrefiltro, Norma
+from app.pipeline.anclaje import VERSION_ANCLAJE, anclar
+from app.pipeline.texto import VERSION_TEXTO_PLANO
 from app.services.cuerpo import leer_cuerpo
 
 logger = logging.getLogger(__name__)
@@ -76,6 +78,54 @@ class ResumenExtraccion:
     # muchos punteros es la señal barata de que ahí hay supresiones que el catálogo de reglas
     # tiene que ir a corroborar contra el texto archivado.
     punteros: int = 0
+
+
+def _anclar_extraccion(
+    extraccion: object, texto: str, *, identificador: str, desplazamiento: int = 0
+) -> list[dict[str, object]] | None:
+    """Ancla al archivo cada texto que la extracción afirma haber leído. Regla de oro 9.
+
+    Devuelve una lista de anclas —una por texto citado, en el orden en que aparecen los
+    artículos— o `None` si **alguna** cita no está en el documento. `None` significa descartar la
+    extracción entera, y esa severidad es deliberada: si el modelo se ha inventado una redacción,
+    lo que ha escrito en los demás campos tampoco merece crédito. Sigue la misma vía que un fallo
+    de esquema (6.9.3): no se crea fila, así que la norma vuelve sola a la cola.
+
+    Un **puntero** (artículo citado sin texto por ninguno de los dos lados, ADR 0016) no ancla
+    nada y no invalida nada: no hay cita que verificar, y por eso mismo no acciona nada por sí
+    solo (regla de oro 10).
+
+    Se registra **qué campo** falla, nunca lo que dijo el modelo: si el documento fue manipulado
+    para que emitiera un veredicto, ese texto no puede acabar en un log donde alguien lo lea como
+    conclusión del sistema (6.10).
+    """
+    anclas: list[dict[str, object]] = []
+    for indice, articulo in enumerate(extraccion.articulos):  # type: ignore[attr-defined]
+        for campo in ("texto_anterior", "texto_nuevo"):
+            afirmado = getattr(articulo, campo)
+            if afirmado is None:
+                continue
+            ancla = anclar(texto, afirmado, desplazamiento=desplazamiento)
+            if ancla is None:
+                logger.warning(
+                    "Extracción de %s descartada: el campo %s del artículo %s afirma un texto "
+                    "que no está en el documento archivado (regla de oro 9).",
+                    identificador,
+                    campo,
+                    indice,
+                )
+                return None
+            anclas.append(
+                {
+                    "articulo": indice,
+                    "campo": campo,
+                    "inicio": ancla.inicio,
+                    "fin": ancla.fin,
+                    # El recorte del ARCHIVO, no lo que devolvió el modelo. Es lo que se enseña.
+                    "fragmento": ancla.fragmento,
+                }
+            )
+    return anclas
 
 
 def _recortar(texto: str, *, identificador: str) -> str:
@@ -194,6 +244,16 @@ def aplicar(
             )
         punteros += del_documento
 
+        # Regla de oro 9: lo que no se puede señalar en el archivo no se guarda. Va **antes** de
+        # crear la fila, no después: una detección que existe y luego se corrige es una que
+        # alguien pudo leer mientras tanto.
+        anclas = _anclar_extraccion(
+            resultado.extraccion, texto, identificador=norma.identificador_oficial
+        )
+        if anclas is None:
+            fallidas += 1
+            continue
+
         deteccion = Deteccion(
             norma_id=norma.id,
             extraccion_json={
@@ -204,6 +264,12 @@ def aplicar(
                 # del JSON y no en una columna por lo mismo que `version_prompt`: es un dato
                 # de esta extracción concreta, no un eje por el que se vaya a consultar.
                 "punteros": del_documento,
+                # Regla de oro 9 y 7.5: cada texto citado, con su rango sobre el texto derivado
+                # del documento archivado. Las dos versiones viajan al lado porque un offset sin
+                # saber sobre qué derivación y con qué criterio se midió no es reproducible.
+                "anclas": anclas,
+                "version_texto_plano": VERSION_TEXTO_PLANO,
+                "version_anclaje": VERSION_ANCLAJE,
                 "extraido_en": datetime.datetime.now(datetime.UTC).isoformat(),
             },
             clasificacion=Clasificacion.INDETERMINADO,
