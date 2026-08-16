@@ -1940,3 +1940,42 @@ temario, 112 KB con 2), y no se implementa sin más corpus.
 2. **El diff en el panel de revisión**, para que quien aprueba vea lo que se publica — **~15k**.
 3. **Más corpus**, que es lo único que permite tocar el umbral con fundamento. Sigue siendo el
    trabajo humano más lento y ahora tiene una pregunta concreta que contestar.
+
+---
+
+### ✅ El diff se ve donde tiene que verse: antes de aprobar y en la tarjeta — 2026-08-16
+
+Dos huecos de visibilidad, y el primero era la mitad que le faltaba al gate.
+
+**El panel de revisión no enseñaba el diff.** Se aprobaba sin ver el antes y el después: lo único
+que la persona miraba eran los spans de la cláusula. Ahora la cola trae los preceptos archivados
+**enteros y sin recorte por fecha**, con una diferencia deliberada respecto al canal público:
+
+- **Panel**: sin filtro. Quien mira **es** el gate, así que tiene que ver el material tal y como
+  está hoy, incluido el que llegó después de clasificar — que es el caso normal, porque el BOE
+  consolida con semanas de retraso.
+- **Público**: solo lo anterior a `alerta.emitida_en`. Lo que se publica es lo que se aprobó.
+
+`cambios_de` acepta `emitida_en=None` **solo de forma explícita y obligatoria**, sin valor por
+defecto, para que ningún canal nuevo se salte el recorte por descuido. Dos tests lo fijan.
+
+**La tarjeta de alerta enseña una muestra sin clic**: el primer precepto, recortado a 700
+caracteres por la API. Una tarjeta que anuncia «34 preceptos modificados» y no enseña ninguno
+pide que te fíes, que es justo lo que esta herramienta le exige a la administración no hacer. El
+listado trae uno; el detalle, todos.
+
+**Lo que esto deja a la vista, y conviene no leerlo como un fallo:** la única alerta publicada
+(`BOE-A-2024-10767`) **sale sin diff**, porque se aprobó el 14/08 y sus 34 preceptos se
+archivaron el 15. El arreglo de la auditoría está funcionando. Para verlo con datos hay que
+aprobar en el panel la detección que espera en la cola —`BOE-A-2024-10768`, la Ley 18/2023, con
+**36 preceptos ya archivados**—, y eso lo hace una persona, que es el punto.
+
+506 tests en verde, `tsc` y `vite build` limpios.
+
+#### Siguiente, por orden
+
+1. **Los dos hallazgos abiertos de la auditoría**: hambre de la cola de versionado (el tope lo
+   consumen siempre las mismas parejas irresolubles) y reintento eterno de fallos duros — **~15k**.
+2. **Más corpus para el gold set**, con la pregunta concreta que dejó la primera medición: contar
+   términos directos no discrimina en la banda media.
+3. **El Mapa con dato real**, cuando haya alertas de más de una comunidad.

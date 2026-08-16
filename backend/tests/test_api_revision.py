@@ -42,7 +42,7 @@ from app.models.deteccion import (
 )
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.fuente import AmbitoTerritorial, FormatoFuente, Fuente, TipoFuente
-from app.models.norma import EstadoPrefiltro, Norma
+from app.models.norma import EstadoPrefiltro, Norma, VersionNorma
 from app.security import panel
 from app.services import revision as servicio
 
@@ -468,3 +468,71 @@ class TestCableado:
         for camino, metodos in app_real.openapi()["paths"].items():
             if camino.startswith("/api") and not camino.startswith("/api/revision"):
                 assert set(metodos) == {"get"}, camino
+
+
+class TestDiffEnElPanel:
+    """Quien aprueba tiene que ver lo que se va a publicar. ADR 0018 + auditoría del 16/08."""
+
+    def _versionar(self, session: Session, norma: Norma) -> None:
+        consolidado = Documento(
+            fuente_id=norma.documento.fuente_id,
+            identificador_oficial="BOE-A-2016-6728-consolidado-abc123abc123",
+            fecha_publicacion=datetime.date(2026, 8, 16),
+            url_original=(
+                "https://www.boe.es/datosabiertos/api/legislacion-consolidada/id/BOE-A-2016-6728"
+            ),
+            sha256="c" * 64,
+            sello_tiempo=datetime.datetime.now(datetime.UTC),
+            ruta_almacen="cc/dd/consolidado.xml",
+            estado_pipeline=EstadoPipeline.INGERIDO,
+            tipo=TipoDocumento.CONSOLIDADO,
+        )
+        session.add(consolidado)
+        session.flush()
+        session.add(
+            VersionNorma(
+                norma_id=norma.id,
+                norma_afectada="BOE-A-2016-6728",
+                bloque="a4",
+                articulo="Artículo 4",
+                documento_consolidado_id=consolidado.id,
+                texto_anterior="Reconocimiento del derecho a la identidad de género.",
+                texto_nuevo="Reconocimiento del respeto a la libertad de las personas.",
+                ordinal=1,
+                version_derivacion="2026.08.15.1",
+            )
+        )
+        session.commit()
+
+    def test_la_cola_trae_las_dos_redacciones(self, client: TestClient, sesion_db: Session) -> None:
+        norma = _sembrar(sesion_db)
+        self._versionar(sesion_db, norma)
+        servicio.encolar(sesion_db)
+        sesion_db.commit()
+        _entrar(client)
+
+        item = client.get("/api/revision/cola").json()[0]
+
+        assert len(item["cambios"]) == 1
+        assert "identidad de género" in item["cambios"][0]["texto_anterior"]
+        assert item["cambios"][0]["consolidado_sha256"] == "c" * 64
+
+    def test_el_panel_ve_tambien_lo_archivado_despues_de_clasificar(
+        self, client: TestClient, sesion_db: Session
+    ) -> None:
+        """Aquí NO se filtra por fecha, y es lo contrario que en el canal público.
+
+        La persona que mira esta pantalla es el gate: si solo viera lo anterior a la
+        clasificación, aprobaría a ciegas justo el material que llegó tarde — que es el caso
+        normal, porque el BOE consolida con semanas de retraso.
+        """
+        norma = _sembrar(sesion_db)
+        servicio.encolar(sesion_db)
+        sesion_db.commit()
+        # El versionado llega DESPUÉS de encolar, como en la vida real.
+        self._versionar(sesion_db, norma)
+        _entrar(client)
+
+        item = client.get("/api/revision/cola").json()[0]
+
+        assert len(item["cambios"]) == 1
