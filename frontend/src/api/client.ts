@@ -334,6 +334,12 @@ export interface ItemRevisionApi {
   version_texto_plano: string | null;
   normas_vigiladas: string[];
   spans: SpanEvidenciaApi[];
+  /**
+   * El diff archivado, **entero y sin recortar por fecha**: quien revisa es el gate, así que
+   * ve el material tal y como está hoy. Lo que publica una alerta ya emitida es otra cosa —lo
+   * que había cuando se aprobó— y por eso el listado público filtra y esta pantalla no.
+   */
+  cambios: CambioPreceptoApi[];
 
   /**
    * Que el extractor pasara por esta norma. El panel **no** publica lo que dijo el modelo

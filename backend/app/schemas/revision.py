@@ -22,6 +22,7 @@ import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.alerta import CambioPrecepto
 from app.services.revision import MAX_NOTA
 
 
@@ -91,6 +92,12 @@ class ItemRevision(BaseModel):
     tiene_extraccion: bool
     punteros_corroborados: int
     punteros_sin_corroborar: int
+
+    # El diff archivado (ADR 0018), **entero y sin recorte por fecha**: quien revisa tiene que
+    # ver lo que hay ahora, porque su decisión es la que autoriza a publicarlo. Se reutiliza el
+    # tipo público a propósito — si el panel enseñara una forma distinta de la que se publica,
+    # nadie estaría revisando lo que sale.
+    cambios: list[CambioPrecepto] = Field(default_factory=list)
 
     norma: NormaRevision
     texto_archivado: TextoArchivadoRevision | None

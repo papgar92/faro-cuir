@@ -46,15 +46,23 @@ MAX_CARACTERES_REDACCION = 8_000
 # con su `sha256`.
 MAX_CAMBIOS_PUBLICADOS = 100
 
+# La **muestra** que viaja en el listado: un solo precepto y recortado. Existe porque una alerta
+# que dice «34 preceptos modificados» y no enseña ninguno obliga a fiarse justo en la pantalla
+# que más gente va a ver. Un precepto entero por tarjeta multiplicado por una página de alertas
+# sí sería inaceptable, así que la muestra se recorta a un párrafo largo y lo dice con
+# `truncado`; el texto completo está a un clic, en el detalle.
+MAX_CAMBIOS_MUESTRA = 1
+MAX_CARACTERES_MUESTRA = 700
+
 
 def _lista(valor: Any) -> list[Any]:
     return valor if isinstance(valor, list) else []
 
 
-def _recortar(texto: str | None) -> tuple[str | None, bool]:
-    if texto is None or len(texto) <= MAX_CARACTERES_REDACCION:
+def _recortar(texto: str | None, tope: int) -> tuple[str | None, bool]:
+    if texto is None or len(texto) <= tope:
         return texto, False
-    return texto[:MAX_CARACTERES_REDACCION] + " […]", True
+    return texto[:tope].rstrip() + " […]", True
 
 
 def cambios_de(
@@ -62,7 +70,9 @@ def cambios_de(
     norma_id: int,
     vigiladas: list[str],
     *,
-    emitida_en: datetime.datetime,
+    emitida_en: datetime.datetime | None,
+    limite: int = MAX_CAMBIOS_PUBLICADOS,
+    max_caracteres: int = MAX_CARACTERES_REDACCION,
 ) -> list[CambioPrecepto]:
     """Los preceptos reescritos que el ADR 0018 archivó para esta norma, **tal y como estaban
     cuando una persona aprobó la alerta**.
@@ -89,16 +99,21 @@ def cambios_de(
         .where(
             VersionNorma.norma_id == norma_id,
             VersionNorma.norma_afectada.in_(vigiladas),
-            VersionNorma.creada_en <= emitida_en,
+            # `None` = sin recorte temporal, y **solo lo puede pasar el panel de revisión**:
+            # allí la persona que mira ES el gate, así que tiene que ver lo que hay ahora,
+            # incluido lo que llegó después de clasificar. En cualquier canal público esto va
+            # siempre con la fecha de emisión. El parámetro es obligatorio y sin valor por
+            # defecto para que nadie se lo salte por descuido.
+            *([VersionNorma.creada_en <= emitida_en] if emitida_en is not None else []),
         )
         .order_by(VersionNorma.ordinal, VersionNorma.id)
-        .limit(MAX_CAMBIOS_PUBLICADOS)
+        .limit(limite)
     ).all()
 
     cambios = []
     for version, sha256 in filas:
-        anterior, corte_anterior = _recortar(version.texto_anterior)
-        nuevo, corte_nuevo = _recortar(version.texto_nuevo)
+        anterior, corte_anterior = _recortar(version.texto_anterior, max_caracteres)
+        nuevo, corte_nuevo = _recortar(version.texto_nuevo, max_caracteres)
         cambios.append(
             CambioPrecepto(
                 norma_afectada=version.norma_afectada,

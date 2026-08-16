@@ -37,6 +37,7 @@ import {
   type ItemRevisionApi,
 } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
+import { CambiosPrecepto } from "../components/CambiosPrecepto/CambiosPrecepto";
 import { formatearSelloTiempo } from "../lib/formato";
 
 /** Etiqueta y color de cada clasificación del backend (los cuatro de la sección 5). */
@@ -208,6 +209,23 @@ function Tarjeta({ item, onResuelto }: TarjetaProps) {
       </div>
 
       <Evidencia item={item} />
+
+      {/* Lo que se va a publicar si esto se aprueba. Estaba solo en la alerta, o sea DESPUÉS de
+          la decisión: quien revisaba aprobaba sin ver el antes y el después. Lo señaló la
+          auditoría del 2026-08-16 y es la mitad que faltaba del gate. */}
+      {item.cambios.length > 0 && (
+        <section className="mt-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-3">
+            Redacción anterior y nueva · {item.cambios.length} precepto
+            {item.cambios.length > 1 ? "s" : ""} archivados
+          </h4>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-3">
+            Sale del texto consolidado del BOE, no del boletín de aquel día. Es lo que verá quien
+            reciba la alerta si la apruebas.
+          </p>
+          <CambiosPrecepto cambios={item.cambios} />
+        </section>
+      )}
 
       <dl className="mt-4 grid gap-x-6 gap-y-2 text-xs text-ink-2 sm:grid-cols-2">
         <div>

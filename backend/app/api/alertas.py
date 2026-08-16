@@ -59,7 +59,22 @@ def listar_alertas(
         .limit(limite)
         .offset(desplazamiento)
     ).all()
-    return [servicio.a_publica(*fila) for fila in filas]
+    alertas = []
+    for alerta, deteccion, norma in filas:
+        publica = servicio.a_publica(alerta, deteccion, norma)
+        # Una muestra por alerta: el primer precepto reescrito, recortado. Sin esto la tarjeta
+        # anuncia «34 preceptos» y no enseña ninguno, que es pedir que se fíen — lo contrario de
+        # lo que esta herramienta le exige a la administración. El texto entero, en el detalle.
+        muestra = servicio.cambios_de(
+            session,
+            norma.id,
+            [vigilada.identificador for vigilada in publica.normas_vigiladas],
+            emitida_en=alerta.emitida_en,
+            limite=servicio.MAX_CAMBIOS_MUESTRA,
+            max_caracteres=servicio.MAX_CARACTERES_MUESTRA,
+        )
+        alertas.append(publica.model_copy(update={"cambios": muestra}))
+    return alertas
 
 
 @router.get("/alertas/{alerta_id}", response_model=AlertaPublica)

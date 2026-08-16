@@ -119,6 +119,13 @@ export function AlertCard({ alerta }: AlertCardProps) {
         </div>
       )}
 
+      {/* La muestra que trae el listado: el primer precepto, ya recortado por la API. Va sin
+          clic porque una tarjeta que dice «34 preceptos modificados» y no enseña ninguno pide
+          que te fíes, que es justo lo que este proyecto no hace. */}
+      {!abierto && alerta.cambios.length > 0 && (
+        <CambiosPrecepto cambios={alerta.cambios} />
+      )}
+
       {alerta.preceptos_con_diff > 0 && (
         <div className="mt-3">
           <button
@@ -127,8 +134,9 @@ export function AlertCard({ alerta }: AlertCardProps) {
             aria-expanded={abierto}
             className="rounded border border-line-2 bg-inset px-2.5 py-1.5 text-xs font-medium text-ink hover:border-line"
           >
-            {abierto ? "Ocultar" : "Ver"} qué cambió · {alerta.preceptos_con_diff} precepto
-            {alerta.preceptos_con_diff > 1 ? "s" : ""} con la redacción anterior archivada
+            {abierto
+              ? "Ocultar el texto completo"
+              : `Ver los ${alerta.preceptos_con_diff} preceptos con su redacción anterior`}
           </button>
           {abierto && fallo && (
             <p className="mt-2 text-xs text-ink-2">

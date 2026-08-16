@@ -39,6 +39,7 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.models.deteccion import ColaRevision, Deteccion, EstadoRevision
 from app.models.norma import Norma
+from app.schemas.alerta import CambioPrecepto
 from app.schemas.revision import (
     Credenciales,
     ItemRevision,
@@ -49,6 +50,7 @@ from app.schemas.revision import (
     TextoArchivadoRevision,
 )
 from app.security import panel
+from app.services import alertas as servicio_alertas
 from app.services import revision as servicio
 
 router = APIRouter(prefix="/api/revision", tags=["revision"])
@@ -119,7 +121,27 @@ def _lista(valor: Any) -> list[Any]:
     return valor if isinstance(valor, list) else []
 
 
-def _item(cola: ColaRevision, deteccion: Deteccion, norma: Norma) -> ItemRevision:
+def _evidencia(deteccion: Deteccion) -> dict[str, Any]:
+    return deteccion.evidencia_json if isinstance(deteccion.evidencia_json, dict) else {}
+
+
+def _cambios(session: Session, norma: Norma, vigiladas: list[str]) -> list[CambioPrecepto]:
+    """El diff archivado de esta norma, **sin recorte por fecha** (ADR 0018).
+
+    Aquí no se aplica el filtro de `alerta.emitida_en` que sí lleva todo canal público, y es
+    deliberado: la persona que mira esta pantalla **es** el gate (regla de oro 4), así que tiene
+    que ver el material tal y como está hoy, incluido el que llegó después de clasificar. Ese
+    material solo sale al mundo si esta persona aprueba.
+    """
+    return servicio_alertas.cambios_de(session, norma.id, vigiladas, emitida_en=None)
+
+
+def _item(
+    cola: ColaRevision,
+    deteccion: Deteccion,
+    norma: Norma,
+    cambios: list[CambioPrecepto] | None = None,
+) -> ItemRevision:
     """Arma la vista del ítem. Tolerante con la forma de `evidencia_json` a propósito.
 
     La fila pudo escribirla una versión anterior del clasificador, y una evidencia que no se
@@ -154,6 +176,7 @@ def _item(cola: ColaRevision, deteccion: Deteccion, norma: Norma) -> ItemRevisio
         tiene_extraccion=deteccion.extraccion_json is not None,
         punteros_corroborados=len(_lista(evidencia.get("punteros_corroborados"))),
         punteros_sin_corroborar=len(_lista(evidencia.get("punteros_sin_corroborar"))),
+        cambios=cambios or [],
         norma=NormaRevision.model_validate(norma),
         texto_archivado=(
             TextoArchivadoRevision.model_validate(cuerpo) if cuerpo is not None else None
@@ -279,7 +302,19 @@ def listar_cola(
         .limit(limite)
         .offset(desplazamiento)
     ).all()
-    return [_item(cola, deteccion, norma) for cola, deteccion, norma in filas]
+    return [
+        _item(
+            cola,
+            deteccion,
+            norma,
+            _cambios(
+                session,
+                norma,
+                [str(x) for x in _lista(_evidencia(deteccion).get("normas_vigiladas"))],
+            ),
+        )
+        for cola, deteccion, norma in filas
+    ]
 
 
 @router.get(
@@ -292,7 +327,15 @@ def obtener_item(
     fila = session.execute(_consulta_cola().where(ColaRevision.id == cola_id)).first()
     if fila is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ítem no encontrado")
-    return _item(*fila)
+    cola, deteccion, norma = fila
+    return _item(
+        cola,
+        deteccion,
+        norma,
+        _cambios(
+            session, norma, [str(x) for x in _lista(_evidencia(deteccion).get("normas_vigiladas"))]
+        ),
+    )
 
 
 def _resolver(session: Session, cola_id: int, aprobada: bool, nota: str | None) -> ItemRevision:
@@ -323,7 +366,15 @@ def _resolver(session: Session, cola_id: int, aprobada: bool, nota: str | None) 
     fila = session.execute(_consulta_cola().where(ColaRevision.id == cola_id)).first()
     if fila is None:  # pragma: no cover - se acaba de resolver en esta misma transacción
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ítem no encontrado")
-    return _item(*fila)
+    cola, deteccion, norma = fila
+    return _item(
+        cola,
+        deteccion,
+        norma,
+        _cambios(
+            session, norma, [str(x) for x in _lista(_evidencia(deteccion).get("normas_vigiladas"))]
+        ),
+    )
 
 
 @router.post(

@@ -391,10 +391,15 @@ def _versionar(session: Session, norma_id: int, *, afectada: str = "BOE-A-2016-6
 
 
 class TestDiffPublicado:
-    def test_el_listado_dice_cuantos_hay_pero_no_trae_los_textos(
+    def test_el_listado_trae_una_muestra_recortada_y_no_los_36_preceptos(
         self, client: TestClient, sesion_db: Session
     ) -> None:
-        """36 preceptos con sus dos redacciones en cada elemento del listado son varios megas."""
+        """El equilibrio de la pantalla más vista: enseñar algo sin mandar varios megas.
+
+        Una tarjeta que anuncia «34 preceptos modificados» y no enseña ninguno pide que te fíes.
+        Los 34 enteros en cada elemento del listado son varios megas por página. Así que va uno,
+        recortado, y el resto en el detalle.
+        """
         deteccion = _norma_con_deteccion(sesion_db, ident="BOE-A-2024-10767")
         _versionar(sesion_db, deteccion.norma_id)
         _aprobar(sesion_db, deteccion)
@@ -407,7 +412,10 @@ class TestDiffPublicado:
             "identidad de genero",
             "autodeterminacion de genero",
         ]
-        assert cuerpo[0]["cambios"] == []
+        # Uno, no los dos que hay archivados: el listado enseña, el detalle documenta.
+        assert len(cuerpo[0]["cambios"]) == 1
+        assert cuerpo[0]["cambios"][0]["bloque"] == "a4"
+        assert len(cuerpo[0]["cambios"][0]["texto_anterior"]) <= 710
 
     def test_el_detalle_trae_las_dos_redacciones_con_la_huella_del_consolidado(
         self, client: TestClient, sesion_db: Session
