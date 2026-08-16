@@ -35,7 +35,7 @@ from app.services import revision as servicio_revision
 
 logger = logging.getLogger("worker")
 
-FUENTES_SOPORTADAS = ("boe",)
+FUENTES_SOPORTADAS = ("boe", "dogc")
 
 
 def _fecha(valor: str) -> datetime.date:
@@ -324,7 +324,9 @@ def main(argv: list[str] | None = None) -> int:
 
     codigo = 0
     for indice, dia in enumerate(dias):
-        resultado_dia = _ingerir_dia(dia, settings, sin_extraccion=args.sin_extraccion)
+        resultado_dia = _ingerir_dia(
+            dia, settings, fuente_pedida=args.fuente, sin_extraccion=args.sin_extraccion
+        )
         # Un día sin boletín o un fallo de red **no interrumpe el rango**: un domingo por medio
         # no puede dejar sin ingerir el resto del mes. Se queda el peor código de salida para
         # que el cron se entere igualmente de que algo fue mal.
@@ -336,23 +338,36 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _ingerir_dia(  # noqa: C901
-    fecha: datetime.date, settings: Settings, *, sin_extraccion: bool = False
+    fecha: datetime.date,
+    settings: Settings,
+    *,
+    fuente_pedida: str = "boe",
+    sin_extraccion: bool = False,
 ) -> int:
     """Una pasada completa del pipeline sobre un día de boletín."""
     with SessionLocal() as session:
-        fuente = session.scalar(select(Fuente).where(Fuente.tipo == TipoFuente.BOE))
+        tipo = TipoFuente.BOE if fuente_pedida == "boe" else TipoFuente.BOLETIN_AUTONOMICO
+        consulta = select(Fuente).where(Fuente.tipo == tipo)
+        if fuente_pedida != "boe":
+            # Hay 17 boletines autonómicos posibles en el modelo; hoy solo uno integrado.
+            consulta = consulta.where(Fuente.ccaa_codigo == "CT")
+        fuente = session.scalar(consulta)
         if fuente is None:
             logger.error(
-                "No hay ninguna fuente de tipo 'boe' en la base de datos. "
-                "¿Falta aplicar las migraciones (alembic upgrade head)?"
+                "No hay ninguna fuente %r en la base de datos. "
+                "¿Falta aplicar las migraciones (alembic upgrade head)?",
+                fuente_pedida,
             )
             return 2
         if not fuente.activa:
             logger.error("La fuente %r está marcada como inactiva; no se ingiere.", fuente.nombre)
             return 2
 
+        ingerir = (
+            ingesta.ingerir_sumario_boe if fuente_pedida == "boe" else ingesta.ingerir_sumario_dogc
+        )
         try:
-            resultado = ingesta.ingerir_sumario_boe(
+            resultado = ingerir(
                 session,
                 fuente_id=fuente.id,
                 fecha=fecha,

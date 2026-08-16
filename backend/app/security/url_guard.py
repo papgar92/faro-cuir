@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+import ssl
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -38,7 +39,41 @@ import httpx
 # docs/fuentes.md. Cuando exista ingesta real de varias fuentes, esto debería derivarse de
 # `fuente.url_base` en la base de datos en vez de vivir en el código; se deja como constante
 # mientras solo hay una fuente para no montar la maquinaria antes de necesitarla.
-DEFAULT_ALLOWLIST: frozenset[str] = frozenset({"boe.es"})
+# Hosts que **solo** negocian un perfil TLS heredado, con lo que se ha medido de cada uno. Es
+# una lista por host y no un ajuste global: relajar el perfil para todo el mundo debilitaría
+# también la descarga del BOE, que negocia TLS 1.3 sin problema.
+#
+# `portaldogc.gencat.cat` (texto íntegro del DOGC, ADR 0019) solo acepta **TLS 1.2 con
+# `AES256-SHA`**, verificado el 2026-08-16 probando handshakes uno a uno. OpenSSL 3 lo rechaza
+# por su nivel de seguridad por defecto; `curl` funciona porque en Windows usa el TLS del
+# sistema, y esa discrepancia es justo lo que hacía parecer el fallo cosa nuestra.
+#
+# **Qué se relaja y qué no**, porque la diferencia es lo que hace aceptable esto: se acepta un
+# cifrado sin secreto hacia adelante y con MAC antiguo; **NO se relaja la verificación del
+# certificado**, así que sigue haciendo falta un certificado válido para el nombre. Y el archivo
+# no depende solo del canal: lo que se descarga se sella con su `sha256` (6.5), así que una
+# alteración posterior es detectable aunque el transporte sea más débil de lo que nos gustaría.
+# El contenido, además, es normativa pública: no hay confidencialidad que proteger, sí
+# integridad, y esa se sostiene con certificado + huella.
+HOSTS_TLS_HEREDADO: frozenset[str] = frozenset({"portaldogc.gencat.cat"})
+
+DEFAULT_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "boe.es",
+        # --- DOGC, segunda fuente y primera autonómica (ADR 0019) ---------------------------
+        # Portal Jurídic (sumario y texto íntegro). Entran **los dos** subdominios vía el
+        # dominio raíz porque el texto íntegro llega por redirección entre hosts
+        # (`portaljuridic` → `portaldogc`) y `fetch` revalida cada salto: con uno solo, la
+        # descarga fallaría como control de seguridad y parecería un problema de la fuente.
+        "gencat.cat",
+        # El sumario del DOGC **no vive en un dominio del diario**: vive en el portal de datos
+        # abiertos de la Generalitat, que corre sobre un proveedor externo. Es la fuente oficial
+        # de datos abiertos del gobierno catalán, y por eso entra; pero entra como decisión
+        # escrita y no de tapadillo, porque "dominios oficiales" deja de ser autodescriptivo en
+        # cuanto uno de ellos no lo parece.
+        "transparenciacatalunya.cat",
+    }
+)
 
 # Solo https: aparte de la confidencialidad, es lo que hace que el pinning por IP de `fetch`
 # siga siendo seguro. Sobre http no habría certificado que verificar y clavarnos a una IP
@@ -254,15 +289,29 @@ def _read_capped(response: httpx.Response, max_bytes: int) -> bytes:
     return b"".join(chunks)
 
 
+def _contexto_tls(hostname: str) -> ssl.SSLContext | bool:
+    """El contexto TLS para este host: estricto por defecto, heredado solo si está declarado."""
+    if hostname not in HOSTS_TLS_HEREDADO:
+        return True  # el contexto por defecto de httpx, estricto
+    contexto = ssl.create_default_context()
+    # Nivel 1: admite los cifrados que este servidor ofrece. `check_hostname` y la validación de
+    # la cadena siguen activados —no se tocan— y por eso esto no es "verify=False" con otro
+    # nombre.
+    contexto.set_ciphers("DEFAULT@SECLEVEL=1")
+    return contexto
+
+
 @contextmanager
-def _ensure_client(client: httpx.Client | None) -> Iterator[httpx.Client]:
+def _ensure_client(client: httpx.Client | None, hostname: str = "") -> Iterator[httpx.Client]:
     if client is not None:
         yield client
         return
     # follow_redirects=False a propósito: las redirecciones se siguen a mano en `fetch` para
     # poder revalidar cada salto. Si httpx las siguiera solo, el primer 302 hacia
     # http://127.0.0.1 anularía todo lo anterior.
-    with httpx.Client(timeout=DEFAULT_TIMEOUT, follow_redirects=False) as owned:
+    with httpx.Client(
+        timeout=DEFAULT_TIMEOUT, follow_redirects=False, verify=_contexto_tls(hostname)
+    ) as owned:
         yield owned
 
 
@@ -284,7 +333,11 @@ def fetch(
 
     Lanza `UrlGuardError` si cualquier control falla, en la URL inicial o en una redirección.
     """
-    with _ensure_client(client) as active_client:
+    # El contexto TLS se elige por el host de la URL **inicial**; si una redirección lleva a un
+    # host con perfil distinto, se abre un cliente nuevo para ese salto (ver el bucle). Elegirlo
+    # una sola vez haría que una redirección a un host heredado fallara sin explicación, que es
+    # exactamente el fallo que costó una hora de depuración con el DOGC.
+    with _ensure_client(client, urlsplit(url).hostname or "") as active_client:
         current_url = url
         for _ in range(max_redirects + 1):
             target = validate(current_url, allowlist=allowlist, resolver=resolver)
@@ -301,6 +354,18 @@ def fetch(
                     # clavada a la IP: una Location relativa debe seguir colgando del host
                     # original, no de su dirección.
                     current_url = urljoin(target.url, location)
+                    destino = urlsplit(current_url).hostname or ""
+                    if client is None and destino in HOSTS_TLS_HEREDADO:
+                        # Salto a un host que exige perfil heredado: se sigue a mano con un
+                        # cliente propio para ese host, sin tocar el perfil de los demás.
+                        return _seguir_con_perfil_propio(
+                            current_url,
+                            allowlist=allowlist,
+                            headers=headers,
+                            max_bytes=max_bytes,
+                            max_redirects=max_redirects - 1,
+                            resolver=resolver,
+                        )
                     continue
 
                 response.raise_for_status()
@@ -309,3 +374,23 @@ def fetch(
                 response.close()
 
         raise TooManyRedirects(f"Más de {max_redirects} redirecciones desde {url!r}")
+
+
+def _seguir_con_perfil_propio(
+    url: str,
+    *,
+    allowlist: frozenset[str],
+    headers: Mapping[str, str] | None,
+    max_bytes: int,
+    max_redirects: int,
+    resolver: Resolver,
+) -> bytes:
+    """Reanuda `fetch` para un host con perfil TLS heredado, sin relajar nada de los demás."""
+    return fetch(
+        url,
+        allowlist=allowlist,
+        headers=headers,
+        max_bytes=max_bytes,
+        max_redirects=max_redirects,
+        resolver=resolver,
+    )

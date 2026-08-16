@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ingest import boe
+from app.ingest import boe, dogc
 from app.ingest.boe import Sumario
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
@@ -94,7 +94,52 @@ def ingerir_sumario_boe(
     """
     contenido = boe.descargar_sumario(fecha, client=client)
     sumario = boe.parsear_sumario(contenido, fecha_esperada=fecha)
+    return _archivar_y_registrar(
+        session,
+        fuente_id=fuente_id,
+        sumario=sumario,
+        contenido=contenido,
+        url_original=boe.url_sumario(fecha),
+        almacen_root=almacen_root,
+    )
 
+
+def ingerir_sumario_dogc(
+    session: Session,
+    *,
+    fuente_id: int,
+    fecha: datetime.date,
+    almacen_root: Path,
+    client: httpx.Client | None = None,
+) -> ResultadoIngesta:
+    """Lo mismo para el DOGC (ADR 0019), segunda fuente y primera autonómica.
+
+    Comparte todo lo que va después de parsear —archivo con huella, alta del documento,
+    sincronización de normas— porque el archivo (6.5) y la idempotencia no pueden depender de
+    qué boletín sea: dos implementaciones de esto serían dos garantías distintas.
+    """
+    contenido = dogc.descargar_sumario(fecha, client=client)
+    sumario = dogc.parsear_sumario(contenido, fecha)
+    return _archivar_y_registrar(
+        session,
+        fuente_id=fuente_id,
+        sumario=sumario,
+        contenido=contenido,
+        url_original=dogc.url_sumario(fecha),
+        almacen_root=almacen_root,
+    )
+
+
+def _archivar_y_registrar(
+    session: Session,
+    *,
+    fuente_id: int,
+    sumario: boe.Sumario,
+    contenido: bytes,
+    url_original: str,
+    almacen_root: Path,
+) -> ResultadoIngesta:
+    """Lo que es igual para toda fuente: huella, sello, alta y normas. Idempotente."""
     digest = hashing.sha256_hex(contenido)
     ruta_relativa = archivar(contenido, digest, almacen_root=almacen_root)
 
@@ -106,7 +151,7 @@ def ingerir_sumario_boe(
             fuente_id=fuente_id,
             identificador_oficial=sumario.identificador,
             fecha_publicacion=sumario.fecha_publicacion,
-            url_original=boe.url_sumario(fecha),
+            url_original=url_original,
             sha256=digest,
             # Cuándo lo vimos nosotros, en UTC explícito. Junto al sha256 es lo que sostiene
             # la afirmación "el día X esto decía exactamente esto" (CLAUDE.md 6.5).

@@ -23,12 +23,22 @@ derivado del archivado de forma reproducible.
 
 from __future__ import annotations
 
+import html
+import re
 from xml.etree.ElementTree import Element
+
+# Espacio de nombres de Akoma Ntoso (estándar OASIS de documentos legales), que es lo que
+# publica el DOGC (ADR 0019).
+_AKN = "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}"
+
+# Marcado HTML dentro del atributo `period`. Ver `_texto_akoma_ntoso`.
+_ETIQUETA = re.compile(r"<[^>]+>")
+_ESPACIOS = re.compile(r"\s+")
 
 # Sube cuando cambie la forma de derivar el texto. Se guarda junto a lo que se derive de él,
 # igual que `VERSION_VOCABULARIO` en el prefiltro: sin esto, "esta norma se evaluó así" deja de
 # ser comprobable en cuanto la derivación cambie.
-VERSION_TEXTO_PLANO = "2026.08.09"
+VERSION_TEXTO_PLANO = "2026.08.16"
 
 
 def texto_plano(raiz: Element) -> str:
@@ -52,7 +62,52 @@ def texto_plano(raiz: Element) -> str:
     contienen vocabulario del dominio sin que esta norma regule nada. Quien evalúe sobre texto
     íntegro debe saber que ese caso existe.
     """
+    akn = _texto_akoma_ntoso(raiz)
+    if akn:
+        return akn
+
     cuerpo = raiz.find("./texto")
+    if cuerpo is None:
+        # Akoma Ntoso (DOGC, ADR 0019): el articulado vive en `<body>`, y el resto del árbol es
+        # metadatos ELI/FRBR — el equivalente exacto del ruido de `<analisis>` en el BOE. Se
+        # busca con el espacio de nombres del estándar y no por sufijo del tag para no capturar
+        # un `<body>` de cualquier otro XML que algún día llegue.
+        cuerpo = raiz.find(
+            "./{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}act/"
+            "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}body"
+        )
     objetivo = cuerpo if cuerpo is not None else raiz
     fragmentos = (fragmento.strip() for fragmento in objetivo.itertext())
     return " ".join(f for f in fragmentos if f)
+
+
+def _texto_akoma_ntoso(raiz: Element) -> str:
+    """El articulado de un documento Akoma Ntoso del DOGC.
+
+    **Tiene truco, y está verificado contra el documento real, no deducido del estándar**
+    (`DECRETO LEY 11/2024`, descargado el 2026-08-16): el DOGC publica AKN válido en su
+    estructura, pero **el articulado entero no va en nodos de texto, va dentro de un atributo**
+    —`<content period="&lt;div&gt;&lt;p&gt;…">`— con el HTML escapado dentro.
+
+    Consecuencia práctica: `itertext()` sobre ese árbol devuelve **cadena vacía**. Un derivador
+    escrito contra la lectura del estándar habría archivado cientos de normas con texto vacío,
+    el prefiltro las habría descartado todas por no encontrar ningún término y no habría fallado
+    nada visiblemente. Es el modo de fallo exacto que este proyecto no se permite, y por eso el
+    caso tiene su propio test con XML real recortado.
+
+    Se desescapa el HTML y se quitan las etiquetas con expresiones regulares —sin dependencias
+    nuevas (sección 3)— porque aquí solo se deriva **texto para analizar**: nada de esto se
+    renderiza. Lo que llegue a una pantalla pasa por el escapado del frontend, que trata este
+    contenido como lo que es, no confiable (6.10).
+    """
+    contenidos = [
+        nodo.get("period", "") for nodo in raiz.iterfind(f".//{_AKN}content") if nodo.get("period")
+    ]
+    if not contenidos:
+        return ""
+    crudo = html.unescape(" ".join(contenidos))
+    # Segunda pasada de desescapado: el atributo trae `&amp;nbsp;` (doblemente escapado) en
+    # todos los documentos verificados. Sin ella, el texto se llena de `&nbsp;` literales que
+    # el vocabulario del prefiltro tendría que aprender a ignorar.
+    sin_etiquetas = _ETIQUETA.sub(" ", html.unescape(crudo))
+    return _ESPACIOS.sub(" ", sin_etiquetas).strip()
