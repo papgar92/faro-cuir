@@ -112,6 +112,15 @@ def _resumen(alerta: AlertaPublica) -> str:
                 "vigente en otro artículo que la reforma no tocó."
             )
         lineas.append("")
+    if alerta.clasificacion_humana:
+        humana = ETIQUETA_CLASIFICACION.get(
+            alerta.clasificacion_humana, alerta.clasificacion_humana
+        )
+        lineas += [
+            f"La persona que revisó esta alerta fijó el signo: {humana}. La regla se había "
+            "abstenido; quien revisa lee el texto completo y sí puede decirlo.",
+            "",
+        ]
     lineas.append(
         f"Clasificado por la regla {alerta.regla_aplicada or '—'}"
         + (f" del catálogo {alerta.version_reglas}" if alerta.version_reglas else "")

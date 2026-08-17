@@ -161,6 +161,9 @@ interface TarjetaProps {
 
 function Tarjeta({ item, onResuelto }: TarjetaProps) {
   const [nota, setNota] = useState("");
+  // El signo que fija quien revisa. Vacío = no lo toca, que es lo normal: la mayoría de las veces
+  // la regla ya lo afirmó y aquí solo se aprueba o se descarta.
+  const [signo, setSigno] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState<"aprobar" | "descartar" | null>(null);
   const clasificacion = CLASIFICACION[item.clasificacion];
@@ -169,7 +172,14 @@ function Tarjeta({ item, onResuelto }: TarjetaProps) {
     setEnviando(accion);
     setError(null);
     try {
-      await resolverRevision(item.id, accion, nota);
+      await resolverRevision(
+        item.id,
+        accion,
+        nota,
+        // Solo al aprobar: descartar es decir «esto no se publica», y un signo sobre algo que no
+        // se publica no significa nada.
+        accion === "aprobar" && signo !== "" ? (signo as "avance") : null,
+      );
       onResuelto();
     } catch (fallo) {
       setError(
@@ -278,6 +288,39 @@ function Tarjeta({ item, onResuelto }: TarjetaProps) {
           </p>
         )}
       </div>
+
+      <fieldset className="mt-4 rounded border border-line-2 bg-inset p-3">
+        <legend className="px-1 text-xs font-medium text-ink">
+          Signo de la alerta (opcional)
+        </legend>
+        <p className="text-xs leading-relaxed text-ink-2">
+          La regla dice{" "}
+          <strong className="font-semibold text-ink">{item.clasificacion}</strong>. Si se abstuvo
+          —derogar una ley es lo que hace tanto quien la desmonta como quien la sustituye por otra
+          mejor— y al leer el texto lo tienes claro, fíjalo aquí.{" "}
+          <strong className="font-semibold text-ink">No sobrescribe lo que dijo la regla</strong>:
+          se publica aparte, atribuido a la revisión humana.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-3">
+          {[
+            { valor: "", etiqueta: "No cambiarlo" },
+            { valor: "avance", etiqueta: "Avance" },
+            { valor: "retroceso", etiqueta: "Retroceso" },
+            { valor: "neutro", etiqueta: "Neutro" },
+          ].map((opcion) => (
+            <label key={opcion.valor} className="flex items-center gap-1.5 text-xs text-ink">
+              <input
+                type="radio"
+                name={`signo-${item.id}`}
+                value={opcion.valor}
+                checked={signo === opcion.valor}
+                onChange={() => setSigno(opcion.valor)}
+              />
+              {opcion.etiqueta}
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <label htmlFor={`nota-${item.id}`} className="mt-4 block text-xs font-medium text-ink">
         Nota de revisión (opcional, se guarda con la decisión)

@@ -107,7 +107,15 @@ class AlertaPublica(BaseModel):
     # se ordena una cronología de retrocesos.
     fecha_publicacion: datetime.date
 
+    # **Lo que derivó la regla** del texto archivado. Reconstruible por un tercero leyendo la
+    # regla y el documento, sin ejecutar nuestro código (7.6).
     clasificacion: str
+    # **Lo que fijó la persona que revisó**, si lo fijó. Va aparte y con nombre propio porque es
+    # otra fuente de autoridad: la regla se abstiene cuando no puede afirmar el signo —derogar
+    # una ley es lo que hace tanto quien la desmonta como quien la sustituye por otra mejor— y
+    # quien lee el texto sí puede decirlo. Mezclarlas haría que la fila dijera «retroceso, regla
+    # R-DER-001» cuando la regla no dice eso.
+    clasificacion_humana: str | None = None
     severidad: int
     # `severidad` y `confianza` las declara cada regla y **nadie las ha calibrado** contra un
     # corpus. Se publican porque ordenar por gravedad declarada es útil y esconderlas sería

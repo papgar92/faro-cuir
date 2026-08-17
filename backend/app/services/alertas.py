@@ -20,7 +20,7 @@ from typing import Any
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.deteccion import Alerta, Deteccion
+from app.models.deteccion import Alerta, ColaRevision, Deteccion
 from app.models.documento import Documento
 from app.models.norma import Norma, VersionNorma
 from app.pipeline import watchlist
@@ -129,12 +129,16 @@ def cambios_de(
     return cambios
 
 
-def consulta() -> Select[tuple[Alerta, Deteccion, Norma]]:
-    """Alertas emitidas, con su detección y su norma. Ordenar es cosa de quien llame."""
+def consulta() -> Select[tuple[Alerta, Deteccion, Norma, ColaRevision]]:
+    """Alertas emitidas, con su detección, su norma y la decisión del gate que las emitió."""
     return (
-        select(Alerta, Deteccion, Norma)
+        select(Alerta, Deteccion, Norma, ColaRevision)
         .join(Deteccion, Deteccion.id == Alerta.deteccion_id)
         .join(Norma, Norma.id == Deteccion.norma_id)
+        # La fila del gate: de ahí sale el signo que fijó la persona, si lo fijó. `join` y no
+        # `outerjoin` porque una alerta sin su ítem de cola no puede existir — `aprobar` es el
+        # único sitio que escribe en `alerta` y siempre parte de la cola.
+        .join(ColaRevision, ColaRevision.deteccion_id == Deteccion.id)
         # El sumario, explícito y no por relación, porque hace falta **ordenar** por su fecha.
         # `norma` tiene dos documentos (el sumario y el cuerpo, ADR 0015) y por eso la condición
         # va escrita: dejar que el ORM elija sería elegir al azar entre dos caminos distintos.
@@ -147,6 +151,7 @@ def a_publica(
     alerta: Alerta,
     deteccion: Deteccion,
     norma: Norma,
+    revision: ColaRevision | None = None,
     *,
     cambios: list[CambioPrecepto] | None = None,
 ) -> AlertaPublica:
@@ -179,6 +184,11 @@ def a_publica(
         emitida_en=alerta.emitida_en,
         fecha_publicacion=norma.documento.fecha_publicacion,
         clasificacion=deteccion.clasificacion.value,
+        clasificacion_humana=(
+            revision.clasificacion_humana.value
+            if revision is not None and revision.clasificacion_humana is not None
+            else None
+        ),
         severidad=deteccion.severidad,
         confianza=deteccion.confianza,
         regla_aplicada=deteccion.regla_aplicada,

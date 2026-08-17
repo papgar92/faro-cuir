@@ -44,7 +44,13 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.deteccion import Alerta, ColaRevision, Deteccion, EstadoRevision
+from app.models.deteccion import (
+    Alerta,
+    Clasificacion,
+    ColaRevision,
+    Deteccion,
+    EstadoRevision,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -173,13 +179,31 @@ def _resolver(
     return item
 
 
-def aprobar(session: Session, cola_id: int, *, nota: str | None = None) -> Alerta:
+def aprobar(
+    session: Session,
+    cola_id: int,
+    *,
+    nota: str | None = None,
+    clasificacion: str | None = None,
+) -> Alerta:
     """Aprueba un ítem y **emite** la alerta. Es el único sitio del código que escribe en `alerta`.
 
     El log dice qué se aprobó y con qué regla, nunca quién ni con qué nota: lo primero es
     trazabilidad del sistema y lo segundo sería un dato de la persona que revisa.
+
+    `clasificacion` es **el signo que fija la persona**, y es opcional. Lo pidió el humano con el
+    caso que lo justifica: la Ley 4/2023 sale como «sin signo» porque R-DER-001 se abstiene a
+    propósito —derogar es lo que hace tanto quien desmonta una ley como quien la sustituye por
+    otra mejor— y quien lee el texto sabe perfectamente que es un avance.
+
+    **No sobrescribe `deteccion.clasificacion`.** Aquella es lo que derivó una regla auditable del
+    archivo; esta es lo que decidió una persona. Se guardan por separado porque son dos fuentes
+    de autoridad distintas, y mezclarlas rompería la propiedad que sostiene el proyecto: que un
+    tercero pueda reconstruir el veredicto de la regla leyendo la regla (7.6).
     """
     item = _resolver(session, cola_id, estado=EstadoRevision.APROBADA, nota=nota)
+    if clasificacion is not None:
+        item.clasificacion_humana = Clasificacion(clasificacion)
     alerta = Alerta(deteccion_id=item.deteccion_id)
     session.add(alerta)
     session.commit()

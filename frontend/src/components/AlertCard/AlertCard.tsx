@@ -38,7 +38,10 @@ interface AlertCardProps {
 }
 
 export function AlertCard({ alerta }: AlertCardProps) {
-  const meta = META[alerta.clasificacion];
+  // Si una persona fijó el signo, manda el suyo: leyó el texto entero, que es más de lo que
+  // puede hacer una regla. Pero **se dice de quién es cada cosa** justo debajo, porque publicar
+  // «avance» sin decir que lo decidió alguien sería atribuirle a la regla algo que no dijo.
+  const meta = META[alerta.clasificacion_humana ?? alerta.clasificacion];
   const colors = COLOR_CLASSES[meta.color];
   const territorios = alerta.normas_vigiladas.map((n) => nombreTerritorio(n.ambito));
 
@@ -79,6 +82,15 @@ export function AlertCard({ alerta }: AlertCardProps) {
       <h3 className="mt-2.5 text-base font-semibold leading-snug text-ink">
         {alerta.norma.titulo}
       </h3>
+
+      {alerta.clasificacion_humana && (
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-2">
+          Signo fijado por la persona que revisó. La regla{" "}
+          <span className="font-mono text-[11px]">{alerta.regla_aplicada}</span> se quedó en{" "}
+          «{alerta.clasificacion}»: no puede afirmar el sentido de una derogación sin leer qué
+          ocupa el lugar de lo derogado.
+        </p>
+      )}
 
       {alerta.spans.length > 0 && (
         <div className="mt-3 rounded border border-line-2 bg-inset p-3">

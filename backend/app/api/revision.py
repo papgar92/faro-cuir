@@ -172,6 +172,9 @@ def _item(
         version_reglas=evidencia.get("version_reglas"),
         version_texto_plano=evidencia.get("version_texto_plano"),
         normas_vigiladas=[str(x) for x in _lista(evidencia.get("normas_vigiladas"))],
+        clasificacion_humana=(
+            cola.clasificacion_humana.value if cola.clasificacion_humana is not None else None
+        ),
         spans=spans,
         tiene_extraccion=deteccion.extraccion_json is not None,
         punteros_corroborados=len(_lista(evidencia.get("punteros_corroborados"))),
@@ -338,10 +341,16 @@ def obtener_item(
     )
 
 
-def _resolver(session: Session, cola_id: int, aprobada: bool, nota: str | None) -> ItemRevision:
+def _resolver(
+    session: Session,
+    cola_id: int,
+    aprobada: bool,
+    nota: str | None,
+    clasificacion: str | None = None,
+) -> ItemRevision:
     try:
         if aprobada:
-            servicio.aprobar(session, cola_id, nota=nota)
+            servicio.aprobar(session, cola_id, nota=nota, clasificacion=clasificacion)
         else:
             servicio.descartar(session, cola_id, nota=nota)
     except servicio.ItemNoEncontrado as exc:
@@ -388,7 +397,13 @@ def aprobar(
     session: Session = Depends(get_session),
 ) -> ItemRevision:
     """Aprueba y **emite la alerta**. Es la acción con consecuencias del sistema entero."""
-    return _resolver(session, cola_id, True, resolucion.nota if resolucion else None)
+    return _resolver(
+        session,
+        cola_id,
+        True,
+        resolucion.nota if resolucion else None,
+        resolucion.clasificacion if resolucion else None,
+    )
 
 
 @router.post(

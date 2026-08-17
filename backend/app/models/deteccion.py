@@ -152,6 +152,24 @@ class ColaRevision(Base):
     # LGTBI+ crearía un dato personal sensible que no necesitamos (sección 6.4).
     nota_revision: Mapped[str | None] = mapped_column(Text)
 
+    # El signo que fija **la persona** que revisa, cuando la regla no lo afirmó o se quedó corta.
+    # Va aparte de `deteccion.clasificacion` y no lo sobrescribe: aquella es lo que derivó una
+    # regla auditable del texto archivado —reconstruible por un tercero sin ejecutar nuestro
+    # código (7.6)— y esta es lo que decidió alguien con el documento delante. Son dos fuentes de
+    # autoridad distintas y mezclarlas rompería la propiedad que sostiene todo el proyecto.
+    #
+    # NULL = quien revisó no cambió el signo. **No** es lo mismo que decir que es neutro.
+    clasificacion_humana: Mapped[Clasificacion | None] = mapped_column(
+        Enum(
+            Clasificacion,
+            native_enum=False,
+            length=20,
+            create_constraint=True,
+            name="clasificacionhumana",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        )
+    )
+
 
 class Alerta(Base):
     """Una detección aprobada y emitida. CLAUDE.md sección 5.

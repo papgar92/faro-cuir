@@ -19,6 +19,7 @@ Lo que deliberadamente **no** viaja al panel:
 from __future__ import annotations
 
 import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -85,6 +86,9 @@ class ItemRevision(BaseModel):
     version_reglas: str | None
     version_texto_plano: str | None
     normas_vigiladas: list[str] = Field(default_factory=list)
+    # Lo que fijó quien revisó, si lo hizo. Se enseña en el panel para que una segunda pasada
+    # sepa que aquí ya hubo una decisión humana y cuál fue.
+    clasificacion_humana: str | None = None
     spans: list[SpanEvidencia] = Field(default_factory=list)
 
     # Que el extractor haya pasado o no por esta norma, sin publicar lo que dijo. Ver la
@@ -104,11 +108,14 @@ class ItemRevision(BaseModel):
 
 
 class ResolucionRevision(BaseModel):
-    """Cuerpo de aprobar/descartar. La nota es opcional y acotada."""
+    """Cuerpo de aprobar/descartar. Todo opcional y acotado."""
 
     model_config = ConfigDict(extra="forbid")
 
     nota: str | None = Field(default=None, max_length=MAX_NOTA)
+    # El signo que fija la persona, cuando la regla no lo afirmó. Opcional a propósito: lo normal
+    # es aprobar sin tocarlo, y exigirlo convertiría cada revisión en una obligación de opinar.
+    clasificacion: Literal["avance", "retroceso", "neutro", "indeterminado"] | None = None
 
 
 class Credenciales(BaseModel):

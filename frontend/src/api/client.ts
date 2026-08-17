@@ -237,6 +237,12 @@ export interface AlertaApi {
   /** Fecha del boletín, no de cuándo lo procesamos: la cronología es de lo que pasó. */
   fecha_publicacion: string;
   clasificacion: "avance" | "retroceso" | "neutro" | "indeterminado";
+  /**
+   * El signo que fijó la persona al aprobar, si lo fijó. `null` = la regla es lo único que hay.
+   * Se publica **aparte** de `clasificacion` porque son dos fuentes distintas: aquella la deriva
+   * una regla auditable del texto archivado; esta la decide alguien leyendo el documento.
+   */
+  clasificacion_humana: "avance" | "retroceso" | "neutro" | "indeterminado" | null;
   /** Declaradas por la regla y **sin calibrar**. Ordenan; no son una medición. */
   severidad: number;
   confianza: number;
@@ -322,6 +328,12 @@ export interface ItemRevisionApi {
 
   deteccion_id: number;
   clasificacion: "avance" | "retroceso" | "neutro" | "indeterminado";
+  /**
+   * El signo que fijó la persona al aprobar, si lo fijó. `null` = la regla es lo único que hay.
+   * Se publica **aparte** de `clasificacion` porque son dos fuentes distintas: aquella la deriva
+   * una regla auditable del texto archivado; esta la decide alguien leyendo el documento.
+   */
+  clasificacion_humana: "avance" | "retroceso" | "neutro" | "indeterminado" | null;
   origen: "derivado_diff" | "heuristica";
   regla_aplicada: string | null;
   /**
@@ -419,8 +431,15 @@ export function resolverRevision(
   id: number,
   accion: "aprobar" | "descartar",
   nota: string,
+  /**
+   * El signo que fija la persona al aprobar, cuando la regla se abstuvo. `null` = no lo cambia,
+   * que es lo normal y el valor por defecto. **No sobrescribe la clasificación de la regla**:
+   * viaja aparte y se publica aparte (`clasificacion_humana`).
+   */
+  clasificacion?: AlertaApi["clasificacion"] | null,
 ): Promise<ItemRevisionApi> {
   return escribir<ItemRevisionApi>(`/api/revision/cola/${id}/${accion}`, "POST", {
     nota: nota.trim() === "" ? null : nota.trim(),
+    clasificacion: clasificacion ?? null,
   });
 }

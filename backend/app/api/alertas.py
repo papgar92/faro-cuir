@@ -60,8 +60,8 @@ def listar_alertas(
         .offset(desplazamiento)
     ).all()
     alertas = []
-    for alerta, deteccion, norma in filas:
-        publica = servicio.a_publica(alerta, deteccion, norma)
+    for alerta, deteccion, norma, revision in filas:
+        publica = servicio.a_publica(alerta, deteccion, norma, revision)
         # Una muestra por alerta: el primer precepto reescrito, recortado. Sin esto la tarjeta
         # anuncia «34 preceptos» y no enseña ninguno, que es pedir que se fíen — lo contrario de
         # lo que esta herramienta le exige a la administración. El texto entero, en el detalle.
@@ -82,10 +82,10 @@ def obtener_alerta(alerta_id: int, session: Session = Depends(get_session)) -> A
     fila = session.execute(servicio.consulta().where(Alerta.id == alerta_id)).first()
     if fila is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alerta no encontrada")
-    alerta, deteccion, norma = fila
+    alerta, deteccion, norma, revision = fila
     # El detalle es el único sitio donde viajan las redacciones enteras (ADR 0018). En el listado
     # serían varios megas por página; aquí son lo que se ha venido a ver.
-    publica = servicio.a_publica(alerta, deteccion, norma)
+    publica = servicio.a_publica(alerta, deteccion, norma, revision)
     cambios = servicio.cambios_de(
         session,
         norma.id,
