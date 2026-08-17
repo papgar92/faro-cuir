@@ -626,10 +626,18 @@ código que escribe en `alerta`, y solo al aprobar; `security/panel.py` es la pu
 autenticación y `api/revision.py` la única parte de la API que escribe. Tres reglas que no son
 detalles de implementación:
 
-- **Solo entra en la cola lo que tiene veredicto** (`regla_aplicada IS NOT NULL`). El centinela
-  del extractor (ADR 0009) no es un veredicto, y pedirle a una persona que apruebe la ausencia
-  de conclusión llena la cola de ruido hasta que deja de mirarse — que es como un gate humano se
+- **Solo entra en la cola lo que tiene veredicto** (`regla_aplicada IS NOT NULL`) **y señala
+  una norma vigilada concreta** (`evidencia_json.normas_vigiladas` no vacío). El centinela del
+  extractor (ADR 0009) no es un veredicto, y pedirle a una persona que apruebe la ausencia de
+  conclusión llena la cola de ruido hasta que deja de mirarse — que es como un gate humano se
   vacía por dentro sin que nadie lo desactive.
+  **La segunda condición se añadió el 2026-08-17 con datos de revisiones reales**: las reglas que
+  identifican una norma de la watchlist iban 3 de 3 aprobadas y R-SUP-002 —supresión sin norma
+  vigilada— 10 de 10 **descartadas**, porque dispara con cualquier «se suprime el artículo 7» de
+  cualquier materia. **No se pierde recall**: la detección se sigue creando, con su regla y sus
+  spans; lo que no se hace es pedirle a una persona que valide algo que no señala nada vigilado.
+  Se comprueba por el contenido de la evidencia y no por una lista de reglas, para que una regla
+  futura entre o se quede fuera sola.
 - **Un ítem resuelto no se reabre.** Reabrirlo permite emitir dos veces la misma alerta o retirar
   una emitida sin dejar constancia.
 - **No se guarda quién revisa** (6.4). Para auditar el gate basta con que se resolvió, cuándo y

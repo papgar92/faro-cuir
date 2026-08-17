@@ -74,8 +74,22 @@ class ResumenEncolado:
     encoladas: int
 
 
+def _identifica_norma_vigilada(evidencia: object) -> bool:
+    """¿El veredicto señala una norma concreta de la watchlist?
+
+    Se lee de `evidencia_json.normas_vigiladas` y **no de una lista de reglas escrita a mano**:
+    así, una regla futura que identifique una norma vigilada entra en la cola sola, y una de
+    recall alto se queda fuera sola. Una lista de identificadores habría que acordarse de
+    mantenerla, y el día que no se mantenga el fallo es silencioso.
+    """
+    if not isinstance(evidencia, dict):
+        return False
+    vigiladas = evidencia.get("normas_vigiladas")
+    return isinstance(vigiladas, list) and len(vigiladas) > 0
+
+
 def encolar(session: Session) -> ResumenEncolado:
-    """Mete en la cola de revisión toda detección con veredicto que aún no esté en ella.
+    """Mete en la cola de revisión toda detección con veredicto **que señale una norma vigilada**.
 
     Idempotente por construcción: la unicidad de `cola_revision.deteccion_id` es la garantía en
     la base de datos, y la consulta ya excluye lo encolado. Se puede llamar en cada pasada del
@@ -84,14 +98,41 @@ def encolar(session: Session) -> ResumenEncolado:
 
     **No commitea.** Lo hace quien lo llama, para que encolar y clasificar quepan en la misma
     transacción y no exista un instante con veredictos fuera de la cola.
+
+    ## Por qué no entra todo lo que tiene veredicto (2026-08-17, con datos)
+
+    Entraba, y la cola se llenó de ruido. Los números de las primeras 13 revisiones reales:
+
+    | regla | qué exige | resultado |
+    |---|---|---|
+    | R-SUP-001 | supresión **en una norma de la watchlist** | 2 de 2 aprobadas |
+    | R-DER-001 | derogación de una norma vigilada | 1 de 1 aprobada |
+    | R-SUP-002 | supresión **sin** norma vigilada | **10 de 10 descartadas** |
+
+    R-SUP-002 dispara con cualquier «se suprime el artículo 7» de cualquier materia —pesca,
+    puertos, subvenciones agrarias— siempre que el prefiltro haya dejado pasar la norma por una
+    mención suelta. Quien revisa abría la norma, la leía entera buscando el recorte y no lo
+    encontraba, porque no lo había.
+
+    **Eso no es un inconveniente, es el mecanismo por el que un gate humano se vacía por
+    dentro.** Lo dice la propia 7.7 sobre el centinela del ADR 0009: pedirle a una persona que
+    apruebe la ausencia de conclusión llena la cola de ruido hasta que deja de mirarse, y
+    entonces la revisión sigue existiendo en el organigrama y no en la práctica.
+
+    **Qué NO se hace, y es importante:** no se borra la detección ni se pierde recall. R-SUP-002
+    sigue produciendo su fila, con su regla y sus spans, consultable y contable; lo único que
+    cambia es que no se le pide a una persona que la valide. Si mañana la watchlist crece y esa
+    norma pasa a señalar algo vigilado, la reclasificación la encola sola.
     """
     encoladas = candidatas = 0
-    for deteccion_id, cola_id in session.execute(
-        select(Deteccion.id, ColaRevision.id)
+    for deteccion_id, cola_id, evidencia in session.execute(
+        select(Deteccion.id, ColaRevision.id, Deteccion.evidencia_json)
         .outerjoin(ColaRevision, ColaRevision.deteccion_id == Deteccion.id)
         .where(Deteccion.regla_aplicada.is_not(None))
         .order_by(Deteccion.id)
     ):
+        if not _identifica_norma_vigilada(evidencia):
+            continue
         candidatas += 1
         if cola_id is None:
             session.add(ColaRevision(deteccion_id=deteccion_id, estado=EstadoRevision.PENDIENTE))

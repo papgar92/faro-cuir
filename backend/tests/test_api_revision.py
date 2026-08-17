@@ -536,3 +536,48 @@ class TestDiffEnElPanel:
         item = client.get("/api/revision/cola").json()[0]
 
         assert len(item["cambios"]) == 1
+
+
+class TestSoloEntraLoQueSenalaUnaNormaVigilada:
+    """El gate humano se vacía por dentro si se le llena de ruido (7.7, medido el 2026-08-17).
+
+    R-SUP-002 —supresión sin norma vigilada identificada— produjo 10 ítems reales y una persona
+    descartó los 10, mientras las reglas que sí señalan una norma de la watchlist iban 3 de 3
+    aprobadas. Quien revisaba abría la norma, la leía entera buscando el recorte y no lo
+    encontraba, porque no lo había.
+    """
+
+    def _deteccion(self, session: Session, *, vigiladas: list[str]) -> Deteccion:
+        norma = _sembrar(session)
+        deteccion = session.scalar(select(Deteccion).where(Deteccion.norma_id == norma.id))
+        assert deteccion is not None
+        deteccion.evidencia_json = {**EVIDENCIA, "normas_vigiladas": vigiladas}
+        session.commit()
+        return deteccion
+
+    def test_un_veredicto_sin_norma_vigilada_no_llega_a_la_cola(self, sesion_db: Session) -> None:
+        self._deteccion(sesion_db, vigiladas=[])
+
+        resumen = servicio.encolar(sesion_db)
+        sesion_db.commit()
+
+        assert (resumen.candidatas, resumen.encoladas) == (0, 0)
+        assert sesion_db.scalar(select(ColaRevision)) is None
+
+    def test_pero_la_deteccion_sigue_existiendo_con_su_regla(self, sesion_db: Session) -> None:
+        """No se pierde recall: lo que no se encola sigue archivado, contable y consultable."""
+        deteccion = self._deteccion(sesion_db, vigiladas=[])
+
+        servicio.encolar(sesion_db)
+        sesion_db.commit()
+
+        vivo = sesion_db.scalar(select(Deteccion).where(Deteccion.id == deteccion.id))
+        assert vivo is not None and vivo.regla_aplicada == "R-SUP-001"
+
+    def test_el_que_senala_una_norma_vigilada_si_entra(self, sesion_db: Session) -> None:
+        self._deteccion(sesion_db, vigiladas=["BOE-A-2016-6728"])
+
+        resumen = servicio.encolar(sesion_db)
+        sesion_db.commit()
+
+        assert (resumen.candidatas, resumen.encoladas) == (1, 1)
