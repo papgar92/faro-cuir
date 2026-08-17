@@ -14,7 +14,11 @@ export default defineConfig({
     // seguir sin ninguna cabecera CORS permisiva.
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8000",
+        // Fuera de docker, el backend está en el host. Dentro del contenedor de desarrollo,
+        // 127.0.0.1 sería el propio contenedor, así que el destino llega por entorno
+        // (`VITE_API_PROXY=http://backend:8000` en el compose). El valor por defecto es el de
+        // siempre para que `npm run dev` a pelo siga funcionando igual.
+        target: process.env.VITE_API_PROXY ?? "http://127.0.0.1:8000",
         changeOrigin: true,
       },
     },

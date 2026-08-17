@@ -100,5 +100,40 @@ services:
       db:
         condition: service_healthy
 
+  frontend:
+    # Sin Dockerfile propio: es el servidor de desarrollo de Vite, no un artefacto de
+    # produccion. Cuando haya despliegue real sera otra cosa (build estatico tras un servidor
+    # web) y tendra su propia imagen; hoy lo que hace falta es que `docker compose up` levante
+    # TAMBIEN la web, sin que nadie tenga que acordarse de un `npm run dev` en otra terminal.
+    # Ese olvido ya costo un rato de depuracion el 2026-08-17: el backend respondia y la web
+    # no, y parecia un error de la API.
+    image: node:22-alpine
+    working_dir: /app
+    # `npm ci` solo la primera vez (o cuando el volumen este vacio). Repetirlo en cada arranque
+    # anadiria un minuto a cada `up` sin cambiar nada.
+    command: >
+      sh -c "[ -d node_modules/vite ] || npm ci;
+      npm run dev -- --host 0.0.0.0 --port 5173 --strictPort"
+    environment:
+      # Dentro del contenedor, 127.0.0.1 es el propio contenedor: el backend se alcanza por el
+      # nombre del servicio en la red de compose. Lo lee `vite.config.ts`, que mantiene el
+      # valor de siempre como respaldo para quien ejecute `npm run dev` a pelo.
+      VITE_API_PROXY: http://backend:8000
+    volumes:
+      - ./frontend:/app
+      # `node_modules` en un volumen propio y NO desde el host: las dependencias instaladas en
+      # Windows traen binarios de Windows y el contenedor es Linux. Sin esta linea, el montaje
+      # de `./frontend` taparia las de dentro con las de fuera y `vite` no arrancaria.
+      - farocuir_frontend_node_modules:/app/node_modules
+    ports:
+      # 5174 en el host y no 5173 a proposito: en esta maquina el 5173 lo ocupa otro proyecto,
+      # y un choque de puertos al levantar es justo el tipo de fallo que se diagnostica tarde.
+      # Dentro del contenedor sigue siendo el 5173, que es el de Vite por defecto.
+      - "127.0.0.1:5174:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   farocuir_db_data:
+  farocuir_frontend_node_modules:

@@ -707,7 +707,8 @@ Si te encuentras haciendo cualquiera de estas, para:
 ## 10. Comandos
 
 ```bash
-# Levantar todo
+# Levantar todo: base de datos, backend, worker y la web (desde 2026-08-17 el frontend también
+# es un servicio del compose, con `restart: unless-stopped`). La web queda en el 5174 del host.
 docker compose up --build
 
 # Backend en local
@@ -750,7 +751,8 @@ ollama list                         # modelos disponibles
 ollama show qwen2.5:3b-instruct     # digest del modelo, que va en extraccion_json
 curl -s localhost:11434/api/tags    # comprobación rápida de que responde
 
-# Frontend
+# Frontend: normalmente NO hace falta, lo levanta el compose en http://localhost:5174.
+# Esto es solo para trabajar sin docker; entonces el proxy apunta al 8000 del host por defecto.
 cd frontend && npm run dev -- --host 127.0.0.1
 
 # Driver de sesiones (sección 13.3)
