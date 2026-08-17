@@ -1,15 +1,14 @@
 import { useState } from "react";
-import { obtenerCobertura } from "../api/client";
-import { REGIONS } from "../api/mocks";
+import { listarAlertas, obtenerCobertura } from "../api/client";
 import { useRecurso } from "../api/useRecurso";
 import { ClassificationBadge } from "../components/ClassificationBadge/ClassificationBadge";
-import { DemoDataNotice } from "../components/DemoDataNotice/DemoDataNotice";
 import { CCAA_PATHS } from "../components/MapaCCAA/ccaa-paths";
 import { MapaCCAA } from "../components/MapaCCAA/MapaCCAA";
 import { Manifiesto } from "../components/Manifiesto/Manifiesto";
 import { RegionDetailPanel } from "../components/RegionDetailPanel/RegionDetailPanel";
 import { TopAlertsRanking } from "../components/TopAlertsRanking/TopAlertsRanking";
 import { ESTADO_MAPA_META, type EstadoMapa } from "../lib/classification";
+import { construirRegiones } from "../lib/mapa";
 
 const ESTADOS_LEYENDA = Object.keys(ESTADO_MAPA_META) as EstadoMapa[];
 
@@ -19,26 +18,42 @@ interface MapaPageProps {
 }
 
 /**
- * Mapa por comunidad autónoma. **Sigue sobre datos inventados**: el color de cada comunidad
- * se deriva de sus detecciones validadas (`deteccion`), y esa tabla está vacía hasta que
- * exista el pipeline. Un mapa es justo el formato que más se lee como dato duro, así que el
- * aviso va arriba y no en una nota al pie.
+ * Mapa por comunidad autónoma, **con datos reales desde el 2026-08-17**.
+ *
+ * El color sale de las alertas **aprobadas por una persona** (`GET /api/alertas`) y el
+ * territorio de la watchlist, no de la fuente: una ley autonómica se publica en el BOE, así que
+ * por fuente sería «estatal» y la comunidad quedaría en blanco justo en el caso que el proyecto
+ * existe para enseñar.
+ *
+ * **Lo que este mapa no puede hacer, y es lo que más condiciona su diseño**: pintar de color
+ * neutro una comunidad sin alertas. Un mapa es el formato que más se lee como dato duro, y un
+ * gris «estable» sobre una comunidad donde nadie está mirando convierte el silencio en
+ * tranquilidad. Por eso hay tres categorías y dos de ellas no son un color, sino trama: una para
+ * «vigilada, sin alertas aprobadas» y otra para «sin fuente vigilada». Ver `lib/mapa.ts`.
  */
 export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
   const [hover, setHover] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
   const activeCode = hover ?? pinned;
-  const activeRegion = activeCode ? REGIONS[activeCode] : null;
+  // Las dos peticiones que sostienen el mapa. Van juntas y a la vez: la cobertura dice dónde se
+  // mira y las alertas qué ha salido, y ninguna de las dos por sí sola permite pintar sin mentir.
+  const coberturaEstado = useRecurso((signal) => obtenerCobertura(signal), []);
+  // 100 es el tope duro de la API (`LIMITE_MAXIMO`), no un número elegido aquí: pedir más
+  // devuelve 422 y el mapa se quedaba diciendo «no hay ninguna alerta aprobada» mientras el
+  // sistema tenía una. Ese fallo —afirmar ausencia cuando lo que hay es un error— es justo el
+  // que este proyecto no puede permitirse, así que el pie enseña el estado de la petición.
+  const alertasEstado = useRecurso((signal) => listarAlertas({ limite: 100 }, signal), []);
+  const regiones = construirRegiones(
+    alertasEstado.fase === "listo" ? alertasEstado.datos : undefined,
+    coberturaEstado.fase === "listo" ? coberturaEstado.datos : undefined,
+  );
+  const activeRegion = activeCode ? (regiones[activeCode] ?? null) : null;
   // Territorio dibujado en el mapa del que no hay ninguna fila. Hoy son Ceuta y
   // Melilla. Sin esta rama, pulsarlas no hacía absolutamente nada y quedaba como
   // un fallo de la interfaz en vez de como lo que es: un hueco de cobertura.
   const activeSinFuente =
     activeCode && !activeRegion ? CCAA_PATHS.find((p) => p.code === activeCode) : undefined;
 
-  // Cobertura real de fuentes (ADR 0014). Una sola petición para todas las comunidades y no
-  // una por selección: son 61 filas agregadas en la base, así que traerlo entero cuesta menos
-  // que ir pidiéndolo cada vez que el ratón pasa por encima de una comunidad.
-  const coberturaEstado = useRecurso((signal) => obtenerCobertura(signal), []);
   const coberturaPorCodigo =
     coberturaEstado.fase === "listo"
       ? new Map(coberturaEstado.datos.por_ccaa.map((c) => [c.ccaa_codigo, c]))
@@ -47,12 +62,6 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
   return (
     <main className="mx-auto max-w-[1360px] px-7 pb-2 pt-7">
       <Manifiesto />
-
-      <DemoDataNotice
-        que="El estado de cada comunidad"
-        depende="las detecciones validadas por comunidad (deteccion)"
-        onIrAlArchivo={onGoArchivo}
-      />
 
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_372px]">
         <section className="rounded border border-line bg-surface px-5 pb-2 pt-5">
@@ -88,11 +97,24 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
               />
               Sin fuente vigilada
             </span>
+            {/* La categoría que evita la mentira más fácil de este mapa: aquí SÍ se mira y no
+                ha salido nada aprobado. No es «estable». */}
+            <span className="flex items-center gap-1.5 text-xs text-ink-2">
+              <span
+                aria-hidden="true"
+                className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(45deg, var(--color-line-2) 0 1px, var(--color-surface) 1px 9px)",
+                }}
+              />
+              Vigilada, sin alertas
+            </span>
             <span className="ml-auto font-mono text-xs text-ink-3">color + símbolo + texto</span>
           </div>
 
           <MapaCCAA
-            regions={REGIONS}
+            regions={regiones}
             activeCode={activeCode}
             onEnter={setHover}
             onLeave={() => setHover(null)}
@@ -102,6 +124,13 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-0.5 pb-3.5 pt-1.5 font-mono text-xs text-ink-3">
             <span>
               Comunidad seleccionada: {activeRegion?.name ?? activeSinFuente?.name ?? "ninguna"}
+            </span>
+            <span>
+              {alertasEstado.fase === "listo"
+                ? `${alertasEstado.datos.length} alerta${alertasEstado.datos.length === 1 ? "" : "s"} aprobada${alertasEstado.datos.length === 1 ? "" : "s"} en total`
+                : alertasEstado.fase === "error"
+                  ? "no se han podido cargar las alertas"
+                  : "cargando alertas…"}
             </span>
             <span>Geometría: IGN · CC BY 4.0 · proyección cónica equivalente</span>
           </div>
@@ -131,7 +160,7 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
               </p>
             </div>
           ) : (
-            <TopAlertsRanking regions={REGIONS} />
+            <TopAlertsRanking regions={regiones} />
           )}
         </aside>
       </div>

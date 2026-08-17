@@ -1,11 +1,11 @@
 import { useRef } from "react";
-import type { RegionSummary } from "../../api/mocks";
+import type { RegionMapa } from "../../lib/mapa";
 import { ESTADO_MAPA_META, type ColorClasificacion } from "../../lib/classification";
 import { CCAA_PATHS, INSET_CANARIAS, type CcaaPath } from "./ccaa-paths";
 import { useZoomMapa } from "./useZoomMapa";
 
 interface MapaCCAAProps {
-  regions: Record<string, RegionSummary>;
+  regions: Record<string, RegionMapa>;
   activeCode: string | null;
   onEnter: (code: string) => void;
   onLeave: () => void;
@@ -57,7 +57,17 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
 
   const etiqueta = (path: CcaaPath) => {
     const region = regions[path.code];
-    if (!region) return `${path.name}: sin fuente vigilada todavía`;
+    if (!region || (!region.vigilada && region.alerts === 0)) {
+      return `${path.name}: sin fuente vigilada todavía`;
+    }
+    if (region.state === null) {
+      // La distinción que este mapa no puede perder: aquí SÍ se mira, y no ha salido nada
+      // aprobado. Decir "estable" sería convertir el silencio en tranquilidad.
+      return (
+        `${region.name}: vigilada (${region.fuentesVigiladas} de ${region.fuentesConocidas} ` +
+        `fuentes), sin alertas aprobadas todavía`
+      );
+    }
     const meta = ESTADO_MAPA_META[region.state];
     return `${region.name}: ${meta.label.toLowerCase()}, ${alertasLabel(region.alerts)}`;
   };
@@ -71,7 +81,11 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
     // cualquier otro gris se confunden en pantalla y más aún en una impresión o
     // con visión de color reducida. "Sin datos" con rayado es además la
     // convención cartográfica de toda la vida.
-    return region ? FILL_VAR[ESTADO_MAPA_META[region.state].color] : "url(#sin-vigilar)";
+    if (region?.state) return FILL_VAR[ESTADO_MAPA_META[region.state].color];
+    // Vigilada y sin conclusión: trama **clara**. Sin fuente: trama densa. Son dos silencios
+    // distintos —"todavía no ha salido nada" y "aquí no estamos mirando"— y confundirlos sería
+    // tan malo como pintarlos de gris "estable".
+    return region?.vigilada ? "url(#sin-alertas)" : "url(#sin-vigilar)";
   };
 
   /**
@@ -214,6 +228,18 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
           >
             <rect width={5} height={5} fill="var(--color-surface-2)" />
             <line x1={0} y1={0} x2={0} y2={5} stroke="var(--color-line-2)" strokeWidth={1.4} />
+          </pattern>
+          {/* Vigilada sin alertas: misma trama, más separada y más tenue. Se lee como "aquí hay
+              alguien mirando y todavía no hay nada que contar", no como un color de estado. */}
+          <pattern
+            id="sin-alertas"
+            patternUnits="userSpaceOnUse"
+            width={9}
+            height={9}
+            patternTransform="rotate(45)"
+          >
+            <rect width={9} height={9} fill="var(--color-surface)" />
+            <line x1={0} y1={0} x2={0} y2={9} stroke="var(--color-line-2)" strokeWidth={1} />
           </pattern>
         </defs>
 

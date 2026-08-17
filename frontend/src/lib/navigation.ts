@@ -20,7 +20,10 @@ export interface SeleccionNorma {
  * El Mapa sigue: necesita agregar por comunidad, y hoy hay una sola alerta emitida. Pintar un
  * mapa de España con un dato sería peor que el mock, porque parecería una medición.
  */
-export const PANTALLAS_CON_MOCK: ReadonlySet<Screen> = new Set<Screen>(["mapa"]);
+// Vacío desde el 2026-08-17: el Mapa fue la última pantalla con datos inventados. Se deja el
+// conjunto —y no se borra el mecanismo— porque el aviso de maqueta es de las cosas que hay que
+// poder volver a encender en cuanto alguien enseñe algo que no venga de la base de datos.
+export const PANTALLAS_CON_MOCK: ReadonlySet<Screen> = new Set<Screen>();
 
 /**
  * Pantallas que exigen sesión de revisión (ADR 0017). Hoy solo el panel del gate humano.

@@ -119,6 +119,9 @@ services:
       # nombre del servicio en la red de compose. Lo lee `vite.config.ts`, que mantiene el
       # valor de siempre como respaldo para quien ejecute `npm run dev` a pelo.
       VITE_API_PROXY: http://backend:8000
+      # Ver el comentario de `vite.config.ts`: sin esto, editar un fichero en el host no llega
+      # al contenedor y la web se queda servida con el codigo anterior sin que nada avise.
+      VITE_POLLING: "1"
     volumes:
       - ./frontend:/app
       # `node_modules` en un volumen propio y NO desde el host: las dependencias instaladas en

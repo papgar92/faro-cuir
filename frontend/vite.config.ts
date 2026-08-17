@@ -2,9 +2,20 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+// Este fichero lo ejecuta Node, no el navegador, así que `process` existe — pero el tsconfig del
+// proyecto no incluye los tipos de Node y no se van a añadir por una línea. Se declara lo justo:
+// una dependencia de desarrollo entera para tipar una variable de entorno sería peor cambio.
+declare const process: { env: Record<string, string | undefined> };
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    // **Sondeo en vez de eventos del sistema de ficheros, y solo dentro de docker.**
+    // Un `bind mount` desde Windows no entrega eventos inotify al contenedor Linux, así que el
+    // servidor de desarrollo no se entera de los cambios: se editaba código, la web seguía
+    // sirviendo lo anterior y parecía caché del navegador. Costó un rato el 2026-08-17.
+    // Fuera de docker no se activa, porque sondear cuesta CPU y ahí los eventos funcionan.
+    watch: process.env.VITE_POLLING ? { usePolling: true, interval: 400 } : undefined,
     // El dev server reenvía /api al backend en vez de que el navegador le hable directo.
     //
     // La alternativa sería activar CORS en FastAPI, y es peor: obligaría a relajar en el

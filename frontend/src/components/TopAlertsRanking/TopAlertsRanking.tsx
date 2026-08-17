@@ -1,8 +1,8 @@
-import type { RegionSummary } from "../../api/mocks";
+import type { RegionMapa } from "../../lib/mapa";
 import { COLOR_CLASSES, ESTADO_MAPA_META } from "../../lib/classification";
 
 interface TopAlertsRankingProps {
-  regions: Record<string, RegionSummary>;
+  regions: Record<string, RegionMapa>;
   limit?: number;
 }
 
@@ -13,17 +13,27 @@ export function TopAlertsRanking({ regions, limit = 6 }: TopAlertsRankingProps) 
     .filter((region) => region.alerts > 0)
     .sort((a, b) => b.alerts - a.alerts)
     .slice(0, limit);
-  const sinCambios = values.filter((region) => region.alerts === 0).length;
+  // **Dos silencios distintos, contados por separado** (2026-08-17, con datos reales). Antes
+  // esto era un solo número con el rótulo «no registran ningún cambio», que sobre datos de
+  // verdad sería falso: mezclaba las comunidades donde se mira y no ha salido nada con aquellas
+  // donde no hay ni una fuente integrada. La segunda cifra es hoy la grande, y decirlo es la
+  // mitad del valor de esta pantalla.
+  const vigiladasSinAlertas = values.filter((r) => r.alerts === 0 && r.vigilada).length;
+  const sinVigilar = values.filter((r) => r.alerts === 0 && !r.vigilada).length;
 
   return (
     <div className="p-5">
       <h2 className="font-serif text-lg font-bold text-ink">Vista general</h2>
       <p className="mt-1.5 text-sm text-ink-2">
-        Ninguna comunidad seleccionada. Comunidades con más alertas activas ahora:
+        {ranked.length > 0
+          ? "Ninguna comunidad seleccionada. Comunidades con alertas aprobadas:"
+          : "Ninguna comunidad seleccionada. Todavía no hay ninguna alerta aprobada."}
       </p>
       <ul className="mt-3.5 flex list-none flex-col border-t border-line p-0">
         {ranked.map((region) => {
-          const meta = ESTADO_MAPA_META[region.state];
+          // El ranking solo lista comunidades CON alertas, así que aquí el estado nunca es
+          // nulo; el respaldo existe para que el tipo no obligue a un `!` que mañana mienta.
+          const meta = ESTADO_MAPA_META[region.state ?? "alerta"];
           const colors = COLOR_CLASSES[meta.color];
           return (
             <li key={region.code} className="flex items-center gap-2.5 border-b border-line py-2.5">
@@ -41,8 +51,11 @@ export function TopAlertsRanking({ regions, limit = 6 }: TopAlertsRankingProps) 
       </ul>
       <div className="mt-4 rounded border border-line bg-inset p-3.5">
         <p className="m-0 text-xs text-ink-2">
-          {sinCambios} comunidades no registran ningún cambio en la ventana actual. Eso no siempre es
-          buena noticia: puede indicar bloqueo de tramitación.
+          <strong className="font-semibold text-ink">{vigiladasSinAlertas}</strong> comunidad(es)
+          con fuente vigilada y sin ninguna alerta aprobada todavía, y{" "}
+          <strong className="font-semibold text-ink">{sinVigilar}</strong> donde aún no hay ninguna
+          fuente integrada. Lo segundo no es una medición: es un hueco de cobertura, y el mapa lo
+          pinta con trama para no confundirlo con tranquilidad.
         </p>
       </div>
     </div>
