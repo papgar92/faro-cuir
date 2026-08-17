@@ -318,3 +318,50 @@ class TestCola:
 
         assert (resumen.candidatas, resumen.consultadas) == (2, 1)
         assert resumen.pendientes_restantes == 1
+
+
+class TestColaNoSeMuereDeHambre:
+    """Hallazgo 1 (ALTO) de la auditoría del 2026-08-16.
+
+    El tope por ejecución se aplicaba sobre una cola ordenada por `id`, y las parejas
+    irresolubles —una derogación total no produce diff nunca— tienen los `id` más bajos por ser
+    las más antiguas. Veinte de ellas y el versionado deja de mirar lo nuevo **diciendo en el
+    resumen que ha consultado veinte**, que es peor que no mirar: es no mirar y decir que sí.
+    """
+
+    def test_lo_nunca_intentado_va_antes_que_lo_ya_intentado(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        vieja = _norma_con_cuerpo(session, sumario, tmp_path, ident="BOE-A-2024-00001")
+        nueva = _norma_con_cuerpo(session, sumario, tmp_path, ident="BOE-A-2024-99999")
+        # La vieja ya se intentó (y no dio diff: es el caso de la derogación total).
+        vieja.versionado_intentado_en = datetime.datetime.now(datetime.UTC)
+        vieja.versionado_intentos = 7
+        session.commit()
+        llamadas: list[str] = []
+
+        # Tope de uno: solo cabe una pareja en esta pasada.
+        servicio.poblar(
+            session,
+            almacen_root=tmp_path,
+            pausa=0.0,
+            limite=1,
+            client=_cliente(llamadas=llamadas),
+        )
+
+        # La que se consulta es la nueva, aunque su `id` sea mayor.
+        assert len(llamadas) == 1
+        assert nueva.versionado_intentos == 1
+        assert vieja.versionado_intentos == 7
+
+    def test_el_intento_se_marca_aunque_la_descarga_falle(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """Si no se marcara, una pareja que falla siempre se quedaría fija en cabeza de la cola."""
+        norma = _norma_con_cuerpo(session, sumario, tmp_path)
+        session.commit()
+
+        _poblar(session, tmp_path, _cliente(httpx.Response(500, content=b"")))
+
+        assert norma.versionado_intentos == 1
+        assert norma.versionado_intentado_en is not None

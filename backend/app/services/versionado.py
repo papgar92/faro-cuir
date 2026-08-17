@@ -116,8 +116,16 @@ def _cola(documento_id: int | None):  # type: ignore[no-untyped-def]
     )
     if documento_id is not None:
         consulta = consulta.where(Norma.documento_id == documento_id)
-    # Orden por `id` para que el tope por ejecución sea determinista, igual que en la fase 2.
-    return consulta.order_by(Norma.id)
+    # **Primero lo que nunca se ha intentado, después lo que lleva más tiempo sin intentarse.**
+    # Ordenar por `id` —como estaba— hacía que las parejas irresolubles, que tienen los `id` más
+    # bajos por ser las más antiguas, se comieran el tope de cada ejecución para siempre: el
+    # versionado dejaba de mirar lo nuevo y el resumen decía «20 consultadas» sin mentir y sin
+    # informar. Lo encontró la auditoría del 2026-08-16 y no se había manifestado todavía porque
+    # solo hay una pareja muerta.
+    #
+    # `id` como desempate mantiene el orden determinista, que es lo que permite comprobar que
+    # reejecutar no rehace trabajo.
+    return consulta.order_by(Norma.versionado_intentado_en.asc().nulls_first(), Norma.id)
 
 
 def _objetivos(
@@ -251,6 +259,12 @@ def poblar(
             if consultadas and pausa:
                 time.sleep(pausa)
             consultadas += 1
+            # Se marca **antes** de pedir nada: si la petición se va por un fallo o el proceso
+            # muere a mitad, esta pareja ya ha gastado su turno y no puede quedarse fija en
+            # cabeza de la cola. El intento cuenta aunque no llegue a completarse.
+            norma.versionado_intentado_en = datetime.datetime.now(datetime.UTC)
+            norma.versionado_intentos = (norma.versionado_intentos or 0) + 1
+            session.commit()
 
             try:
                 contenido = url_guard.fetch(
@@ -271,9 +285,18 @@ def poblar(
                 sin_consolidar += 1
                 continue
             except UrlGuardError as exc:
-                logger.error(
-                    "CONTROL DE SEGURIDAD al descargar el consolidado de %s: %s: %s",
+                # **La primera vez es un error; a partir de la tercera, un aviso.** Un fallo duro
+                # —una respuesta que supera el tope, un host que deja de estar en la allowlist—
+                # no se arregla mañana, y repetir `CONTROL DE SEGURIDAD` en cada pasada convierte
+                # la línea más grave del log en ruido diario. Que un control de verdad deje de
+                # leerse por repetición es el mecanismo por el que dejan de servir; lo señaló la
+                # auditoría del 2026-08-16. El hecho no se oculta: se sigue registrando, con el
+                # número de intentos, que es la información que faltaba.
+                registrar = logger.error if norma.versionado_intentos < 3 else logger.warning
+                registrar(
+                    "CONTROL DE SEGURIDAD al descargar el consolidado de %s (intento %s): %s: %s",
                     vigilada.identificador,
+                    norma.versionado_intentos,
                     type(exc).__name__,
                     exc,
                 )

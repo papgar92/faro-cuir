@@ -164,6 +164,22 @@ class Norma(Base):
         index=True,
     )
 
+    # --- Versionado (ADR 0018): cuándo se intentó traer el texto anterior y cuántas veces ----
+    # No es un estado de la norma, es el orden de una cola. La auditoría del 2026-08-16 encontró
+    # que ordenar por `id` hacía que las parejas irresolubles —una derogación total no produce
+    # diff nunca— ocuparan siempre las primeras posiciones y agotaran el tope por ejecución, con
+    # lo que el versionado dejaba de mirar lo nuevo **sin que el resumen lo dijera**.
+    #
+    # Se guarda en `norma` y no por pareja (norma, norma vigilada) a sabiendas: una norma que
+    # toque dos normas de la watchlist comparte marca. Es una aproximación aceptable —el caso es
+    # raro y el efecto es solo de orden— y evita una tabla nueva para gestionar una cola.
+    versionado_intentado_en: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+    versionado_intentos: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+
     # --- Etapa 1 del pipeline: prefiltro léxico -------------------------------------------
     # Se guarda el resultado en vez de recalcularlo al vuelo, aunque el filtro sea
     # determinista y barato, porque lo que importa no es el veredicto sino poder sostenerlo:
