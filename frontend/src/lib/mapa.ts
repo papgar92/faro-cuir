@@ -145,6 +145,23 @@ export function construirRegiones(
   return regiones;
 }
 
+/**
+ * Alertas de ámbito **estatal**: las que no se pueden pintar en el mapa.
+ *
+ * Una norma estatal afecta a las diecisiete comunidades, así que colorearlas todas diría que hay
+ * diecisiete cambios cuando hay uno, y colorear una sola sería sencillamente falso. La geometría
+ * no puede representar «todo el territorio» sin mentir en una de las dos direcciones, así que
+ * salen **fuera del mapa**, con su propio bloque y contadas aparte.
+ *
+ * Que sea el caso mayoritario ahora mismo no lo hace menos importante: la Ley 4/2023 es estatal,
+ * y es la norma que este proyecto usa para explicarse.
+ */
+export function alertasEstatales(alertas: AlertaApi[] | undefined): AlertaApi[] {
+  return (alertas ?? []).filter((alerta) =>
+    alerta.normas_vigiladas.some((vigilada) => vigilada.ambito === "estatal"),
+  );
+}
+
 /** Las comunidades con alguna alerta, de más a menos. Para el ranking lateral. */
 export function regionesConAlertas(regiones: Record<string, RegionMapa>): RegionMapa[] {
   return Object.values(regiones)

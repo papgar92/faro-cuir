@@ -1,8 +1,7 @@
 import { useRef } from "react";
 import type { RegionMapa } from "../../lib/mapa";
 import { ESTADO_MAPA_META, type ColorClasificacion } from "../../lib/classification";
-import { CCAA_PATHS, INSET_CANARIAS, type CcaaPath } from "./ccaa-paths";
-import { useZoomMapa } from "./useZoomMapa";
+import { CCAA_PATHS, INSET_CANARIAS, MAPA_VIEWBOX, type CcaaPath } from "./ccaa-paths";
 
 interface MapaCCAAProps {
   regions: Record<string, RegionMapa>;
@@ -41,18 +40,14 @@ const INSULARES = CCAA_PATHS.filter((p) => p.inset);
  * arregla en el script, porque son defectos de proyección.
  *
  * Ceuta y Melilla miden 19 y 12 km²: a esta escala su polígono real es menos de un
- * píxel. Se dibuja el polígono real *y* un anillo de tamaño constante en pantalla
- * que es el objetivo de ratón y de teclado. Al ampliar, el anillo mantiene su
- * tamaño y la geometría real acaba desbordándolo — es decir, el zoom enseña la
- * forma verdadera en vez de un símbolo agrandado.
+ * píxel. Se dibuja el polígono real *y* un anillo que es el objetivo de ratón y de
+ * teclado, porque un objetivo de menos de un píxel no se puede pulsar.
  *
  * Accesibilidad: cada entidad es `role="button"` con `aria-label` legible sin
- * depender del color, y Enter/Espacio la seleccionan. El zoom no se lleva el foco:
- * los objetivos siguen siendo los `<path>`, no un contenedor transformado.
+ * depender del color, y Enter/Espacio la seleccionan.
  */
 export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: MapaCCAAProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const zoom = useZoomMapa();
   const activePath = activeCode ? CCAA_PATHS.find((p) => p.code === activeCode) : undefined;
 
   const etiqueta = (path: CcaaPath) => {
@@ -107,7 +102,6 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
       // fijada, y no había forma de soltarla sin pasar el ratón por encima.
       onBlur: onLeave,
       onClick: () => {
-        if (zoom.consumirArrastre()) return;
         onPick(path.code);
       },
       onKeyDown: (event: React.KeyboardEvent) => {
@@ -127,16 +121,16 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
           <circle
             cx={path.cx}
             cy={path.cy}
-            r={RADIO_MICRO / zoom.factor}
+            r={RADIO_MICRO}
             fill={relleno(path)}
             stroke="var(--color-ink-3)"
-            strokeWidth={1.2 / zoom.factor}
+            strokeWidth={1.2}
           />
           <path d={path.d} fill="var(--color-map-label)" pointerEvents="none" />
           <text
-            x={path.cx + (RADIO_MICRO + 3) / zoom.factor}
-            y={path.cy + 3.5 / zoom.factor}
-            fontSize={11 / zoom.factor}
+            x={path.cx + (RADIO_MICRO + 3)}
+            y={path.cy + 3.5}
+            fontSize={11}
             fill="var(--color-map-label)"
             pointerEvents="none"
           >
@@ -163,60 +157,19 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
 
   return (
     <div className="mt-1.5">
-      <div className="mb-2 flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={zoom.alejar}
-          disabled={!zoom.puedeAlejar}
-          aria-label="Alejar el mapa"
-          className="h-7 w-7 rounded border border-line-2 bg-surface font-mono text-sm text-ink-2 hover:border-ink-3 hover:text-ink disabled:opacity-40 disabled:hover:border-line-2 disabled:hover:text-ink-2"
-        >
-          −
-        </button>
-        <button
-          type="button"
-          onClick={zoom.acercar}
-          disabled={!zoom.puedeAcercar}
-          aria-label="Acercar el mapa"
-          className="h-7 w-7 rounded border border-line-2 bg-surface font-mono text-sm text-ink-2 hover:border-ink-3 hover:text-ink disabled:opacity-40 disabled:hover:border-line-2 disabled:hover:text-ink-2"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          onClick={zoom.verTodo}
-          disabled={!zoom.puedeAlejar}
-          className="rounded border border-line-2 bg-surface px-2 py-1 text-xs text-ink-2 hover:border-ink-3 hover:text-ink disabled:opacity-40 disabled:hover:border-line-2 disabled:hover:text-ink-2"
-        >
-          Ver todo
-        </button>
-        <span aria-hidden="true" className="ml-1 font-mono text-xs text-ink-3">
-          ×{zoom.factor.toFixed(1)}
-        </span>
-        <span className="sr-only" role="status">
-          Ampliación {zoom.factor.toFixed(1)} aumentos
-        </span>
-        <span className="ml-auto text-xs text-ink-3">
-          Arrastra para desplazar · teclas + − 0 y flechas
-        </span>
-      </div>
-
+      {/* **Sin controles de zoom desde el 2026-08-17, por decisión del humano.** Estaban para
+          bajar de comunidad a provincia y a localidad, y ese camino ya no es el del proyecto: al
+          pulsar una comunidad se enseñará también su normativa provincial y local (ADR 0014), que
+          se vigila por BOP y no por geometría. Un zoom que no lleva a ningún dato nuevo es un
+          control que promete una capacidad inexistente, y de esos ya se quitaron los filtros de
+          alertas por el mismo motivo. La geometría real de Ceuta y Melilla se sigue dibujando
+          debajo de su anillo: para verla ya no hace falta ampliar, pero tampoco se ha borrado. */}
       <svg
         ref={svgRef}
-        viewBox={`${zoom.vista.x} ${zoom.vista.y} ${zoom.vista.ancho} ${zoom.vista.alto}`}
+        viewBox={`0 0 ${MAPA_VIEWBOX.ancho} ${MAPA_VIEWBOX.alto}`}
         role="group"
         aria-label="Mapa de España por comunidades autónomas y ciudades autónomas"
-        tabIndex={0}
-        className={`block w-full touch-none rounded border border-line bg-inset ${
-          zoom.arrastrando ? "cursor-grabbing" : "cursor-grab"
-        }`}
-        onDoubleClick={(event) => {
-          const svg = svgRef.current;
-          if (!svg) return;
-          const punto = zoom.aLienzo(svg, event.clientX, event.clientY);
-          zoom.ampliar(1.6, punto.x, punto.y);
-        }}
-        {...zoom.manejadores}
+        className="block w-full rounded border border-line bg-inset"
       >
         <defs>
           <pattern
@@ -258,8 +211,8 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
         />
         <text
           x={INSET_CANARIAS.x + 7}
-          y={INSET_CANARIAS.y + 13 / zoom.factor}
-          fontSize={10.5 / zoom.factor}
+          y={INSET_CANARIAS.y + 13}
+          fontSize={10.5}
           fill="var(--color-ink-3)"
           className="font-mono"
           pointerEvents="none"
@@ -285,7 +238,7 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
           <circle
             cx={activePath.cx}
             cy={activePath.cy}
-            r={(RADIO_MICRO + 2.5) / zoom.factor}
+            r={(RADIO_MICRO + 2.5)}
             fill="none"
             stroke="var(--color-ink)"
             strokeWidth={2.4}

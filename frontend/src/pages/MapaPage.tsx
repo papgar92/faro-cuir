@@ -8,7 +8,7 @@ import { Manifiesto } from "../components/Manifiesto/Manifiesto";
 import { RegionDetailPanel } from "../components/RegionDetailPanel/RegionDetailPanel";
 import { TopAlertsRanking } from "../components/TopAlertsRanking/TopAlertsRanking";
 import { ESTADO_MAPA_META, type EstadoMapa } from "../lib/classification";
-import { construirRegiones } from "../lib/mapa";
+import { alertasEstatales, construirRegiones } from "../lib/mapa";
 
 const ESTADOS_LEYENDA = Object.keys(ESTADO_MAPA_META) as EstadoMapa[];
 
@@ -48,6 +48,7 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
     coberturaEstado.fase === "listo" ? coberturaEstado.datos : undefined,
   );
   const activeRegion = activeCode ? (regiones[activeCode] ?? null) : null;
+  const estatales = alertasEstatales(alertasEstado.fase === "listo" ? alertasEstado.datos : []);
   // Territorio dibujado en el mapa del que no hay ninguna fila. Hoy son Ceuta y
   // Melilla. Sin esta rama, pulsarlas no hacía absolutamente nada y quedaba como
   // un fallo de la interfaz en vez de como lo que es: un hueco de cobertura.
@@ -111,6 +112,38 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
               Vigilada, sin alertas
             </span>
             <span className="ml-auto font-mono text-xs text-ink-3">color + símbolo + texto</span>
+          </div>
+
+          {/* Lo que el mapa no puede pintar sin mentir: una norma estatal afecta a las
+              diecisiete comunidades. Pintarlas todas diría que hay diecisiete cambios cuando hay
+              uno; pintar una sola sería falso. Va fuera de la geometría, con su recuento. */}
+          <div className="mt-4 rounded border border-line bg-inset p-3">
+            <p className="text-sm leading-relaxed text-ink-2">
+              <strong className="font-semibold text-ink">Ámbito estatal:</strong>{" "}
+              {estatales.length === 0 ? (
+                <>ninguna alerta aprobada todavía. Afectarían a todo el territorio.</>
+              ) : (
+                <>
+                  {estatales.length} alerta{estatales.length === 1 ? "" : "s"} aprobada
+                  {estatales.length === 1 ? "" : "s"} sobre normativa estatal, que{" "}
+                  <strong className="font-semibold text-ink">afecta a las diecisiete
+                  comunidades</strong> y por eso no se pinta en el mapa: colorearlas todas diría
+                  que hay diecisiete cambios cuando hay uno.
+                </>
+              )}
+            </p>
+            {estatales.length > 0 && (
+              <ul className="mt-2 flex list-none flex-col gap-1 p-0">
+                {estatales.slice(0, 3).map((alerta) => (
+                  <li key={alerta.id} className="text-xs leading-snug text-ink-2">
+                    <span className="font-mono text-[11px] text-ink-3">
+                      {alerta.norma.identificador_oficial}
+                    </span>{" "}
+                    {alerta.norma.titulo}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <MapaCCAA
