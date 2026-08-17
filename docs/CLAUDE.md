@@ -742,6 +742,10 @@ python -m worker.run --fase2
 # El BOE consolida con retraso, así que lo normal es que hoy complete cambios de días atrás.
 python -m worker.run --versionar
 
+# Drenar la cola del extractor (lo que deja pendiente un backfill --sin-extraccion).
+# 133,9 s por norma: se lanza y se deja. Interrumpirlo no pierde nada.
+python -m worker.run --extraer
+
 # Repasar el catálogo de reglas tras subir VERSION_REGLAS (ni red ni LLM)
 python -m worker.run --reclasificar
 

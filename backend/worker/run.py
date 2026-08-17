@@ -106,6 +106,16 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--extraer",
+        action="store_true",
+        help=(
+            "No ingiere nada: drena la cola del extractor (normas relevantes o sospechosas sin "
+            "detección) llamando al LLM local. Es lo que hay que lanzar después de un backfill "
+            "con --sin-extraccion. Cuesta 133,9 s por norma (ADR 0011), así que se lanza y se "
+            "deja: una pasada interrumpida no pierde nada, porque la cola es una consulta."
+        ),
+    )
+    parser.add_argument(
         "--reclasificar",
         action="store_true",
         help=(
@@ -118,11 +128,13 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     # `--fuente` deja de ser obligatorio porque ninguno de los modos de mantenimiento ingiere;
     # se sigue exigiendo para todo lo demás, que sí necesita saber de dónde descargar.
-    mantenimiento = args.reprefiltrar or args.fase2 or args.reclasificar or args.versionar
+    mantenimiento = (
+        args.reprefiltrar or args.fase2 or args.reclasificar or args.versionar or args.extraer
+    )
     if not mantenimiento and args.fuente is None:
         parser.error(
-            "--fuente es obligatorio salvo con --reprefiltrar, --fase2, --versionar "
-            "o --reclasificar"
+            "--fuente es obligatorio salvo con --reprefiltrar, --fase2, --versionar, "
+            "--extraer o --reclasificar"
         )
     return args
 
@@ -301,6 +313,25 @@ def main(argv: list[str] | None = None) -> int:
         with SessionLocal() as session:
             resumen_versionado = _versionar(session)
         _registrar_versionado(resumen_versionado)
+        return 0
+
+    if args.extraer:
+        # Sin `documento_id`: barre toda la tabla. Es el modo que existe justamente para lo que
+        # deja pendiente un backfill, y lo que se extraiga aquí lo clasifica la pasada siguiente
+        # —o `--reclasificar`— sin volver a llamar al modelo.
+        with SessionLocal() as session:
+            resumen_extraccion = servicio_extraccion.aplicar(
+                session, ProveedorOllama(), almacen_root=settings.almacen_root
+            )
+        logger.info(
+            "Extracción (prompt %s): %s pendientes, %s extraídas, %s fallidas, %s punteros. "
+            "Las fallidas incluyen las descartadas por no poder anclarse al archivo (ADR 0013).",
+            VERSION_PROMPT,
+            resumen_extraccion.evaluadas,
+            resumen_extraccion.extraidas,
+            resumen_extraccion.fallidas,
+            resumen_extraccion.punteros,
+        )
         return 0
 
     if args.reclasificar:
