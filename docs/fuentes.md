@@ -75,7 +75,7 @@ hueco invisible.
 | TODO(verificar) | Cantabria | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Castilla-La Mancha | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Castilla y León | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
-| TODO(verificar) | Catalunya | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
+| **DOGC** (Diari Oficial de la Generalitat de Catalunya) | Catalunya | sumario `https://analisi.transparenciacatalunya.cat/resource/n6hn-rmy7.json` · texto `https://portaljuridic.gencat.cat/eli/...` | **API (JSON) + XML Akoma Ntoso** — verificado el 2026-08-16 descargando ambos | No | CC BY 4.0 (declarada por la fuente) | Media — tres particularidades, ver nota | **INTEGRADA** (ADR 0019), segunda fuente del proyecto |
 | TODO(verificar) | Comunitat Valenciana | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Extremadura | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Galicia | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
@@ -84,6 +84,30 @@ hueco invisible.
 | TODO(verificar) | Comunidad Foral de Navarra | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | País Vasco / Euskadi | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | La Rioja | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
+
+### El DOGC, integrado: lo que hubo que aprender (ADR 0019)
+
+Es la única fuente de cinco candidatas que superó la verificación —BOJA, BOCM, BOPB y el BOP de
+Cáceres quedaron descartadas o pendientes, con el motivo en el ADR—, y aun así trajo tres cosas
+que ninguna documentación anunciaba:
+
+1. **El articulado no está donde el estándar dice.** Publica Akoma Ntoso, pero mete el texto
+   entero **dentro de un atributo XML**, escapado como HTML. Un derivador escrito leyendo el
+   estándar habría archivado normas vacías **sin que fallara nada**.
+2. **Solo negocia TLS 1.2 con `AES256-SHA`** en el host del texto íntegro. OpenSSL 3 lo rechaza;
+   `curl` no, porque en Windows usa el TLS del sistema. Se aceptó un perfil heredado **para ese
+   host y solo para él**, sin tocar la verificación del certificado.
+3. **La versión oficial es la catalana**; se ingiere la castellana porque es la que el vocabulario
+   del prefiltro sabe leer. Queda escrito porque las citas de las alertas saldrán de una
+   traducción.
+
+**Lo que esta fuente NO cubre:** son disposiciones generales (leyes, decretos legislativos,
+decretos ley, decretos y órdenes: 31.094 desde 1977, de ellas 20.889 órdenes). **Las resoluciones
+e instrucciones no están**, y son un vector de retroceso real.
+
+**Y el dato que justifica toda esta capa**, medido sobre 1.193 normas del BOE: de órganos
+autonómicos llegan al BOE **31 ítems**, todos anuncios y correcciones. Las leyes autonómicas sí se
+republican; los decretos y órdenes, no. Sin boletines autonómicos, esa normativa es invisible.
 
 ## Tabla provincial — los 43 BOP
 
