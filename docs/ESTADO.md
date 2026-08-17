@@ -1979,3 +1979,80 @@ aprobar en el panel la detección que espera en la cola —`BOE-A-2024-10768`, l
 2. **Más corpus para el gold set**, con la pregunta concreta que dejó la primera medición: contar
    términos directos no discrimina en la banda media.
 3. **El Mapa con dato real**, cuando haya alertas de más de una comunidad.
+
+---
+
+### ✅ La regla de oro 9, volumen de verdad, y la segunda fuente — 2026-08-16/17
+
+Tres trabajos encadenados, y el detonante fue una pregunta del humano: *«¿el BOE publica las
+resoluciones de las comunidades?»*.
+
+#### 1. Trazabilidad por offsets (ADR 0013), la última regla de oro que se incumplía
+
+`pipeline/anclaje.py`: cada texto que la extracción afirma haber leído se localiza en el texto
+archivado y se guarda con su rango; **lo que no ancla descarta la extracción entera**. Dos
+diferencias respecto a como 7.5 estaba escrita, ambas razonadas en el ADR: **los offsets los
+calcula el sistema, no se le piden al modelo** —un 3B contando caracteres añade un modo de fallo
+y no quita ninguno, porque habría que buscar el texto igualmente— y **no hay una segunda
+normalización**: se ancla sobre el mismo texto que usan las reglas, porque dos derivaciones del
+mismo documento son dos sistemas de coordenadas y la evidencia deja de poder contrastarse.
+
+Lo que se guarda es el **recorte del archivo**, no la cadena del modelo. La única licencia al
+comparar es colapsar espacios; una paráfrasis no ancla. Al actualizar los tests del extractor se
+vio el control funcionando: las extracciones falsas de las fixtures **dejaron de persistirse**
+porque citaban texto que no estaba en el documento de prueba.
+
+#### 2. Volumen: `--hasta` y `--sin-extraccion`
+
+Con 3 días ingeridos la pantalla se veía vacía. El cuello de botella de un backfill no es la red
+(10 s por día) sino el LLM (133,9 s por norma), así que el worker gana un modo de backfill que
+salta la extracción; lo que se salta **no se pierde**, porque la cola del extractor es una
+consulta y una pasada normal lo recoge. **De 652 normas a 2.968**, un mes de BOE. Siete tests de
+la línea de órdenes, que no tenía ninguno.
+
+#### 3. El DOGC, segunda fuente y primera autonómica (ADR 0019)
+
+**La respuesta a la pregunta del humano es no, y está medida**: de órganos autonómicos llegan al
+BOE **31 ítems de 1.193**, todos anuncios y correcciones. Las leyes autonómicas sí se republican
+—de ahí que la watchlist funcionara—, pero ni un decreto, ni una orden, ni una instrucción. Y de
+lo municipal, solo convocatorias y licitaciones. O sea que el sistema estaba ciego exactamente
+donde la sección 1 dice que mira.
+
+Se verificaron **cinco fuentes descargando sus endpoints**, no leyendo documentación: el BOP de
+Cáceres resultó ser metadatos sin texto ni enlace; el HTML del BOJA **declara por escrito que
+suprime contenido** (choca con 7.1); el XML por disposición del BOCM devuelve 500. El DOGC fue el
+único que cumplió los cuatro requisitos: sumario JSON por fecha, texto íntegro en XML, sin clave,
+diario. **31.094 disposiciones desde 1977, de ellas 20.889 órdenes y 9.061 decretos** — el rango
+bajo que motivaba todo esto.
+
+**Tres cosas que costaron el rato y que ninguna documentación anunciaba:**
+
+1. **El DOGC mete todo el articulado dentro de un atributo XML**, escapado como HTML, dentro de
+   un Akoma Ntoso por lo demás de manual. `itertext()` devolvía cadena vacía: un derivador
+   escrito contra el estándar habría archivado cientos de normas vacías, el prefiltro las habría
+   descartado todas y **nada habría fallado visiblemente**. Tiene test con XML real.
+2. **`portaldogc.gencat.cat` solo negocia TLS 1.2 con `AES256-SHA`**, que OpenSSL 3 rechaza. El
+   síntoma engañaba: `curl` funcionaba y Python no, porque `curl` en Windows usa el TLS del
+   sistema. Se aisló probando handshakes uno a uno. `url_guard` gana un **perfil heredado por
+   host**: se relaja el cifrado solo ahí, **no** la verificación del certificado, y no para el
+   BOE.
+3. **Se ingiere la versión castellana**, no la oficial catalana, porque el vocabulario del
+   prefiltro es castellano y sobre el catalán quedaría apagado en silencio. Las citas de las
+   alertas saldrán de una traducción oficial, y eso está escrito donde toca.
+
+**Verificado de punta a punta**: 4 disposiciones del 19-12-2024 ingeridas, archivadas,
+descargadas y prefiltradas (3 sospechas, 1 descartada). La cobertura por CCAA lo refleja sola:
+**Catalunya pasa a «autonómico: 1 de 1 vigilada»**. Migración de semilla a mano, 13 CHECK
+intactas. **535 tests en verde.**
+
+#### Siguiente, por orden
+
+1. **Terminar el backfill del DOGC** (un año en marcha) y **medir el prefiltro sobre la
+   traducción**: es la primera fuente cuyo texto no es castellano original y nadie sabe todavía
+   si el eje léxico se comporta igual. Ninguna cifra de esto se publica sin casos del DOGC en el
+   gold set.
+2. **La capa provincial**: el BOPB (Barcelona) tiene RSS diario e histórico por fecha
+   verificados; falta confirmar si sus PDF son nativos o escaneados, porque el OCR está fuera de
+   alcance (sección 8).
+3. **Los dos hallazgos abiertos de la auditoría** de seguridad: hambre de la cola de versionado y
+   reintento eterno de fallos duros.
