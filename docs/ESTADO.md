@@ -2095,3 +2095,32 @@ archivado (ADR 0016)—. Lo honesto es documentarlo como límite medido, no como
 terminar: la etapa existe, está verificada de punta a punta sobre casos concretos, y su coste real
 la deja fuera del uso masivo hasta que haya GPU o un modelo distinto. Cualquier cambio de modelo
 buscando calidad sigue prohibido sin gold set (sección 8).
+
+---
+
+### ⚠️ 12 normas del DOGC son invisibles para el pipeline — 2026-08-18
+
+Apareció buscando candidatos para el gold set, no buscándolo: al leer los 263 cuerpos catalanes
+archivados, **12 fallan con `DtdForbidden`** — el documento declara un DOCTYPE y `xml_safe` lo
+rechaza, que es exactamente lo que 6.1 le manda hacer (es la vía de entrada de XXE y de las
+bombas de entidades).
+
+**El control está bien; el problema es lo que pasa después.** Esas 12 normas están archivadas con
+su huella, pero el prefiltro no puede leerlas, el catálogo de reglas tampoco, y se quedan en
+`pendiente` para siempre sin que ninguna cifra del embudo las señale: el resumen del worker las
+cuenta como `ilegibles` en la pasada en que ocurre y nadie las vuelve a mirar. **Es el falso
+negativo invisible de la sección 1, esta vez causado por un control de seguridad propio.**
+
+Lo que **no** se va a hacer: relajar `xml_safe`. Un DOCTYPE en un documento de una fuente externa
+es justo lo que el proyecto decidió no procesar.
+
+Lo que hay que decidir (y aún no está decidido, por eso queda escrito y no implementado):
+
+1. **Reintentar pidiendo otro formato de la misma norma.** El DOGC publica cada disposición
+   también en HTML y PDF; si el XML de esas 12 trae DOCTYPE, quizá el otro camino no.
+2. **Marcarlas con un estado propio** —`ilegible`— en vez de dejarlas en `pendiente`, para que
+   aparezcan en el embudo y en la interfaz como lo que son: normas que el sistema no puede
+   vigilar. Hoy se confunden con «esperando su texto íntegro».
+
+La segunda es obligatoria haga lo que haga la primera: **una norma que no se puede analizar tiene
+que verse**, o el sistema afirma una cobertura que no tiene.
