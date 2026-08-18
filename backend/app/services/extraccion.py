@@ -277,9 +277,14 @@ def aplicar(
             regla_aplicada=None,
         )
         session.add(deteccion)
+        # **Un commit por norma, no uno al final.** Medido el 2026-08-18: una pasada de 19 horas
+        # sobre 11 normas no dejó ni una fila porque el commit estaba fuera del bucle, así que
+        # cualquier interrupción tiraba todo el trabajo del modelo. Es el mismo criterio que ya
+        # seguían la fase 2 y el versionado, y por el mismo motivo: aquí cada iteración cuesta
+        # 133,9 s (ADR 0011) y perder una hora de CPU por cerrar una terminal es inaceptable.
+        session.commit()
         extraidas += 1
 
-    session.commit()
 
     return ResumenExtraccion(
         evaluadas=len(normas), extraidas=extraidas, fallidas=fallidas, punteros=punteros

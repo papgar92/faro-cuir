@@ -2056,3 +2056,42 @@ intactas. **535 tests en verde.**
    alcance (sección 8).
 3. **Los dos hallazgos abiertos de la auditoría** de seguridad: hambre de la cola de versionado y
    reintento eterno de fallos duros.
+
+---
+
+### ⚠️ Primera medición del extractor a escala, y no es buena — 2026-08-18
+
+Se lanzó `--extraer` sobre las 121 normas en cola. **Se detuvo tras 11 normas y ~19 horas**, y lo
+que dejó es más valioso que las filas que no escribió:
+
+| dato | valor |
+|---|---|
+| normas intentadas | 11 |
+| respuestas del modelo | 6 |
+| **timeouts de Ollama (180 s)** | **4 de 11** |
+| **descartadas por no anclar al archivo (regla de oro 9, ADR 0013)** | **3 de 6 respuestas** |
+| filas nuevas | **0** |
+
+**Tres hallazgos, en orden de gravedad:**
+
+1. **El commit estaba fuera del bucle.** Cero filas con tres extracciones válidas: 19 horas de
+   CPU que se habrían perdido enteras al cerrar la terminal. Arreglado —un commit por norma, como
+   ya hacían la fase 2 y el versionado— y el motivo es el mismo: aquí cada iteración cuesta
+   133,9 s y perder una hora por una interrupción es inaceptable.
+2. **La mitad de lo que el modelo devuelve no ancla.** 3 de 6 respuestas afirmaban un
+   `texto_anterior` que no está en el documento archivado. **El control del ADR 0013 funciona y
+   por eso duele**: sin él, esas tres citas inventadas estarían hoy en la base de datos
+   pareciendo evidencia. Es la primera cifra real de alucinación del sistema y hay que decirla
+   entera: **con 6 respuestas no se puede afirmar un porcentaje**, solo que el fenómeno es
+   frecuente y no anecdótico.
+3. **El 36 % de las llamadas expira.** Cuatro timeouts de 180 s con documentos recortados a 4.000
+   caracteres. La causa inmediata es la máquina —Ollama compitiendo con la suite de tests, que
+   pasó de 50 s a 20 minutos—, pero el fondo es el que ya avisaba 6.9.7: un modelo de 3B en CPU
+   no da para procesar un corpus, solo para demostrar el camino.
+
+**Consecuencia para V1, dicha sin adornos:** el extractor **no es viable a escala en esta
+máquina**, y el proyecto no depende de él para clasificar —el catálogo de reglas lee el texto
+archivado (ADR 0016)—. Lo honesto es documentarlo como límite medido, no como algo pendiente de
+terminar: la etapa existe, está verificada de punta a punta sobre casos concretos, y su coste real
+la deja fuera del uso masivo hasta que haya GPU o un modelo distinto. Cualquier cambio de modelo
+buscando calidad sigue prohibido sin gold set (sección 8).
