@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2024-10765",
+  "fuente": "boe",
+  "fecha_publicacion": "2024-05-29",
+  "titulo": "Ley 15/2023, de 27 de diciembre, de Presupuestos Generales de la Comunidad de Madrid para el año 2024.",
+  "organo_emisor": "COMUNIDAD DE MADRID",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "f5c2f7550d26ea22122bd822b0959ccc7ad3c1534edbfd958f85448452a98b3c",
+  "notas": "LA LEY DE PRESUPUESTOS, que es el vehiculo clasico del cambio que no sale en los periodicos, y esta en el corpus para medir exactamente eso. 327.937 caracteres con UNA sola coincidencia directa: 'educacion afectivo sexual', dentro de una frase programatica de promocion de la salud. Verificado el 2026-08-19 buscando ademas 'trans*', 'identidad de genero', 'LGTB', 'diversidad sexual', 'Ley 2/2016' y 'Ley 3/2016': CERO apariciones. O sea que esta ley de presupuestos NO toca la ley trans madrilena, aunque sea de la misma legislatura y del mismo mes que la Ley 17/2023 que si la recorta (BOE-A-2024-10767, tambien en el corpus). Se etiqueta 'sospecha' por la regla del formato -menciona y no regula- y vale como control de dos cosas: que un documento enorme con una sola mencion sigue entrando, y que el sistema NO inventa una relacion entre dos normas del mismo boletin solo porque una sea de presupuestos y la otra de derechos."
+}

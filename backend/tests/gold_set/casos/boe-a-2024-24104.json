@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2024-24104",
+  "fuente": "boe",
+  "fecha_publicacion": "2024-11-20",
+  "titulo": "Real Decreto 1159/2024, de 19 de noviembre, por el que se regula la concesión directa de subvenciones del Ministerio de Derechos Sociales, Consumo y Agenda 2030.",
+  "organo_emisor": "MINISTERIO DE DERECHOS SOCIALES, CONSUMO Y AGENDA 2030",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "3d8950a6c1e179baaf727f3c891cefdde603cbe1adf21d161f77889ce6d7292e",
+  "notas": "BASES DE SUBVENCION, que es uno de los vectores de retroceso mas silenciosos que identifico el analisis juridico del proyecto: el dinero se quita antes que el derecho, y sin tocar ninguna ley. Cuatro terminos directos ('lgtbi', 'lesbianas', 'transexuales', 'diversidad familiar'), y el contexto verificado el 2026-08-19 es el que importa: el 'colectivo LGTBI' figura entre los destinatarios de los programas de atencion a colectivos vulnerables. Quitarlo de esa enumeracion no modificaria ninguna ley y dejaria sin financiacion a quien la recibe. 'sospecha' y no 'relevante' porque regula la concesion de subvenciones, no derechos."
+}

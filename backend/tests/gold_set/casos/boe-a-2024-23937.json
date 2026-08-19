@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2024-23937",
+  "fuente": "boe",
+  "fecha_publicacion": "2024-11-16",
+  "titulo": "Resolución de 8 de noviembre de 2024, de la Dirección General de Diversidad Familiar y Servicios Sociales, por la que se publica el Convenio con la Ciudad Autónoma de Ceuta, para la difusión e implantación del aplicativo SEGISS.",
+  "organo_emisor": "MINISTERIO DE DERECHOS SOCIALES, CONSUMO Y AGENDA 2030",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "a591c78063a961d0319c96f0e883bfd5b58219128f543fde2ae4a31482d4ad4a",
+  "notas": "EL CASO MAS DISCUTIBLE DEL CORPUS, y esta puesto para que la discusion quede escrita. Es un convenio sobre la implantacion de una APLICACION INFORMATICA de servicios sociales (SEGISS en sustitucion de SIUSS) con la Ciudad Autonoma de Ceuta. Su unica coincidencia con el vocabulario, verificada el 2026-08-19, son las tres apariciones de 'Diversidad Familiar' **dentro del nombre del organo que firma**: la Direccion General de Diversidad Familiar y Servicios Sociales. Del asunto del convenio no hay nada.\n\nLeido asi, la etiqueta natural seria 'descartada'. Se etiqueta 'sospecha' por una razon de diseno explicita y no por comodidad: CLAUDE.md 7.3 mete el organo emisor en el texto examinado A PROPOSITO, porque 'a veces es donde esta la senal' -una resolucion de la Direccion General de Igualdad puede tener un titulo puramente administrativo-. Descartar esto seria etiquetar en contra de una decision de diseno vigente, no medir su efecto.\n\nLo que hay que vigilar, con su medicion: 'diversidad familiar' aparece en 3 de los 3.060 cuerpos legibles del corpus, y solo en ESTE es exclusivamente el nombre del organo. Con 1 caso de 3.060 no se toca un vocabulario (esa leccion la dejo el ADR 0021). Si el ruido por nombre de organo crece, este es el caso desde el que hay que razonarlo, y la primera cifra a recalcular es esa."
+}

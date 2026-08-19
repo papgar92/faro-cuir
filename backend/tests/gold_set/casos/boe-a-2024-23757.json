@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2024-23757",
+  "fuente": "boe",
+  "fecha_publicacion": "2024-11-15",
+  "titulo": "Real Decreto 1025/2024, de 8 de octubre, por el que se actualizan y suprimen determinadas cualificaciones profesionales del Catálogo Nacional de Cualificaciones Profesionales.",
+  "organo_emisor": "MINISTERIO DE EDUCACIÓN, FORMACIÓN PROFESIONAL Y DEPORTES",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "39835d5f2cfb9d9eb94802c7e4a27b23a17799ec87950f7998e06187cead6b07",
+  "notas": "EL DOCUMENTO MAS GRANDE DEL CORPUS: 1.975.355 caracteres, y el unico que obliga a pensar en el truncado del extractor (6.9.7 recorta a 4.000). Interesa por dos cosas. Una, lo que dice: sus criterios de realizacion incluyen que 'la accesibilidad de las personas jovenes se garantiza desde el reconocimiento de la diversidad de orientaciones sexuales, identidad de genero y expresion de genero' (verificado el 2026-08-19) -o sea contenido normativo del ambito EDUCATIVO y LABORAL a la vez, dentro de un estandar de competencia profesional-. Dos, lo que hace: SUPRIME cualificaciones. Un real decreto futuro que suprimiera justo esa cualificacion se llevaria por delante esos criterios sin tocar ninguna ley de derechos, y el titulo diria 'se actualizan y suprimen determinadas cualificaciones'. 'sospecha': establece estandares, no derechos."
+}

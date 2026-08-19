@@ -77,11 +77,15 @@ después de V1.
 > **Al 2026-08-19, lo de arriba del todo es esto** (lo de abajo es el histórico de la tarea 0,
 > conservado por su razonamiento). Por orden:
 >
-> 1. **Más casos del gold set (~20k), y el que falta es de un tipo concreto.** Hay 22 de los
->    60-80 del plan, con las 8 primeras del DOGC ya etiquetadas (2026-08-19). Lo que falta no es
->    cantidad: falta **el caso que evalúa el eje referencial de verdad**, una norma de título
->    anodino que modifique algo de la watchlist sin nombrar al colectivo. Hasta que exista, la
->    aportación única de ese eje medida es cero.
+> 1. **Más casos del gold set (~20k), y el que falta es de un tipo concreto.** Hay **26** de los
+>    60-80 del plan (14 del BOE previos + 8 del DOGC + 4 del BOE del 2026-08-19). Lo que falta no
+>    es cantidad: falta **el caso que evalúa el eje referencial de verdad**, una norma de título
+>    anodino que modifique algo de la watchlist sin nombrar al colectivo. **Se buscó y en este
+>    corpus no existe**: las únicas 3 normas que tocan la watchlist disparan también el léxico, y
+>    la Ley de Presupuestos de Madrid —el candidato natural, ya etiquetado— resultó no tocar la
+>    ley trans madrileña (verificado: cero apariciones de «trans», «identidad de género», «LGTB»
+>    o «Ley 2/2016» en sus 327.937 caracteres). Para tenerlo hay que **ingerir más BOE**, que es
+>    barato (10 s/día con `--sin-extraccion`) pero no instantáneo.
 > 2. **Recuperar las 172 del DOGC por PDF (~25k + ADR).** Es el único formato con texto: el XML
 >    no existe para ellas y el HTML es un contenedor de JavaScript. Sube la cobertura de esa
 >    fuente del 35 % al ~100 % si funciona.
@@ -2485,3 +2489,35 @@ periódicos», visto en el navegador), y el enlace **«Texto íntegro»** de la 
 fuente oficial** — apunta a `url_texto`, que existe desde la fase 2. Lo del mapa (Canarias, zoom,
 provincias, Ceuta y Melilla) sigue como estaba; ojo con el zoom, que se quitó a propósito en el
 commit `0a0a32d`.
+
+
+---
+
+### ✅ Cuatro casos más del gold set, del BOE — 2026-08-19 (cierre de sesión)
+
+El corpus pasa a **26 casos**. Los cuatro son del BOE y cada uno mide algo que el corpus no
+medía:
+
+- **`BOE-A-2024-10765`, Ley de Presupuestos de Madrid.** El vehículo clásico del cambio que no
+  sale en los periódicos. 327.937 caracteres, **una** coincidencia directa («educación afectivo
+  sexual») en una frase programática de salud. Verificado buscando además «trans*», «identidad de
+  género», «LGTB», «diversidad sexual», «Ley 2/2016» y «Ley 3/2016»: **cero apariciones**. O sea
+  que la ley de presupuestos **no toca** la ley trans madrileña, aunque sea del mismo mes y la
+  misma legislatura que la Ley 17/2023 que sí la recorta. Es el caso que impide dar por hecha una
+  relación que no existe.
+- **`BOE-A-2024-24104`, bases de subvención.** El vector que el análisis jurídico señala como más
+  silencioso: el dinero se quita antes que el derecho. El «colectivo LGTBI» figura entre los
+  destinatarios; sacarlo de esa enumeración no modificaría ninguna ley.
+- **`BOE-A-2024-23757`, cualificaciones profesionales.** El documento más grande del corpus
+  (1.975.355 caracteres, el que obliga a pensar en el truncado de 6.9.7) y el único que combina
+  contenido del ámbito educativo-laboral —criterios de competencia sobre orientación sexual e
+  identidad de género— con un título que dice «se actualizan y **suprimen**».
+- **`BOE-A-2024-23937`, convenio del aplicativo SEGISS.** El caso más discutible, y está puesto
+  para que la discusión quede escrita: su única coincidencia son tres apariciones de «Diversidad
+  Familiar» **dentro del nombre del órgano que firma**. Se etiqueta `sospecha` y no `descartada`
+  porque 7.3 mete el órgano emisor en el texto examinado **a propósito**; descartarlo sería
+  etiquetar en contra de una decisión de diseño vigente en vez de medir su efecto. Con la
+  medición al lado: «diversidad familiar» sale en 3 de 3.060 cuerpos y solo aquí es únicamente el
+  órgano — **con 1 caso de 3.060 no se toca un vocabulario**, que es la lección del ADR 0021.
+
+**623 tests en verde.** Gold set: 26 de 26 coincidiendo con su etiqueta.
