@@ -613,18 +613,15 @@ Cada texto que la extracción afirma haber leído se localiza en el texto archiv
 con su rango de caracteres. Esto convierte la revisión humana en verificación en lugar de
 confianza, y hace que una alucinación se detecte sola.
 
-**Dos cosas cambiaron respecto a como estaba escrita esta sección, y las dos están razonadas en
-el ADR 0013:**
+Las reglas, y el porqué de cada una está en el ADR 0013:
 
-- **Los offsets los calcula el sistema (`pipeline/anclaje.py`), no los pide al modelo.** Pedirle
-  a un modelo de 3B parámetros que cuente caracteres añade un modo de fallo —un error de
-  aritmética descartaría una cita correcta— y no quita ninguno, porque habría que buscar el
-  texto igualmente para validar lo que dijera. La búsqueda **es** el control.
+- **Los offsets los calcula el sistema (`pipeline/anclaje.py`), no los pide al modelo.** La
+  búsqueda **es** el control: habría que buscar el texto igualmente para validar lo que dijera.
 - **No hay una segunda normalización.** Se ancla sobre el mismo texto que usan las reglas
-  (`pipeline/texto.texto_plano`, con `VERSION_TEXTO_PLANO`). Dos derivaciones del mismo
-  documento son dos sistemas de coordenadas, y entonces un span del clasificador y un offset de
-  la extracción no se pueden contrastar entre sí. `pipeline/normalizacion.py` **no existe y no
-  hace falta**.
+  (`pipeline/texto.texto_plano`, con `VERSION_TEXTO_PLANO`): dos derivaciones del mismo documento
+  son dos sistemas de coordenadas, y entonces un span del clasificador y un offset de la
+  extracción dejan de poder contrastarse. `pipeline/normalizacion.py` **no existe y no hace
+  falta**.
 - Los offsets son **absolutos sobre el documento entero**, no relativos a la ventana enviada
   al modelo. Con truncado o ventana deslizante (6.9.7) hay que sumar el desplazamiento de la
   ventana antes de persistir. Test explícito de esto: es el error fácil.
@@ -842,34 +839,16 @@ crecer hasta ser caro de leer para todo el mundo, personas incluidas.
 
 ---
 
-## 12. Backlog de mejoras (pedido por el humano, para S1)
+## 12. Acciones externas: qué no se hace sin permiso
 
 > Pedido tal cual al cierre de S0. No reordenar por criterio propio sin comentarlo primero;
-> si al empezar S1 alguno de estos puntos ya no aplica o contradice algo de este archivo,
-> **para y pregunta** antes de tocarlo.
-
-### Contenido
-
-- Texto reivindicativo al principio (pantalla Mapa/home): explicar el objetivo del proyecto,
-  a quién protege y por qué existe, antes de que el usuario llegue al mapa. Contenido, no
-  solo maquetación — pensar el mensaje con calma, no rellenar con genérico.
-
-### Mapa
-
-- Canarias no se renderiza bien (posición/escala rotas en el recuadro inferior izquierdo).
-  Revisar el offset manual que trae `MapaCCAA`/`_design-export/data/ccaa-paths.json`.
-- Hacer el mapa ampliable (zoom), para poder bajar de CCAA a provincia y localidad.
-- Añadir división por provincias y localidades, no solo CCAA (implica geometría nueva, no
-  solo la que ya tenemos — no inventar límites, buscar fuente oficial equivalente al IGN).
-- Faltan las ciudades autónomas (Ceuta y Melilla) en el mapa actual — ni geometría ni datos
-  mock las incluyen hoy.
-
-### Datos / navegación
-
-- El enlace a "Texto íntegro" / fuente oficial en la Ficha de norma no lleva al documento
-  real todavía (hoy es un ancla muerta `#fuente`; no hay backend detrás). Puede quedar como
-  TODO explícito hasta que exista almacenamiento real, pero no debería parecer un enlace
-  funcional si no lo es.
+> si alguno de estos puntos ya no aplica o contradice algo de este archivo, **para y pregunta**
+> antes de tocarlo.
+>
+> **El resto del backlog de producto —contenido, mapa, navegación— se movió a
+> [`ESTADO.md`](ESTADO.md) el 2026-08-19**, y no por estética: es una lista de trabajo
+> pendiente, o sea estado, y aquí costaba 1,5 KB del arranque de cada subagente para decirles
+> algo que ninguno usa. Aquí se queda solo lo que es una **regla**: las acciones externas.
 
 ### Difusión (acciones externas — confirmar con el humano antes de ejecutar cada una, no encadenarlas)
 
@@ -929,47 +908,15 @@ Ejecuta tareas del backlog en modo headless, una sesión limpia por tarea. **Aut
 tecleo, no el criterio**: cada tarea va a su rama y el merge lo hace el humano tras mirar el
 diff. Es el mismo principio que el gate humano del producto (regla 4) aplicado al código.
 
-```bash
-#!/usr/bin/env bash
-# run_agent.sh — ejecuta N tareas del backlog, una sesión limpia por tarea
-set -uo pipefail
-MAX=${1:-1}
-mkdir -p tasks/done tasks/log
+El script vive en **[`run_agent.sh`](../run_agent.sh)**, en la raíz del repositorio, que es
+donde la sección 4 dice que está. Estuvo copiado aquí dentro hasta el 2026-08-19; sacarlo quita
+2 KB del coste fijo de arrancar cualquier subagente y, sobre todo, deja de haber dos versiones
+del mismo script que se pueden desincronizar sin que nadie lo note.
 
-for _ in $(seq 1 "$MAX"); do
-  TAREA=$(ls -1 tasks/backlog/*.md 2>/dev/null | head -n1)
-  [ -z "$TAREA" ] && { echo "Backlog vacío."; exit 0; }
-  ID=$(basename "$TAREA" .md)
-  echo "▶ $ID"
+**Lo que no se va de aquí son sus reglas**, porque son de criterio y no de implementación:
 
-  git checkout -B "task/$ID" >/dev/null 2>&1
-
-  claude -p "$(cat "$TAREA")" \
-    --model sonnet \
-    --permission-mode acceptEdits \
-    --allowedTools "Read,Write,Edit,Grep,Glob,Bash(pytest:*),Bash(ruff:*),Bash(mypy:*),Bash(git:*)" \
-    --output-format stream-json --verbose \
-    > "tasks/log/$ID.jsonl" 2> "tasks/log/$ID.err"
-  RC=$?
-
-  if grep -qiE "usage limit|rate.?limit" "tasks/log/$ID.err" "tasks/log/$ID.jsonl"; then
-    echo "⏸ Límite de uso alcanzado en $ID. Reanuda cuando reinicie la ventana."; exit 2
-  fi
-  [ $RC -ne 0 ] && { echo "✗ Error en $ID (rc=$RC)"; exit 1; }
-
-  if pytest -q && ruff check . && mypy backend/app; then
-    git add -A && git commit -qm "$ID"
-    mv "$TAREA" tasks/done/
-    echo "✓ $ID — revisa el diff de task/$ID antes de mergear"
-  else
-    echo "✗ Calidad en rojo tras $ID. Rama task/$ID para revisión manual."; exit 1
-  fi
-done
-```
-
-Reglas del driver, no negociables:
-- **Nunca `--dangerously-skip-permissions`.** La allowlist de herramientas es la que hay
-  arriba: escribir código y correr las comprobaciones del CI, nada más.
+- **Nunca `--dangerously-skip-permissions`.** La allowlist de herramientas es la que lleva el
+  script: escribir código y correr las comprobaciones del CI, nada más.
 - **Nunca `alembic upgrade` desatendido.** El aviso del autogenerate (sección 11) ha aparecido
   cuatro veces y una de ellas habría desarmado un control del proyecto. Las migraciones las
   revisa una persona, siempre.

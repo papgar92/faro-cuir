@@ -2431,5 +2431,57 @@ trans de su comunidad. Hasta hoy eso era **invisible por construcción** en el D
    modifique algo de la watchlist sin nombrar al colectivo. Ahora hay **dos** caminos por los que
    podría entrar —metadato y cita— y ninguno está evaluado con un caso propio.
 2. **Recuperar las 172 ilegibles del DOGC por PDF (~25k + ADR).** Es el único formato con texto.
-3. **`docs/CLAUDE.md` está en 63 KB**, por encima del límite de ~55 KB que él mismo fija. Es coste
-   fijo de arrancar cualquier subagente; toca una poda.
+3. **La poda de `docs/CLAUDE.md` está empezada, no terminada** (~10k para cerrarla). De 63,4 KB a
+   **62,2 KB**, con el límite que el propio fichero fija en ~55 KB. Lo hecho han sido tres
+   movimientos seguros, sin perder una línea: el script del driver salió a `run_agent.sh` —donde
+   la sección 4 decía que estaba, y donde no puede desincronizarse de una segunda copia—, el
+   backlog de producto de la sección 12 se movió aquí, y el changelog de 7.5 se comprimió a sus
+   reglas dejando el porqué en el ADR 0013.
+
+   Lo que queda son **reescrituras de prosa normativa, no movimientos**, y ahí el riesgo de
+   perder un matiz que este proyecto valora es real. Los candidatos, por tamaño: §7.3 (5,7 KB),
+   §5 modelo de dominio (3,6 KB), §6.9 Ollama (3,3 KB), §7.2 (3,0 KB). **Que lo decida una
+   persona**: la parte mecánica ya está hecha.
+
+
+---
+
+### 📋 Backlog de producto, traído desde CLAUDE.md — 2026-08-19
+
+Pedido por el humano al cierre de S0 y guardado hasta hoy en la sección 12 de las reglas. Se
+traslada aquí **entero y sin tocar** porque es trabajo pendiente —o sea estado— y en el fichero
+de reglas costaba 1,5 KB de contexto a cada subagente que arranca. La sección 12 conserva lo que
+sí es una regla: las acciones externas que no se hacen sin permiso.
+
+No reordenar por criterio propio sin comentarlo primero; si alguno ya no aplica o contradice algo
+de `CLAUDE.md`, **para y pregunta** antes de tocarlo.
+
+### Contenido
+
+- Texto reivindicativo al principio (pantalla Mapa/home): explicar el objetivo del proyecto,
+  a quién protege y por qué existe, antes de que el usuario llegue al mapa. Contenido, no
+  solo maquetación — pensar el mensaje con calma, no rellenar con genérico.
+
+### Mapa
+
+- Canarias no se renderiza bien (posición/escala rotas en el recuadro inferior izquierdo).
+  Revisar el offset manual que trae `MapaCCAA`/`_design-export/data/ccaa-paths.json`.
+- Hacer el mapa ampliable (zoom), para poder bajar de CCAA a provincia y localidad.
+- Añadir división por provincias y localidades, no solo CCAA (implica geometría nueva, no
+  solo la que ya tenemos — no inventar límites, buscar fuente oficial equivalente al IGN).
+- Faltan las ciudades autónomas (Ceuta y Melilla) en el mapa actual — ni geometría ni datos
+  mock las incluyen hoy.
+
+### Datos / navegación
+
+- El enlace a "Texto íntegro" / fuente oficial en la Ficha de norma no lleva al documento
+  real todavía (hoy es un ancla muerta `#fuente`; no hay backend detrás). Puede quedar como
+  TODO explícito hasta que exista almacenamiento real, pero no debería parecer un enlace
+  funcional si no lo es.
+
+**Dos apuntes de verificación del 2026-08-19**, para que nadie rehaga lo hecho: el **texto
+reivindicativo ya está** en la portada («Un derecho no se pierde el día que sale en los
+periódicos», visto en el navegador), y el enlace **«Texto íntegro»** de la ficha **ya lleva a la
+fuente oficial** — apunta a `url_texto`, que existe desde la fase 2. Lo del mapa (Canarias, zoom,
+provincias, Ceuta y Melilla) sigue como estaba; ojo con el zoom, que se quitó a propósito en el
+commit `0a0a32d`.
