@@ -77,15 +77,12 @@ después de V1.
 > **Al 2026-08-19, lo de arriba del todo es esto** (lo de abajo es el histórico de la tarea 0,
 > conservado por su razonamiento). Por orden:
 >
-> 1. **Más casos del gold set (~20k), y el que falta es de un tipo concreto.** Hay **26** de los
->    60-80 del plan (14 del BOE previos + 8 del DOGC + 4 del BOE del 2026-08-19). Lo que falta no
->    es cantidad: falta **el caso que evalúa el eje referencial de verdad**, una norma de título
->    anodino que modifique algo de la watchlist sin nombrar al colectivo. **Se buscó y en este
->    corpus no existe**: las únicas 3 normas que tocan la watchlist disparan también el léxico, y
->    la Ley de Presupuestos de Madrid —el candidato natural, ya etiquetado— resultó no tocar la
->    ley trans madrileña (verificado: cero apariciones de «trans», «identidad de género», «LGTB»
->    o «Ley 2/2016» en sus 327.937 caracteres). Para tenerlo hay que **ingerir más BOE**, que es
->    barato (10 s/día con `--sin-extraccion`) pero no instantáneo.
+> 1. **Más casos del gold set (~20k). Hay 29** de los 60-80 del plan, y el que faltaba —el
+>    arquetipo del eje referencial— **ya está**: Presupuestos de Navarra, ley de medidas fiscales
+>    valenciana y su ley de presupuestos hermana como control (2026-08-19). La forma barata de
+>    encontrar más es `backend/scripts/quien_modifica.py`, que le pregunta al BOE quién ha
+>    modificado cada norma vigilada: **quedan 26 normas modificadoras sin ingerir**, entre ellas
+>    varias órdenes sobre la cartera común de servicios del SNS.
 > 2. **Recuperar las 172 del DOGC por PDF (~25k + ADR).** Es el único formato con texto: el XML
 >    no existe para ellas y el HTML es un contenedor de JavaScript. Sube la cobertura de esa
 >    fuente del 35 % al ~100 % si funciona.
@@ -2521,3 +2518,71 @@ medía:
   órgano — **con 1 caso de 3.060 no se toca un vocabulario**, que es la lección del ADR 0021.
 
 **623 tests en verde.** Gold set: 26 de 26 coincidiendo con su etiqueta.
+
+
+---
+
+### ✅ El caso que faltaba desde el 9 de agosto, encontrado preguntándole al BOE — 2026-08-19/20
+
+El gold set llevaba once días pidiendo lo mismo: **una norma de título anodino que modifique una
+norma de la watchlist**, cuyo arquetipo es una disposición final de una ley de acompañamiento
+presupuestario. Sin ella, el eje referencial estaba **declarado pero no evaluado**: los tres
+casos donde disparaba los detectaba también el léxico.
+
+#### No se buscó ingiriendo días a ciegas: se le preguntó al BOE
+
+El texto **consolidado** de cada norma vigilada trae en `<posteriores>` quién la ha modificado
+después. 21 peticiones y salieron **29 normas modificadoras** con nombre y fecha, o sea
+exactamente qué días había que ingerir. Queda en `backend/scripts/quien_modifica.py`.
+
+El detalle que costó encontrarlo, y está escrito en el script para no repetirlo: **ese bloque no
+tiene la forma del `<anteriores>`** del texto de una norma. Usa `<id_norma>` y `<relacion>` («SE
+MODIFICA»), no el atributo `referencia` ni `<palabra>`.
+
+#### Cuatro días ingeridos, tres casos nuevos, y el corpus a 29
+
+De 3.232 normas a **4.081**, con 157 sumarios. Y los tres casos son un solo experimento:
+
+| caso | qué es | resultado |
+|---|---|---|
+| `BOE-A-2022-2066` | **Presupuestos Generales de Navarra 2022** | `relevante` por eje referencial. Modifican el art. 7 de la ley trans navarra |
+| `BOE-A-2021-1859` | **ley de medidas fiscales** de la Generalitat Valenciana | `relevante` por eje referencial. Modifica la ley LGTBI valenciana |
+| `BOE-A-2021-1860` | **Presupuestos** de la Generalitat 2021, **mismo día** que la anterior | `sospecha`: solo la **cita** |
+
+Lo que hace valioso al de Navarra: **161.104 caracteres y UN solo término directo** («lgtbi»).
+Sin el eje referencial sería `sospecha` —el último puesto de la cola— en vez de `relevante`. Es
+la demostración, con un documento real, de que el eje 2 **no duplica al léxico**.
+
+Lo que hace valioso al par valenciano: son dos leyes de acompañamiento hermanas, publicadas el
+**mismo día** por el **mismo parlamento**, con títulos igual de anodinos y **cuatro términos
+directos cada una**. Una modifica la ley LGTBI y la otra solo la cita. Sin la segunda, un eje
+referencial que disparase con cualquier mención pasaría el gold set igual de verde que uno
+correcto; con ella, **se pone rojo si alguien afloja la condición `es_modificativa`**, que es la
+única línea que separa «toca esta ley» de «la nombra».
+
+#### Y el ADR 0022 tiene su primera validación en la naturaleza
+
+Ejecutadas las dos fuentes de evidencia por separado sobre los cuerpos archivados:
+
+- `BOE-A-2021-1859`: el `<analisis>` dice `MODIFICA` **y el eje por citas del texto también**, por
+  su cuenta. Hasta este documento la aportación medida del eje por citas era cero.
+- `BOE-A-2022-2066`: aquí la señal la aporta **solo el metadato**; la cita aparece sin verbo
+  modificativo cerca y sale como `CITA`. Las dos fuentes se complementan y ninguna sobra.
+- `BOE-A-2021-1860`: `<analisis>` vacío y cita sin verbo → **no dispara**, que es lo correcto.
+
+#### Verificado
+
+- **635 tests en verde**, `ruff` y `mypy` limpios. Gold set: **29 de 29 coincidiendo** con su
+  etiqueta.
+- Estado del corpus: 4.081 normas, 7 relevantes, 45 sospechas, 172 ilegibles, **0 pendientes**,
+  0 en cola de fase 2.
+
+#### Siguiente, por orden
+
+1. **Seguir el filón**: quedan **26 normas modificadoras más** en la lista de
+   `quien_modifica.py` sin ingerir, entre ellas varias órdenes que tocan la **cartera común de
+   servicios del SNS** (`BOE-A-2024-12290`, `BOE-A-2025-9277`, `BOE-A-2026-8592`,
+   `BOE-A-2026-16654`) — el vector sanitario, que el corpus todavía no tiene medido. Cada día
+   cuesta unos 3 minutos de ingesta.
+2. **Recuperar las 172 ilegibles del DOGC por PDF** (~25k + ADR).
+3. **Terminar la poda de `docs/CLAUDE.md`** (62,2 KB con el límite en ~55).

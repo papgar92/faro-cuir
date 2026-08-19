@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2021-1860",
+  "fuente": "boe",
+  "fecha_publicacion": "2021-02-09",
+  "titulo": "Ley 4/2020, de 30 de diciembre, de Presupuestos de la Generalitat para el ejercicio 2021.",
+  "organo_emisor": "COMUNITAT VALENCIANA",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "0f6983c1ef778e0ab4b9425e9f43fa556c8580096cb1df396b428c75d3662499",
+  "notas": "EL CONTROL DEL EJE REFERENCIAL, y no se puede etiquetar sin leer antes el de BOE-A-2021-1859. Son las dos leyes hermanas de acompanamiento de la Generalitat Valenciana, publicadas el MISMO DIA en el BOE, con titulos igual de anodinos y con cuatro terminos directos cada una. La diferencia esta en lo que hacen: la 3/2020 MODIFICA la ley LGTBI valenciana y esta, la de Presupuestos, solo la CITA.\n\nVerificado el 2026-08-19 sobre el cuerpo archivado: su <analisis> no declara ninguna referencia a una norma vigilada, y el eje por citas del texto la encuentra con verbo 'CITA'. El eje referencial **no dispara**, que es lo correcto, y la norma se queda en 'sospecha' por el eje lexico.\n\nSin este caso, un eje referencial que disparara con cualquier mencion pasaria el gold set igual de verde que uno correcto: los dos marcarian la 3/2020. Este es el que se pone rojo si alguien afloja la condicion `es_modificativa`, que es la unica linea que separa 'toca esta ley' de 'la cita'. 572.884 caracteres."
+}

@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2021-1859",
+  "fuente": "boe",
+  "fecha_publicacion": "2021-02-09",
+  "titulo": "Ley 3/2020, de 30 de diciembre, de medidas fiscales, de gestión administrativa y financiera y de organización de la Generalitat 2021.",
+  "organo_emisor": "COMUNITAT VALENCIANA",
+  "prefiltro_esperado": "relevante",
+  "ejes_esperados": [
+    "referencial"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "0be314a391caa45560ecd2cef9b9e0f49ed8384ace8226101ddd02df34320ae4",
+  "notas": "LA LEY DE ACOMPANAMIENTO, que es el arquetipo literal que pide el README: una ley de «medidas fiscales, de gestion administrativa y financiera» que modifica la Ley 23/2018 de igualdad de las personas LGTBI de la Comunitat Valenciana (BOE-A-2019-281, en la watchlist). El titulo no dice nada; la modificacion va dentro, entre cientos de articulos de materia presupuestaria y tributaria. 457.720 caracteres.\n\n**Y es el primer caso real que valida el ADR 0022**: las DOS fuentes de evidencia del eje referencial dan MODIFICA por separado sobre esta norma, verificado el 2026-08-19 ejecutandolas por separado sobre el cuerpo archivado. El bloque <analisis> del BOE lo declara, y el eje por CITAS DEL TEXTO lo encuentra tambien por su cuenta. Hasta este documento, la aportacion medida del eje por citas era cero; aqui se ve que hace su trabajo sobre un documento que nadie escribio para ser encontrado.\n\nVa en pareja con BOE-A-2021-1860, publicada el MISMO DIA por el MISMO parlamento y con un titulo igual de anodino, que solo CITA la ley LGTBI y por eso no debe disparar el eje. Los dos juntos miden lo unico que hay que medir de este eje: que distingue tocar de mencionar."
+}

@@ -1,7 +1,7 @@
 # Gold set
 
 Casos históricos etiquetados a mano para medir el pipeline con datos reales (CLAUDE.md
-sección 7). El objetivo final son 150-200 casos; hoy hay **22** — 14 del BOE y 8 del DOGC.
+sección 7). El objetivo final son 150-200 casos; hoy hay **29** — 21 del BOE y 8 del DOGC.
 
 **Lo que el corpus cubre y lo que no, para que nadie lea una cifra de más:**
 
@@ -67,11 +67,26 @@ negativos difíciles (títulos de temática cercana pero fuera de alcance — sa
 no LGTBI+, igualdad de género no trans, etc.), no solo negativos triviales. La reforma
 madrileña de 2023 ya está (`boe-a-2024-10767.json`).
 
-**El caso que hoy más falta**, y no es un negativo: una norma con **título anodino que
-modifique una norma de la watchlist** — el arquetipo es una disposición final de una ley de
-acompañamiento presupuestario. Mientras no exista, el eje referencial no está evaluado sino
-solo declarado: los tres casos donde dispara hoy los detecta también el léxico, así que su
-aportación única medida sigue siendo cero.
+**El caso que más faltaba ya está, desde el 2026-08-19.** Era «una norma con título anodino que
+modifique una norma de la watchlist, cuyo arquetipo es una disposición final de una ley de
+acompañamiento presupuestario», y hasta entonces el eje referencial estaba **declarado pero no
+evaluado**. Ahora hay tres, y funcionan como un solo experimento:
+
+- **`boe-a-2022-2066`** — *Presupuestos Generales de Navarra 2022*, que modifican el art. 7 de la
+  ley trans navarra. **161.104 caracteres y UN solo término directo**: sin el eje referencial
+  sería `sospecha`, el último puesto de la cola, en vez de `relevante`.
+- **`boe-a-2021-1859`** — *ley de medidas fiscales de la Generalitat Valenciana*, que modifica la
+  ley LGTBI valenciana entre cientos de artículos tributarios.
+- **`boe-a-2021-1860`** — *Presupuestos de la Generalitat 2021*, publicada **el mismo día** que la
+  anterior, con título igual de anodino y los mismos cuatro términos directos, pero que solo
+  **cita** la ley LGTBI. Es el control: sin él, un eje referencial que disparase con cualquier
+  mención pasaría el gold set igual de verde que uno correcto.
+
+No se encontraron ingiriendo días al azar: **se le preguntó al BOE**. El texto consolidado de
+cada norma vigilada trae en `<analisis><referencias><posteriores>` quién la ha modificado
+después, y de ahí salieron 29 normas modificadoras con la fecha exacta que había que ingerir.
+Es la forma barata de buscar más casos de este tipo, y está en el repositorio como
+`backend/scripts/quien_modifica.py`.
 
 **Dos casos del DOGC hacen de raíles y conviene no tocarlos sin leer sus notas**, porque
 sujetan el eje léxico por los dos lados (ADR 0021):

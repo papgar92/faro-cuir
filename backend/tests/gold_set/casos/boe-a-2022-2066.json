@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2022-2066",
+  "fuente": "boe",
+  "fecha_publicacion": "2022-02-09",
+  "titulo": "Ley Foral 18/2021, de 29 de diciembre, de Presupuestos Generales de Navarra para el año 2022.",
+  "organo_emisor": "COMUNIDAD FORAL DE NAVARRA",
+  "prefiltro_esperado": "relevante",
+  "ejes_esperados": [
+    "referencial"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "1bd06b11690fc45afb8024ad50531f9f28770f304392ccca6b960fa2a63d5495",
+  "notas": "**EL CASO QUE FALTABA.** El README de este gold set lleva desde el 2026-08-09 pidiendo «una norma con titulo anodino que modifique una norma de la watchlist, cuyo arquetipo es una disposicion final de una ley de acompanamiento presupuestario», y diciendo que mientras no exista el eje referencial esta declarado pero no evaluado. Este es: unos PRESUPUESTOS GENERALES que modifican el articulo 7 de la Ley Foral 8/2017 para la igualdad social de las personas LGTBI+ de Navarra (BOE-A-2017-8527, en la watchlist).\n\nNo se encontro ingiriendo dias al azar. Se le pregunto al BOE: el texto consolidado de cada norma vigilada trae en <analisis><referencias><posteriores> quien la ha modificado despues, y de ahi salieron 29 normas modificadoras y la fecha exacta que habia que ingerir (2026-08-19).\n\nLos numeros son lo que lo hace valioso: **161.104 caracteres y UN solo termino directo** ('lgtbi'). Sin el eje referencial esto seria 'sospecha' -el ultimo puesto de la cola- en vez de 'relevante'. Es la demostracion, con un documento real delante, de que el eje 2 no duplica al lexico: aqui lo que decide es que el <analisis> declara MODIFICA sobre una norma vigilada, diga lo que diga el texto.\n\n`ejes_esperados` declara SOLO 'referencial' a proposito, aunque el lexico tambien dispare: el test exige que esten los declarados y no prohibe que haya mas, asi que asi este caso mide **el eje que importa** y no se vuelve verde por el motivo equivocado si algun dia el vocabulario cambia.\n\nDato para el ADR 0022: el eje por citas del texto encuentra la misma norma vigilada pero con verbo 'CITA', no 'MODIFICA'. O sea que aqui la senal la aporta el metadato del BOE, no la cita. En BOE-A-2021-1859 pasa lo contrario y por eso los dos casos estan en el corpus."
+}
