@@ -20,17 +20,23 @@ convierten en uno de bajo recall:
 
 El eje 3 (semántico por embeddings) está fuera de alcance a propósito (sección 8).
 
-## El corte de términos directos, y por qué no puede hacer daño
+## El corte de términos directos, y qué decide cada uno de los dos
 
 Al evaluarse sobre el **texto íntegro** en vez del título, el eje léxico cambia de calibración
 por completo: sobre 200.000 caracteres, la *presencia* de un término no discrimina —una
-convocatoria de oposición cita la Ley 4/2023 en el temario— así que hay que contar **cuántos**
-términos directos distintos aparecen.
+convocatoria de oposición cita la Ley 4/2023 en el temario— así que hay que mirar **qué clase**
+de términos aparecen y **cuántos**. Son dos decisiones distintas y conviene no confundirlas:
 
-Ese corte **está sin validar y solo lo puede validar el gold set**. Por eso está construido de
-forma que equivocarse salga barato: el umbral separa `RELEVANTE` de `SOSPECHA`, **nunca decide
-un descarte**. Una norma con un solo término directo entra igualmente en la cola del extractor,
-solo que la última. Si el umbral está mal, el coste es latencia; nunca un falso negativo.
+1. **Al menos un término DIRECTO, o no se entra en la cola** (ADR 0021, y solo sobre texto
+   íntegro). Los términos de CONTEXTO —«plan de igualdad», «igualdad de trato», «registro
+   civil»— son fórmulas de cualquier documento administrativo largo: metían el 71 % de la cola
+   medida. Esta sí decide un descarte, y por eso el ADR la sostiene con números y con dos casos
+   del gold set, uno que se cae (`DOGC-24310119`) y otro que **tiene que seguir entrando**
+   (`DOGC-24198092`, que pasa por un único término directo en 28.000 caracteres).
+2. **`UMBRAL_DIRECTOS_RELEVANTE` separa `RELEVANTE` de `SOSPECHA`, y nunca decide un descarte.**
+   Está sin validar y solo lo puede validar el gold set; por eso está construido de forma que
+   equivocarse salga barato. Si está mal, el coste es latencia en la cola, nunca un falso
+   negativo.
 
 Y sobre el título solo —sin texto íntegro— **no se descarta jamás** (7.1): el título es
 exactamente lo que un retroceso silencioso puede redactar de forma anodina, así que decidir
@@ -53,8 +59,11 @@ from app.pipeline.watchlist import Watchlist
 
 # Versión del vocabulario. Se guarda junto a cada resultado para que una norma evaluada con
 # un diccionario viejo sea reconocible y se pueda reevaluar. Súbela SIEMPRE que cambien los
-# términos o el umbral: sin eso, "esta norma se descartó" deja de ser comprobable.
-VERSION_VOCABULARIO = "2026.08.08"
+# términos, el umbral **o la regla de decisión del eje léxico**: sin eso, "esta norma se
+# descartó" deja de ser comprobable. La versión cubre el eje entero, no solo la lista de
+# palabras — es lo que hace que `--reprefiltrar` recoja un cambio como el del ADR 0021, donde no
+# se tocó ni un término y sin embargo cambió el resultado de 100 normas.
+VERSION_VOCABULARIO = "2026.08.19"
 
 # Cuántos términos DIRECTOS distintos hacen falta, sobre el texto íntegro, para que una norma
 # entre como RELEVANTE en vez de como SOSPECHA.
@@ -403,6 +412,34 @@ def evaluar(
         # el título es señal fuerte —así se encontró la Ley 4/2023— y el umbral de conteo no
         # se aplica aquí: ningún título contiene ocho términos distintos.
         return resultado(EstadoPrefiltro.RELEVANTE if directos else EstadoPrefiltro.SOSPECHA)
+
+    if not directos:
+        # **Sobre el texto íntegro, los términos de CONTEXTO no bastan para entrar en la cola**
+        # (ADR 0021). Sobre un título sí bastan y ahí no ha cambiado nada: un título son quince
+        # palabras y «plan de igualdad» dentro es una señal. Sobre 105.000 caracteres de un
+        # currículo de arte floral, la misma expresión es un epígrafe del módulo de formación
+        # laboral, y eso no es una hipótesis: es `DOGC-24310119`, que está en el gold set con su
+        # cita y su contexto.
+        #
+        # Lo que sostiene el cambio, medido el 2026-08-19 sobre las 140 normas que había en cola:
+        # **100 (el 71 %) entraban solo por términos de contexto**, sobre documentos de 54.000
+        # caracteres de mediana —uno de dos millones—, y los cuatro responsables eran «igualdad
+        # de trato» (51), «plan de igualdad» (24), «no discriminación» (20) y «registro civil»
+        # (18). Son fórmulas que aparecen en cualquier documento administrativo largo; medir su
+        # *presencia* en un texto íntegro no distingue nada, que es literalmente el aviso que 7.3
+        # dejó escrito para el eje 1 y que hasta ahora no se había aplicado.
+        #
+        # Qué se pierde, dicho con números y no con adjetivos: de las 13 detecciones que el
+        # catálogo de reglas había producido, **3 venían de normas sin ningún término directo, y
+        # las 3 eran R-SUP-002** — la regla que el gate humano descartó 10 de 10 veces y que por
+        # eso ya no se encola (ADR 0017). Ninguno de los 22 casos etiquetados del gold set con
+        # etiqueta de cola tiene cero directos, así que ninguno se cae.
+        #
+        # Y lo que **no** cambia, que es la parte importante: sigue sin poder descartarse nada
+        # sin haber leído el documento (7.1), y un solo término directo sigue bastando para
+        # entrar —`DOGC-24198092` entra por uno, y está en el gold set para que ningún umbral
+        # futuro se lo lleve por delante.
+        return resultado(EstadoPrefiltro.DESCARTADA)
 
     # Fase 2, sobre el texto íntegro: el conteo separa el que regula del que solo cita.
     # **Por debajo del umbral no se descarta, se pospone.**

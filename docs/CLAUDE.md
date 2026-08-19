@@ -518,15 +518,30 @@ filtros de alto recall en uno de bajo recall.
 y clínicas antiguas, límites de palabra, categorías `DIRECTO`/`CONTEXTO` que no cambian la
 decisión. No se toca su lógica; solo se le añade el estado `sospecha` para términos débiles.
 
-**Aviso medido (ADR 0011), léelo antes de tocar este eje:** al pasar a evaluarse sobre el
-texto íntegro en vez del título, este eje **cambia de calibración por completo** y ahora mismo
-es poco preciso. De las 23 normas que el cuerpo dispara y el título no, buena parte son
-convocatorias de oposición que citan la Ley 4/2023 en el temario. El vocabulario está pensado
-para títulos y mide *presencia*; sobre 200.000 caracteres hay que mirar **cuántos** términos
-directos aparecen. Los números que enseñan el corte: Ley 4/2023 → **43** términos; Ley Orgánica
-1/2023 (el negativo difícil del gold set) → **11**; Ley 3/2023 de Empleo → **9**; una
-resolución de Sanidad → **3**. Fijar ese corte es la tarea 0.b, y **validarlo solo lo puede
-hacer el gold set**: no publiques un umbral numérico como si estuviera comprobado.
+**Dos decisiones distintas gobiernan este eje sobre texto íntegro, y confundirlas es fácil:**
+
+1. **Al menos un término `DIRECTO`, o no se entra en la cola** (ADR 0021, 2026-08-19). Los
+   términos de `CONTEXTO` por sí solos ya no bastan **sobre el texto íntegro**; sobre el título
+   siguen bastando y ahí no ha cambiado nada. Medido antes del cambio: de 140 normas en cola,
+   **100 (71 %) entraban solo por términos de contexto**, sobre documentos de 54.000 caracteres
+   de mediana, y los responsables eran «igualdad de trato», «plan de igualdad», «no
+   discriminación» y «registro civil» — fórmulas de cualquier documento administrativo largo.
+   Aplicado sobre los datos reales, la cola pasó de **140 a 40**. Esta regla **sí produce
+   descartes**, así que el ADR lleva el recuento de lo que se pierde: 3 de 13 detecciones, las 3
+   de `R-SUP-002`, que es la regla que el gate humano descartó 10 de 10 veces. Reproducir la
+   medición: `backend/scripts/medir_ruido_lexico.py`.
+2. **`UMBRAL_DIRECTOS_RELEVANTE` separa `relevante` de `sospecha` y NO decide ningún descarte.**
+   Sigue **sin validar**, y con 22 casos de gold set sigue sin poder validarse: no publiques un
+   umbral numérico como si estuviera comprobado. Los números que lo enseñan, del ADR 0011: Ley
+   4/2023 → **43** términos; Ley Orgánica 1/2023 (el negativo difícil) → **11**; Ley 3/2023 de
+   Empleo → **9**; una resolución de Sanidad → **3** (ojo: son *todos* los términos, no solo los
+   directos, así que no son comparables con el umbral tal cual).
+
+**Antes de tocar este eje, mira los dos casos del gold set que lo sujetan por los dos lados**:
+`dogc-24310119` es el falso positivo que cae con la regla 1 —105.000 caracteres de currículo de
+arte floral cuya única coincidencia es «plan de igualdad» en un temario— y `dogc-24198092` entra
+por **un solo término directo** en 28.000 caracteres con señal buena. Cualquier cambio que
+recupere el primero o pierda el segundo está mal.
 
 **Eje 2 — referencial (NUEVO, prioritario).** `config/watchlist.json` con normas objetivo por
 identificador: Ley 4/2023, leyes trans autonómicas, reales decretos de cartera común de
@@ -728,8 +743,9 @@ Si te encuentras haciendo cualquiera de estas, para:
   de revisión** (escrito e implementado el 2026-08-14) y **0018 de dónde sale el texto anterior**
   (escrito e implementado el 2026-08-15), **0019 el DOGC como segunda fuente** (escrito el
   2026-08-17) y **0020 el estado `ilegible` del prefiltro** (escrito e implementado el
-  2026-08-18). Con el 0013 escrito **ya no queda ningún número reservado**: el siguiente libre es
-  el **0021**.
+  2026-08-18) y **0021 el eje léxico exige un término directo sobre texto íntegro** (escrito e
+  implementado el 2026-08-19). Con el 0013 escrito **ya no queda ningún número reservado**: el
+  siguiente libre es el **0022**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).
