@@ -1,0 +1,12 @@
+{
+  "identificador_oficial": "DOGC-24123016",
+  "fuente": "boletin_autonomico",
+  "fecha_publicacion": "2024-05-03",
+  "titulo": "DECRETO 85/2024, de 30 de abril, sobre el sistema de acreditación de la artesanía alimentaria.",
+  "organo_emisor": "DOGC",
+  "prefiltro_esperado": "descartada",
+  "ejes_esperados": [],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "51dfc7830ace9a54585ffa737ad860d159bb05d78a17918a03c16b60aeb1e1d9",
+  "notas": "Negativo limpio y largo: 68.579 caracteres, cero coincidencias de cualquier categoria, verificado el 2026-08-19. Un corpus sin negativos asi mide el recall y no ve la precision. Vale ademas como control de que el descarte del DOGC funciona sobre texto integro y no por casualidad: es de la misma tanda y del mismo boletin que los positivos de esta misma lista."
+}

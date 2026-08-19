@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "DOGC-24317111",
+  "fuente": "boletin_autonomico",
+  "fecha_publicacion": "2024-11-14",
+  "titulo": "DECRETO 444/2024, de 12 de noviembre, de estructuración del Departamento de Política Lingüística.",
+  "organo_emisor": "DOGC",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "a855c25e450577792955594766458dde6971a1b66761b19ea5d0f8de877fc9ca",
+  "notas": "El caso incomodo de la tanda, y esta etiquetado a conciencia. Un decreto de estructura de POLITICA LINGUISTICA no tiene nada que ver con el colectivo, y sin embargo trae tres terminos directos. Leido el texto el 2026-08-19, la coincidencia sale de una clausula que SI es un precepto: 'los datos personales se desagregaran por sexo (mujer/hombre) e identidad de genero (mujer/hombre/persona no binaria)', repetida en las funciones de varias unidades. Quitar 'persona no binaria' de esa formula seria un retroceso real, silencioso y sin titulares: hacer invisible a alguien en la estadistica oficial. Por eso 'sospecha' y no 'descartada'; la senal es debil pero no es falsa. Sirve para no confundir DOS cosas que el vocabulario mezcla: formula administrativa que contiene un precepto (esto) y formula administrativa que no contiene ninguno (ver DOGC-24310119)."
+}

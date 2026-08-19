@@ -1,0 +1,12 @@
+{
+  "identificador_oficial": "DOGC-24310119",
+  "fuente": "boletin_autonomico",
+  "fecha_publicacion": "2024-11-07",
+  "titulo": "DECRETO 429/2024, de 5 de noviembre, del currículo del ciclo formativo de grado superior de artes plásticas y diseño de Arte Floral de la familia profesional de arte floral.",
+  "organo_emisor": "DOGC",
+  "prefiltro_esperado": "descartada",
+  "ejes_esperados": [],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "c2d6b65cc80fa1e3133c906a08eec68c19718c4fcedc2217ef0debd1486b7983",
+  "notas": "EL FALSO POSITIVO de la tanda, y esta puesto para que se vea. El prefiltro lo manda a la cola del LLM; leido el texto completo el 2026-08-19 no hay NADA del ambito: son 105.101 caracteres de curriculo de arte floral y la unica coincidencia es 'plan de igualdad', dentro de un modulo de formacion y orientacion laboral ('Fases para la elaboracion de un plan de igualdad en la empresa'). Es el equivalente exacto, en el DOGC, de la oposicion que cita la Ley 4/2023 en el temario que CLAUDE.md 7.3 ya avisaba para el BOE. Y no es un caso aislado: hay una veintena de decretos hermanos de curriculo en el mismo corpus, y medido sobre la cola real, 100 de las 140 normas en cola (71 %) entraban SOLO por terminos de contexto, sobre documentos de 54.000 caracteres de mediana. Este caso es el que sostiene ese cambio de calibracion (ADR 0021) con un documento concreto delante en vez de con una estadistica."
+}

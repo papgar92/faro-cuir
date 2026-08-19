@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "DOGC-24198092",
+  "fuente": "boletin_autonomico",
+  "fecha_publicacion": "2024-07-18",
+  "titulo": "DECRETO 125/2024, de 16 de julio, de la Comisión Nacional para una Intervención Coordinada contra las Violencias Machistas.",
+  "organo_emisor": "DOGC",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "53cd74f0f13717b42b991b3a25d02c81854c52e5d3336f50c83036d6df7f9630",
+  "notas": "Entra por UN solo termino directo, 'lesbianas', y el contexto es lo que lo hace valioso: el Consejo Nacional de Lesbianas, Gays, Bisexuales, Transgeneros e Intersexuales figura entre los organos que componen la comision (verificado el 2026-08-19). O sea que el vinculo con el colectivo no esta en el articulado sino en QUIEN se sienta en la mesa. Sacar a ese consejo de la composicion no tocaria ninguna ley de derechos y valdria como retroceso. Caso de control para el eje lexico: un unico termino en 28.000 caracteres puede ser senal buena, asi que un umbral que exija VARIOS terminos directos perderia esto. Etiquetado 'sospecha' porque el decreto regula la comision, no derechos."
+}

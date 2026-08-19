@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "DOGC-24116002",
+  "fuente": "boletin_autonomico",
+  "fecha_publicacion": "2024-04-26",
+  "titulo": "DECRETO 80/2024, de 24 de abril, de reestructuración del Instituto Nacional de Educación Física de Cataluña (INEFC).",
+  "organo_emisor": "DOGC",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "f7737cfd66cd6d3956a02c06f0a81f3de295d9da73b9b82089337e8986defcf0",
+  "notas": "PRIMER CASO DEL DOGC del corpus, y de los ocho de esta tanda el que mejor explica por que hacia falta una segunda fuente: es un decreto de ESTRUCTURA de un instituto deportivo, exactamente el rango bajo que el BOE no republica (ADR 0019). Verificado leyendo el cuerpo archivado el 2026-08-19: trae tres terminos directos ('identidad de genero', 'expresion de genero', 'orientacion sexual') dentro de las funciones que atribuye a sus unidades, en concreto el seguimiento del Protocolo de prevencion del acoso por razon de sexo, orientacion sexual, identidad de genero o expresion de genero. NO regula derechos: reparte quien se ocupa de ese protocolo. Por eso 'sospecha' y no 'relevante' -- y por eso NO es ruido: suprimir esa funcion de la unidad que la tiene seria un retroceso silencioso de manual, sin tocar ni una ley. Solo eje lexico: el DOGC no publica el bloque de referencias que alimenta el eje referencial (medido el 2026-08-19: 0 de 92 cuerpos legibles lo disparan), asi que en esta fuente el sistema vigila con un solo eje."
+}

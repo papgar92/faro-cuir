@@ -1,8 +1,19 @@
 # Gold set
 
 Casos históricos etiquetados a mano para medir el pipeline con datos reales (CLAUDE.md
-sección 7). El objetivo final son 150-200 casos; hoy hay 4, de arranque, para dejar montado
-el mecanismo — el etiquetado en volumen lo hace el humano, por tandas.
+sección 7). El objetivo final son 150-200 casos; hoy hay **22** — 14 del BOE y 8 del DOGC.
+
+**Lo que el corpus cubre y lo que no, para que nadie lea una cifra de más:**
+
+- Las 8 del DOGC se etiquetaron el 2026-08-19 sobre las **92 normas legibles** de esa fuente.
+  Las otras 172 (el 65 %) están en estado `ilegible` (ADR 0020): su cuerpo archivado es la
+  página de error del portal, así que **no hay texto que etiquetar**. Cualquier medición sobre
+  el DOGC es una medición sobre ese 35 %, y se publica diciéndolo.
+- **En el DOGC no hay ni un caso con `referencial` en `ejes_esperados`, y no es un descuido.**
+  Esa fuente no publica el bloque de referencias que alimenta el eje (medido: 0 de 92 cuerpos
+  legibles, frente a 211 de 2.968 en el BOE). `dogc-24261095.json` es el caso que lo documenta:
+  un decreto que deroga artículos del departamento que lleva las competencias LGTBI y al que el
+  eje referencial no puede llegar.
 
 ## Cómo añadir un caso
 
@@ -22,9 +33,12 @@ Un fichero JSON por caso en `casos/`, con este formato (ver `esquema.py` para el
 }
 ```
 
-- `prefiltro_esperado`: uno de los cuatro estados de 7.2 — `relevante` | `sospecha` |
-  `descartada` | `pendiente`. **Se etiqueta sobre el texto íntegro**, no sobre el título
-  (7.8): es lo que el prefiltro ve desde que la fase 2 descarga el día entero.
+- `prefiltro_esperado`: `relevante` | `sospecha` | `descartada`. **Se etiqueta sobre el texto
+  íntegro**, no sobre el título (7.8): es lo que el prefiltro ve desde que la fase 2 descarga
+  el día entero. Los otros dos estados de 7.2 **no se etiquetan nunca**, y por el mismo motivo
+  los dos: `pendiente` (falta el documento) e `ilegible` (está y no se puede parsear, ADR 0020)
+  son estados del pipeline, no juicios humanos sobre la norma. Que el pipeline los produzca
+  bien se comprueba en `tests/test_prefiltro_ilegible.py`, no aquí.
   - `relevante` y `sospecha` **cuentan igual para el recall**: las dos entran en la cola del
     extractor. La diferencia entre ellas es de orden en la cola, no de cobertura.
   - `descartada` solo es etiquetable si de verdad no hay nada; sobre el título nunca se
@@ -58,6 +72,16 @@ modifique una norma de la watchlist** — el arquetipo es una disposición final
 acompañamiento presupuestario. Mientras no exista, el eje referencial no está evaluado sino
 solo declarado: los tres casos donde dispara hoy los detecta también el léxico, así que su
 aportación única medida sigue siendo cero.
+
+**Dos casos del DOGC hacen de raíles y conviene no tocarlos sin leer sus notas**, porque
+sujetan el eje léxico por los dos lados (ADR 0021):
+
+- `dogc-24310119.json` (`descartada`) es el falso positivo: 105.000 caracteres de currículo de
+  arte floral cuya única coincidencia es «plan de igualdad» en un temario de derecho laboral.
+  Es el que impide volver a dar por buena la *presencia* de un término de contexto.
+- `dogc-24198092.json` (`sospecha`) entra por **un solo término directo** en 28.000 caracteres,
+  y la señal es buena: el Consejo Nacional LGBTI figura en la composición de la comisión. Es el
+  que impide subir el umbral de términos directos «porque los números salen mejor».
 
 ## Qué prueba hoy `test_gold_set_prefiltro.py`
 

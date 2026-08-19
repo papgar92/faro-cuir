@@ -1,0 +1,12 @@
+{
+  "identificador_oficial": "DOGC-24261095",
+  "fuente": "boletin_autonomico",
+  "fecha_publicacion": "2024-09-18",
+  "titulo": "DECRETO 320/2024, de 17 de septiembre, de reestructuración del Departamento de Derechos Sociales e Inclusión.",
+  "organo_emisor": "DOGC",
+  "prefiltro_esperado": "descartada",
+  "ejes_esperados": [],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "c05d061e87c526a9da4896bc98abe18dbf252c914351ae7b37a287cae561dc4b",
+  "notas": "EL CASO QUE DOCUMENTA EL LIMITE ESTRUCTURAL DE ESTA FUENTE, y por eso lleva una explicacion larga en vez de una etiqueta comoda. Este decreto DEROGA articulos del Decreto 134/2022 de reestructuracion del Departamento de Igualdad y Feminismos, que es donde viven las competencias LGTBI en Catalunya. Un decreto asi es justo lo que el eje referencial existe para atrapar. No lo atrapa, y la razon esta medida (2026-08-19): el DOGC NO publica el equivalente del bloque <analisis> del BOE. Su Akoma Ntoso trae <references>, pero los activeRef apuntan al PROPIO documento con showAs='Modificado'/'Derogado' -- son ciclo de vida, no 'a quien afecta' -- y el passiveRef son normas POSTERIORES. Comprobado en cuatro documentos distintos, uno de ellos titulado 'de modificacion del Decreto 358/2004': la norma afectada no aparece en ningun metadato, solo en el texto. Resultado medido: 0 de 92 cuerpos legibles del DOGC disparan el eje referencial, frente a 211 de 2.968 en el BOE. Se etiqueta 'descartada' y no 'sospecha' porque, leido entero, lo que deroga son las unidades de MIGRACIONES Y ANTIRRACISMO que cambian de departamento -- el propio texto lo dice, 'la competencia en materia de antirracismo queda atribuida al Departamento de Igualdad y Feminismo' -- y no hay ni una linea sobre el colectivo. Lo que NO se ha podido verificar, y queda dicho en vez de supuesto: que regulan exactamente los articulos 21 y 22 del Decreto 134/2022, que es de 2022 y no esta en el archivo. Si algun dia se ingiere, este caso hay que releerlo."
+}

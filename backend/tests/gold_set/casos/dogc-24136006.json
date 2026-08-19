@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "DOGC-24136006",
+  "fuente": "boletin_autonomico",
+  "fecha_publicacion": "2024-05-16",
+  "titulo": "DECRETO 91/2024, de 14 de mayo, del régimen lingüístico del sistema educativo no universitario.",
+  "organo_emisor": "DOGC",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "76d9b49f8c54406cb175dc67b8883f59e6585d06a47ecdf1f66c878d1151f486",
+  "notas": "87.278 caracteres y UNA sola coincidencia: 'LGBTI-fobico', dentro de la clausula de lenguaje inclusivo. Es el caso limite del eje lexico sobre texto integro, y esta en el corpus justamente para eso: si alguien sube el umbral de terminos directos mirando solo los numeros, este es el primero que se cae. Etiquetado 'sospecha' y no 'descartada' por la regla del propio formato -- ante la duda, sospecha -- y porque es normativa EDUCATIVA, uno de los ambitos donde el proyecto dice mirar. Verificado el 2026-08-19 sobre el cuerpo archivado."
+}

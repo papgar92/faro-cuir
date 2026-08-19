@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "DOGC-24142069",
+  "fuente": "boletin_autonomico",
+  "fecha_publicacion": "2024-05-23",
+  "titulo": "DECRETO 95/2024, de 21 de mayo, de reestructuración del Consejo Catalán del Deporte.",
+  "organo_emisor": "DOGC",
+  "prefiltro_esperado": "sospecha",
+  "ejes_esperados": [
+    "lexico"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "a51522269bfa347e35dde8a5737ebd76ef3302ed89ddc3778a51c69c97e4f75a",
+  "notas": "El caso con mas terminos directos del DOGC (4) y el que cubre el ambito DEPORTIVO, que el modelo de dominio declara y el corpus no tenia. Verificado el 2026-08-19 sobre el cuerpo archivado: atribuye a sus unidades el seguimiento del Protocolo de acoso por razon de sexo, orientacion sexual, identidad de genero o expresion de genero, crea un 'Area de Genero y Programas Deportivos Transversales' que coordina practicamente a todas las demas, y exige lenguaje no LGTBI-fobico en sus publicaciones. Sigue sin regular derechos: es estructura y funciones, de ahi 'sospecha'. Interesa ademas porque la participacion de personas trans en el deporte es uno de los vectores vivos, y este es el organo catalan donde se decidiria."
+}
