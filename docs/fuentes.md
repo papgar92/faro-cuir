@@ -75,7 +75,7 @@ hueco invisible.
 | TODO(verificar) | Cantabria | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Castilla-La Mancha | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Castilla y León | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
-| **DOGC** (Diari Oficial de la Generalitat de Catalunya) | Catalunya | sumario `https://analisi.transparenciacatalunya.cat/resource/n6hn-rmy7.json` · texto `https://portaljuridic.gencat.cat/eli/...` | **API (JSON) + XML Akoma Ntoso** — verificado el 2026-08-16 descargando ambos | No | CC BY 4.0 (declarada por la fuente) | **Baja-media** — cuatro particularidades, ver nota; el XML falta en 172 de 264 normas | **INTEGRADA** (ADR 0019), segunda fuente del proyecto; cobertura real 92 de 264 |
+| **DOGC** (Diari Oficial de la Generalitat de Catalunya) | Catalunya | sumario `https://analisi.transparenciacatalunya.cat/resource/n6hn-rmy7.json` · texto `https://portaljuridic.gencat.cat/eli/...` | **API (JSON) + XML Akoma Ntoso** — verificado el 2026-08-16 descargando ambos | No | CC BY 4.0 (declarada por la fuente) | **Baja-media** — cinco particularidades, ver nota; el XML falta en 172 de 264 normas y no publica a quién afecta cada norma | **INTEGRADA** (ADR 0019), segunda fuente del proyecto; cobertura real 92 de 264 |
 | TODO(verificar) | Comunitat Valenciana | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Extremadura | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Galicia | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
@@ -89,8 +89,8 @@ hueco invisible.
 
 Es la única fuente de cinco candidatas que superó la verificación —BOJA, BOCM, BOPB y el BOP de
 Cáceres quedaron descartadas o pendientes, con el motivo en el ADR—, y aun así trajo tres cosas
-que ninguna documentación anunciaba —y una cuarta, aparecida al medir dos días después, que
-pesa más que las tres juntas:
+que ninguna documentación anunciaba —y dos más, aparecidas al medir dos días después, que pesan
+más que las tres juntas:
 
 1. **El articulado no está donde el estándar dice.** Publica Akoma Ntoso, pero mete el texto
    entero **dentro de un atributo XML**, escapado como HTML. Un derivador escrito leyendo el
@@ -127,6 +127,25 @@ Consecuencias que hay que decir enteras:
 - `xml_safe` rechaza esas respuestas por su `<!DOCTYPE html>` y **es lo único que impidió que 172
   páginas de error entraran en el pipeline como si fueran normas**. Es el mismo modo de fallo que
   la particularidad 1, y la segunda vez que esta fuente lo produce.
+
+**Quinta particularidad, y es la que más cambia el diseño: el DOGC no dice a quién afecta una
+norma.** Su Akoma Ntoso trae un bloque `<references>`, pero no es el equivalente del `<analisis>`
+del BOE: los `activeRef` apuntan al **propio documento** con `showAs="Modificado"`/`"Derogado"`
+—son anotaciones de ciclo de vida— y los `passiveRef` son normas *posteriores*, que el día de la
+publicación no existen. Comprobado el 2026-08-19 en cuatro documentos, uno titulado literalmente
+«de modificación del Decreto 358/2004»: la norma afectada aparece **solo en el texto**.
+
+| | BOE | DOGC |
+|---|---|---|
+| cuerpos legibles | 2.968 | 92 |
+| con referencias que el eje 2 puede leer | 211 (7,1 %) | **0** |
+
+Consecuencia: el eje referencial del prefiltro —el que cubre el agujero estructural del
+diccionario (7.3)— **no existía en esta fuente**. El ADR 0022 lo reconstruye leyendo las citas
+del texto («Ley 11/2014, de 10 de octubre») con las cautelas que exigió la medición: solo forma
+larga, porque la corta produjo 4 falsos positivos de 4. Hay que contar con lo mismo en cualquier
+fuente nueva que no sea el BOE: **la estructura de referencias es una particularidad del BOE, no
+un estándar**, y darla por hecha deja el eje 2 apagado en silencio.
 
 **Y el dato que justifica toda esta capa**, medido sobre 1.193 normas del BOE: de órganos
 autonómicos llegan al BOE **31 ítems**, todos anuncios y correcciones. Las leyes autonómicas sí se

@@ -46,12 +46,25 @@ encajando dentro de «decreto ley 4/2023».
   eje. Mencionar una ley no es tocarla — es el mismo criterio con el que el BOE distingue
   `MODIFICA` de una cita cualquiera.
 
-**Cuántas dispara hoy: cero.** En los 3.060 cuerpos legibles del corpus no hay ni una norma que
-cite en forma larga una norma vigilada con un verbo modificativo delante. Queda escrito para que
-nadie lea una cifra que no existe: este módulo no ha demostrado todavía que encuentre nada, ha
-demostrado que **no produce falsos positivos** sobre el corpus que hay. Lo que cubre es el caso
-que el proyecto existe para no perder y que en este corpus aún no ha ocurrido: un decreto
-autonómico que modifique la ley trans de su comunidad.
+## Lo que aporta hoy, medido y sin adornar
+
+Reevaluado el corpus entero (3.232 normas, 3.060 cuerpos legibles) el 2026-08-19: el eje
+referencial dispara en **3 normas, las mismas 3 que ya disparaba con el `<analisis>`**. O sea que
+la aportación **única** de este módulo sobre el corpus actual es **cero**, y hay que decirlo así
+en vez de presentar el 3 como si fuera suyo.
+
+Lo que sí está demostrado son dos cosas, y ninguna es un adjetivo:
+
+1. **Encuentra la modificación leyendo solo el texto.** Sobre `BOE-A-2024-10767` —la reforma
+   madrileña de 2023, el caso que el proyecto usa para explicarse— saca `BOE-A-2016-6728` con
+   verbo `SUPRIME` sin tocar el `<analisis>`. Lo delató un test que se puso rojo al conectarlo:
+   neutralizar el metadato ya no basta para neutralizar la referencia.
+2. **No produce falsos positivos** sobre 3.060 cuerpos, que es lo que hay que exigirle a un
+   módulo que busca citas de leyes en texto libre.
+
+Y lo que cubre no ha ocurrido todavía en este corpus: un decreto autonómico que modifique la ley
+trans de su comunidad. En el DOGC eso es hoy **invisible sin este módulo**, porque su bloque de
+referencias no dice a quién afecta la norma.
 """
 
 from __future__ import annotations
@@ -105,6 +118,7 @@ _CANONICO = dict(_FORMAS)
 # que cualquier normalización que cambiara la longitud desplazaría la cita que se enseña. Por lo
 # mismo aquí no se pasa a minúsculas —`str.lower()` puede cambiar la longitud en algunos
 # caracteres— sino que la comparación se hace con `re.IGNORECASE`.
+_ESPACIOS = re.compile(r"\s+")
 _TILDES = str.maketrans("áéíóúÁÉÍÓÚñÑ", "aeiouAEIOUnN")
 
 # La forma larga: tipo, número/año, y la fecha. Es la que no colisiona entre comunidades.
@@ -122,22 +136,6 @@ def _normalizar(texto: str) -> str:
     octubre» son parte de lo que identifica a la norma. Además, colapsar movería los offsets.
     """
     return texto.translate(_TILDES)
-
-
-def _patron_de_cita(cita: str) -> re.Pattern[str]:
-    r"""La cita como expresión regular tolerante a los espacios y ciega a mayúsculas.
-
-    Los espacios de la cita se convierten en `\s+` en vez de compararse literalmente: el texto
-    derivado ya viene con espacios colapsados (`pipeline/texto.texto_plano`), pero depender de
-    eso ataría este módulo a una decisión de otro y el fallo sería mudo — una cita con un salto
-    de línea en medio dejaría de encontrarse sin que nada lo dijera.
-
-    `(?<!decreto )` es la lección de la medición del 2026-08-19: sin ella, «ley 4/2023» encaja
-    dentro de «decreto ley 4/2023, de 19 de diciembre», que es otra norma y de otra
-    administración.
-    """
-    partes = [re.escape(parte) for parte in cita.split(" ") if parte]
-    return re.compile("(?<!decreto )" + r"\s+".join(partes), re.IGNORECASE)
 
 
 def forma_larga(titulo: str) -> str | None:
@@ -163,6 +161,35 @@ def _verbo_previo(texto_normalizado: str, inicio: int) -> str:
     return _CANONICO[ultimo] if ultimo is not None else "CITA"
 
 
+def _indice(lista: Watchlist) -> tuple[re.Pattern[str] | None, dict[str, str]]:
+    """Un solo patrón con todas las citas, y de la cita al identificador.
+
+    **Una pasada por documento y no una por norma vigilada.** No es optimización prematura: la
+    primera versión recorría el texto 21 veces —una por entrada de la watchlist— y sobre el corpus
+    real, con documentos de hasta 2 MB, eso multiplicaba por cuatro el tiempo de reevaluarlo todo.
+    El resultado es idéntico; lo que cambia es que el texto se recorre una vez.
+    """
+    por_cita: dict[str, str] = {}
+    for vigilada in lista.normas:
+        cita = forma_larga(vigilada.titulo)
+        if cita is not None:
+            por_cita[_clave(cita)] = vigilada.identificador
+    if not por_cita:
+        return None, por_cita
+    alternativas = "|".join(
+        r"\s+".join(re.escape(parte) for parte in cita.split(" ") if parte) for cita in por_cita
+    )
+    return re.compile(f"(?<!decreto )(?:{alternativas})", re.IGNORECASE), por_cita
+
+
+def _clave(cita: str) -> str:
+    """La forma con la que se busca una cita en el índice: sin tildes, sin mayúsculas y con los
+    espacios colapsados. Se aplica igual a las citas de la watchlist y a lo que encuentra el
+    patrón, que es lo que permite que las dos coincidan aunque el documento tenga un salto de
+    línea en medio."""
+    return _ESPACIOS.sub(" ", _normalizar(cita).lower()).strip()
+
+
 def extraer_referencias_citadas(texto: str, lista: Watchlist) -> tuple[ReferenciaAnterior, ...]:
     """Normas de la watchlist citadas en el texto, con el verbo que las acompaña.
 
@@ -172,25 +199,27 @@ def extraer_referencias_citadas(texto: str, lista: Watchlist) -> tuple[Referenci
     """
     if not texto:
         return ()
+    patron, por_cita = _indice(lista)
+    if patron is None:
+        return ()
     normalizado = _normalizar(texto)
     encontradas: dict[str, ReferenciaAnterior] = {}
 
-    for vigilada in lista.normas:
-        cita = forma_larga(vigilada.titulo)
-        if cita is None:
+    for coincidencia in patron.finditer(normalizado):
+        identificador = por_cita.get(_clave(coincidencia.group(0)))
+        if identificador is None:
+            # Inalcanzable: el patrón se construye desde las mismas claves. Se comprueba en vez
+            # de suponerse porque un `KeyError` aquí tumbaría la lectura de un cuerpo entero.
             continue
-        for coincidencia in _patron_de_cita(cita).finditer(normalizado):
-            verbo = _verbo_previo(normalizado, coincidencia.start())
-            previa = encontradas.get(vigilada.identificador)
-            if previa is None or (previa.verbo == "CITA" and verbo != "CITA"):
-                encontradas[vigilada.identificador] = ReferenciaAnterior(
-                    # El identificador es **el de la watchlist**, no una cadena del documento.
-                    identificador=vigilada.identificador,
-                    verbo=verbo,
-                    # El recorte del texto, para que quien revise vea de dónde salió. Se guarda
-                    # el original y no el normalizado: lo que se enseña es el archivo.
-                    texto=texto[
-                        max(0, coincidencia.start() - 80) : coincidencia.end() + 80
-                    ].strip(),
-                )
+        verbo = _verbo_previo(normalizado, coincidencia.start())
+        previa = encontradas.get(identificador)
+        if previa is None or (previa.verbo == "CITA" and verbo != "CITA"):
+            encontradas[identificador] = ReferenciaAnterior(
+                # El identificador es **el de la watchlist**, no una cadena del documento.
+                identificador=identificador,
+                verbo=verbo,
+                # El recorte del texto, para que quien revise vea de dónde salió. Se guarda
+                # el original y no el normalizado: lo que se enseña es el archivo.
+                texto=texto[max(0, coincidencia.start() - 80) : coincidencia.end() + 80].strip(),
+            )
     return tuple(encontradas.values())

@@ -88,11 +88,18 @@ watchlist. Cada una tiene su test en `tests/test_citas.py`.
 
 ## Consecuencias
 
-- **Valida sobre el caso más importante del corpus.** Lo enseñó un test que se puso rojo al
-  conectarlo: en `BOE-A-2024-10767` (la reforma madrileña de 2023), el eje encuentra
-  `BOE-A-2016-6728` con verbo `SUPRIME` **leyendo el texto**, sin tocar el `<analisis>`. Es
-  decir, sobre el caso que el proyecto usa para explicarse, las dos fuentes de evidencia
-  coinciden por separado.
+- **Aportación única sobre el corpus actual: cero, y hay que decirlo así.** Reevaluadas las
+  3.232 normas, el eje referencial dispara en **3, las mismas 3 que ya disparaba con el
+  `<analisis>`**. Presentar ese 3 como resultado de este ADR sería apuntarse un trabajo ajeno.
+- **Lo que sí queda demostrado son dos cosas.** Una: encuentra la modificación **leyendo solo el
+  texto** — sobre `BOE-A-2024-10767` (la reforma madrileña de 2023) saca `BOE-A-2016-6728` con
+  verbo `SUPRIME` sin tocar el metadato, y lo delató un test que se puso rojo al conectarlo,
+  porque neutralizar el `<analisis>` ya no basta para neutralizar una referencia. Dos: **cero
+  falsos positivos** sobre 3.060 cuerpos, que es lo que hay que exigirle a un módulo que busca
+  citas de leyes en texto libre.
+- **Rendimiento**: la primera versión recorría el texto una vez por norma vigilada (21 pasadas) y
+  eso multiplicaba por cuatro el tiempo de reevaluar el corpus, con documentos de hasta 2 MB. Se
+  construye un solo patrón con todas las citas y se recorre una vez.
 - `VERSION_WATCHLIST` sube a `2026.08.19` aunque la lista de normas no cambie: lo que ha cambiado
   es de dónde saca su evidencia el eje, y sin subirla lo ya evaluado no se reevaluaría.
 - El test `test_una_norma_que_solo_cita_la_watchlist_no_sale_a_la_red` (versionado) sigue verde

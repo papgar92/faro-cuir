@@ -82,10 +82,7 @@ después de V1.
 >    cantidad: falta **el caso que evalúa el eje referencial de verdad**, una norma de título
 >    anodino que modifique algo de la watchlist sin nombrar al colectivo. Hasta que exista, la
 >    aportación única de ese eje medida es cero.
-> 2. **El eje referencial por citas textuales (~25k + ADR).** Medido el 2026-08-19: dispara en 0
->    de los 92 cuerpos legibles del DOGC, porque esa fuente no publica el bloque de referencias
->    del BOE. En la segunda fuente el sistema vigila con un solo eje.
-> 3. **Recuperar las 172 del DOGC por PDF (~25k + ADR).** Es el único formato con texto: el XML
+> 2. **Recuperar las 172 del DOGC por PDF (~25k + ADR).** Es el único formato con texto: el XML
 >    no existe para ellas y el HTML es un contenedor de JavaScript. Sube la cobertura de esa
 >    fuente del 35 % al ~100 % si funciona.
 >
@@ -2369,3 +2366,70 @@ trabajo con su propio ADR, no un parche.
    se hace contra el texto, validando formato antes y sin construir ninguna URL con ello (6.10).
 3. **Recuperar las 172 ilegibles del DOGC por PDF (~25k + ADR).** Sin esto, cualquier medición de
    esa fuente es sobre el 35 % de su contenido.
+
+
+---
+
+### ✅ El eje referencial existe fuera del BOE (ADR 0022), y su aportación medida es cero — 2026-08-19
+
+Continuación directa de lo anterior. El gold set había dejado señalado que el eje 2 no funciona en
+el DOGC; esto lo arregla, y **el resultado honesto es menos vistoso de lo que parecía**.
+
+#### Lo que se ha construido
+
+`pipeline/citas.py` produce `ReferenciaAnterior` —**el mismo tipo** que el bloque `<analisis>` del
+BOE— a partir de las citas dentro del texto: «Se suprime el apartado 2 del artículo 8 de la Ley
+2/2016, de 29 de marzo». Se fusionan en `leer_cuerpo`, así que **ninguna etapa se entera**: el
+prefiltro, el versionado y las reglas siguen preguntando lo mismo a la misma estructura.
+
+Cuatro reglas, y ninguna es una intuición:
+
+- **Solo forma larga, número y fecha.** La corta produjo **4 coincidencias de 4 falsas** sobre el
+  DOGC: «Ley 2/2021» caza la catalana de medidas fiscales en vez de la canaria vigilada, y «Ley
+  4/2023» caza dentro de «**Decreto ley** 4/2023». De ahí el `(?<!decreto )` del patrón, que sin
+  la medición nadie habría escrito. Cada trampa tiene su test.
+- **El verbo se busca 200 caracteres hacia atrás**, que es donde lo pone el texto dispositivo.
+- **Sin verbo, `CITA`**, que no dispara nada. Mencionar una ley no es tocarla.
+- **La watchlist se pasa por parámetro, no se carga dentro de `leer_cuerpo`.** Lo delató el propio
+  diseño: cargarla ahí mete estado global en una función de lectura y deja fuera de juego a los
+  tests que la sustituyen.
+
+#### Lo que aporta, medido y sin maquillar
+
+Reevaluado el corpus entero (3.232 normas): el eje referencial dispara en **3 normas, las mismas 3
+que ya disparaba con el `<analisis>`**. **Su aportación única es cero**, y presentar ese 3 como
+resultado de este trabajo sería apuntarse el de otro.
+
+Lo que sí queda demostrado son dos cosas:
+
+1. **Encuentra la modificación leyendo solo el texto.** Sobre `BOE-A-2024-10767` —la reforma
+   madrileña de 2023— saca `BOE-A-2016-6728` con verbo `SUPRIME` sin tocar el metadato. Lo delató
+   un test del versionado que se puso rojo al conectarlo: neutralizar el `<analisis>` ya **no
+   basta** para neutralizar una referencia, porque ahora hay dos fuentes.
+2. **Cero falsos positivos sobre 3.060 cuerpos**, que es lo que hay que exigirle a un módulo que
+   busca citas de leyes en texto libre.
+
+Y lo que cubre no ha ocurrido todavía en este corpus: un decreto autonómico que modifique la ley
+trans de su comunidad. Hasta hoy eso era **invisible por construcción** en el DOGC.
+
+#### Estado del corpus tras las dos calibraciones del día
+
+| | |
+|---|---|
+| normas | 3.232 |
+| en la cola del extractor | **40** (3 relevantes + 37 sospechas), desde 140 |
+| descartadas | 3.020 |
+| ilegibles (ADR 0020) | 172 |
+| que pasan solo por términos de contexto | **0** |
+| ejes | `lexico` 38, `lexico+referencial` 3 |
+
+**607 tests en verde** (19 nuevos), `ruff`, `mypy` y `tsc` limpios.
+
+#### Siguiente, por orden
+
+1. **Más casos del gold set (~20k), y sigue faltando el mismo**: una norma de título anodino que
+   modifique algo de la watchlist sin nombrar al colectivo. Ahora hay **dos** caminos por los que
+   podría entrar —metadato y cita— y ninguno está evaluado con un caso propio.
+2. **Recuperar las 172 ilegibles del DOGC por PDF (~25k + ADR).** Es el único formato con texto.
+3. **`docs/CLAUDE.md` está en 63 KB**, por encima del límite de ~55 KB que él mismo fija. Es coste
+   fijo de arrancar cualquier subagente; toca una poda.
