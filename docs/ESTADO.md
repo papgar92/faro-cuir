@@ -77,11 +77,15 @@ después de V1.
 > **Al 2026-08-19, lo de arriba del todo es esto** (lo de abajo es el histórico de la tarea 0,
 > conservado por su razonamiento). Por orden:
 >
-> 1. **Gold set con casos del DOGC (~20k).** Único bloqueo de la parte de IA, con el 22 encima.
->    Etiquetar solo sobre las **92 normas legibles** de esa fuente: las otras 172 son `ilegible`
->    (ADR 0020) y no tienen texto que etiquetar; una o dos como caso propio, para medir que el
->    pipeline las reconoce.
-> 2. **Recuperar las 172 del DOGC por PDF (~25k + ADR).** Es el único formato con texto: el XML
+> 1. **Más casos del gold set (~20k), y el que falta es de un tipo concreto.** Hay 22 de los
+>    60-80 del plan, con las 8 primeras del DOGC ya etiquetadas (2026-08-19). Lo que falta no es
+>    cantidad: falta **el caso que evalúa el eje referencial de verdad**, una norma de título
+>    anodino que modifique algo de la watchlist sin nombrar al colectivo. Hasta que exista, la
+>    aportación única de ese eje medida es cero.
+> 2. **El eje referencial por citas textuales (~25k + ADR).** Medido el 2026-08-19: dispara en 0
+>    de los 92 cuerpos legibles del DOGC, porque esa fuente no publica el bloque de referencias
+>    del BOE. En la segunda fuente el sistema vigila con un solo eje.
+> 3. **Recuperar las 172 del DOGC por PDF (~25k + ADR).** Es el único formato con texto: el XML
 >    no existe para ellas y el HTML es un contenedor de JavaScript. Sube la cobertura de esa
 >    fuente del 35 % al ~100 % si funciona.
 >
@@ -2263,3 +2267,105 @@ traza que diría que un control de seguridad saltó de verdad.
    Sube la cobertura del DOGC del 35 % al ~100 % si funciona.
 3. **`docs/CLAUDE.md` está en 62 KB, por encima del límite de ~55 KB que él mismo fija.** Ya
    estaba en 60 KB antes de este trabajo. Es coste fijo de cada subagente; toca una poda.
+
+
+---
+
+### ✅ El gold set mide el DOGC, y lo primero que ha medido es un falso positivo — 2026-08-19
+
+Ocho casos nuevos del DOGC, etiquetados leyendo el texto archivado uno a uno. **El corpus pasa de
+14 a 22 casos.** Lo importante no es el número: es que la primera tanda de la segunda fuente ha
+encontrado tres cosas que ninguna cifra agregada habría enseñado.
+
+#### 1. El falso positivo, y el cambio de calibración que ha traído (ADR 0021)
+
+`DOGC-24310119` es un **currículo de arte floral** de 105.101 caracteres. Su única coincidencia
+con el vocabulario es «plan de igualdad», dentro del módulo de formación y orientación laboral:
+*«Fases para la elaboración de un plan de igualdad en la empresa»*. El prefiltro lo mandaba a la
+cola del LLM. Es el equivalente en el DOGC de la oposición que cita la Ley 4/2023 en el temario,
+que 7.3 ya avisaba para el BOE **desde el 2026-08-07 sin que nadie pudiera aplicarlo**, porque
+hacía falta un caso concreto y una medición.
+
+Medido sobre la cola real (`scripts/medir_ruido_lexico.py`, queda en el repo):
+
+| | antes | después |
+|---|---|---|
+| normas en la cola del extractor | **140** | **40** |
+| de ellas, solo por términos de contexto | **100 (71 %)** | **0** |
+| longitud mediana de esas 100 | 54.099 caracteres (máx. 2.035.373) | — |
+| responsables | «igualdad de trato» (51), «plan de igualdad» (24), «no discriminación» (20), «registro civil» (18) | — |
+
+**La decisión (ADR 0021): sobre el texto íntegro, el eje léxico exige al menos un término
+DIRECTO.** Sobre el título no cambia nada —quince palabras, la presencia sí significa algo— y el
+umbral de conteo sigue sin decidir ningún descarte. `VERSION_VOCABULARIO` sube a `2026.08.19`
+aunque no se haya tocado ni un término, porque la versión cubre el eje entero.
+
+**Lo que se pierde, contado y no adjetivado**: de las 13 detecciones con regla, 3 venían de
+normas sin ningún término directo y **las 3 eran R-SUP-002**, la regla que el gate humano
+descartó 10 de 10 veces y que por eso ya no se encola (ADR 0017). Las tres alertas publicadas
+siguen sobre normas `relevante`, con 22, 31 y 7 términos directos: ninguna se ve afectada. Los 22
+casos del gold set siguen coincidiendo con su etiqueta —antes fallaba uno— así que el recall
+medido no baja.
+
+Quedan 3 detecciones colgando de normas que ahora son `descartada`. No se retiran solas, por la
+misma política de siempre (una detección es rastro de auditoría), y son justo las 3 de R-SUP-002.
+
+#### 2. El eje referencial no existe en el DOGC, y está medido
+
+`DOGC-24261095` deroga artículos del Decreto 134/2022, que es el de estructura del **Departamento
+de Igualdad y Feminismos** — donde viven las competencias LGTBI en Catalunya. Es exactamente el
+tipo de norma que el eje referencial existe para atrapar. No la atrapa:
+
+| | BOE | DOGC |
+|---|---|---|
+| cuerpos legibles | 2.968 | 92 |
+| **con referencias que el eje puede leer** | **211 (7,1 %)** | **0** |
+
+El DOGC sí trae `<references>` en su Akoma Ntoso, pero **sus `activeRef` apuntan al propio
+documento** con `showAs="Modificado"`/`"Derogado"` —son ciclo de vida, no «a quién afecta»— y los
+`passiveRef` son normas *posteriores*. Comprobado en cuatro documentos distintos, uno de ellos
+titulado literalmente «de modificación del Decreto 358/2004»: la norma afectada **no aparece en
+ningún metadato, solo en el texto**.
+
+Consecuencia dicha entera: **en la segunda fuente el sistema vigila con un solo eje**, y es el
+léxico, que es justo el que 7.3 describe como incapaz de ver «se modifica el epígrafe 4.3 del
+anexo II». Hay un camino y no es caro —la watchlist habla en identificadores del BOE
+(`BOE-A-2014-11990`) y el DOGC cita «Ley 11/2014, de 10 de octubre», así que haría falta que cada
+entrada de la watchlist llevara sus **formas de cita** y cruzarlas contra el texto— pero es
+trabajo con su propio ADR, no un parche.
+
+#### 3. Dos cosas menores que aparecieron al etiquetar
+
+- **`organo_emisor` del DOGC es literalmente «DOGC»**: el conjunto de datos abiertos no publica
+  el departamento que emite. Como 7.3 mete el órgano emisor en el texto examinado «porque a veces
+  es ahí donde está la señal», en esta fuente esa vía aporta cero. No es arreglable desde el
+  conjunto de datos actual.
+- **El DOGC empotra fórmulas de lenguaje inclusivo y de desagregación estadística en casi todos
+  sus decretos de estructura.** Eso es lo que dispara el eje léxico en `DOGC-24317111` (Política
+  Lingüística) o `DOGC-24136006` (régimen lingüístico educativo). Se han etiquetado `sospecha` y
+  no `descartada` a conciencia: la cláusula «los datos se desagregarán por sexo e identidad de
+  género (mujer/hombre/persona no binaria)» **es un precepto**, y quitarle «persona no binaria»
+  sería un retroceso real sin titulares. La línea entre esto y el currículo de arte floral es la
+  que separa fórmula-con-precepto de fórmula-sin-ninguno, y está escrita en las notas de los
+  casos.
+
+#### Verificado
+
+- **588 tests en verde** (32 nuevos desde ayer), `ruff` y `mypy` limpios.
+- Gold set: **22 de 22 casos coinciden con su etiqueta**, y los 8 del DOGC coinciden también con
+  lo que tiene la base de datos real tras `--reprefiltrar`.
+- `--reprefiltrar` sobre 3.232 normas: 3 relevantes, 37 sospechas, 3.020 descartadas, 172
+  ilegibles, **0 que pasen solo por términos de contexto**.
+
+#### Siguiente, por orden
+
+1. **Más casos del gold set, y los que faltan son de un tipo concreto** (~20k). El corpus tiene
+   22 de los 60-80 del plan. Y el hueco no es de cantidad: **falta el caso que evalúa el eje
+   referencial de verdad** —una norma de título anodino que modifique algo de la watchlist sin
+   nombrar al colectivo— porque los tres casos donde hoy dispara los detecta también el léxico.
+   Sin él, la aportación única del eje referencial medida sigue siendo cero.
+2. **El eje referencial por citas textuales (~25k + ADR).** Es lo que lo haría funcionar en el
+   DOGC y en cualquier fuente que no sea el BOE. La watchlist necesita formas de cita; el cruce
+   se hace contra el texto, validando formato antes y sin construir ninguna URL con ello (6.10).
+3. **Recuperar las 172 ilegibles del DOGC por PDF (~25k + ADR).** Sin esto, cualquier medición de
+   esa fuente es sobre el 35 % de su contenido.
