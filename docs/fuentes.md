@@ -75,7 +75,7 @@ hueco invisible.
 | TODO(verificar) | Cantabria | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Castilla-La Mancha | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Castilla y León | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
-| **DOGC** (Diari Oficial de la Generalitat de Catalunya) | Catalunya | sumario `https://analisi.transparenciacatalunya.cat/resource/n6hn-rmy7.json` · texto `https://portaljuridic.gencat.cat/eli/...` | **API (JSON) + XML Akoma Ntoso** — verificado el 2026-08-16 descargando ambos | No | CC BY 4.0 (declarada por la fuente) | Media — tres particularidades, ver nota | **INTEGRADA** (ADR 0019), segunda fuente del proyecto |
+| **DOGC** (Diari Oficial de la Generalitat de Catalunya) | Catalunya | sumario `https://analisi.transparenciacatalunya.cat/resource/n6hn-rmy7.json` · texto `https://portaljuridic.gencat.cat/eli/...` | **API (JSON) + XML Akoma Ntoso** — verificado el 2026-08-16 descargando ambos | No | CC BY 4.0 (declarada por la fuente) | **Baja-media** — cuatro particularidades, ver nota; el XML falta en 172 de 264 normas | **INTEGRADA** (ADR 0019), segunda fuente del proyecto; cobertura real 92 de 264 |
 | TODO(verificar) | Comunitat Valenciana | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Extremadura | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Galicia | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
@@ -85,11 +85,12 @@ hueco invisible.
 | TODO(verificar) | País Vasco / Euskadi | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | La Rioja | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 
-### El DOGC, integrado: lo que hubo que aprender (ADR 0019)
+### El DOGC, integrado: lo que hubo que aprender (ADR 0019 y 0020)
 
 Es la única fuente de cinco candidatas que superó la verificación —BOJA, BOCM, BOPB y el BOP de
 Cáceres quedaron descartadas o pendientes, con el motivo en el ADR—, y aun así trajo tres cosas
-que ninguna documentación anunciaba:
+que ninguna documentación anunciaba —y una cuarta, aparecida al medir dos días después, que
+pesa más que las tres juntas:
 
 1. **El articulado no está donde el estándar dice.** Publica Akoma Ntoso, pero mete el texto
    entero **dentro de un atributo XML**, escapado como HTML. Un derivador escrito leyendo el
@@ -104,6 +105,28 @@ que ninguna documentación anunciaba:
 **Lo que esta fuente NO cubre:** son disposiciones generales (leyes, decretos legislativos,
 decretos ley, decretos y órdenes: 31.094 desde 1977, de ellas 20.889 órdenes). **Las resoluciones
 e instrucciones no están**, y son un vector de retroceso real.
+
+**Cuarta particularidad, medida el 2026-08-18 y la más grave: el XML no existe para dos de cada
+tres disposiciones, y la fuente no lo dice.** El conjunto de datos abiertos publica un
+`url_es_format_xml` para **todas** las filas; el Portal Jurídic responde a 172 de esas 264 URL con
+**HTTP 200 y su página de error** (12 KB de cromo del portal, sin una línea de articulado).
+Comprobado sobre `DOGC-24291044` (ORDEN ESP/214/2024): la URL catalana devuelve la misma página de
+error, el HTML es un contenedor de JavaScript sin articulado, y **solo el PDF trae el texto** (883
+KB, PDF nativo, no escaneado).
+
+Consecuencias que hay que decir enteras:
+
+- **La cobertura real de esta fuente hoy es de 92 de 264 normas (35 %).** Cualquier cifra de
+  recall medida sobre el DOGC es una cifra sobre ese 35 %, y se publica diciéndolo.
+- Las otras 172 están archivadas con su huella —el archivo conserva lo que la fuente sirvió, 6.5—
+  y marcadas **`ilegible`** en el prefiltro (ADR 0020), que es lo que hace que se vean en vez de
+  confundirse con las que esperan descarga.
+- El único camino de recuperación conocido es el **PDF**, con extracción de texto (permitida por
+  6.1; el OCR sigue fuera de alcance por la sección 8, y aquí no hace falta porque el PDF es
+  nativo). No está implementado.
+- `xml_safe` rechaza esas respuestas por su `<!DOCTYPE html>` y **es lo único que impidió que 172
+  páginas de error entraran en el pipeline como si fueran normas**. Es el mismo modo de fallo que
+  la particularidad 1, y la segunda vez que esta fuente lo produce.
 
 **Y el dato que justifica toda esta capa**, medido sobre 1.193 normas del BOE: de órganos
 autonómicos llegan al BOE **31 ítems**, todos anuncios y correcciones. Las leyes autonómicas sí se

@@ -74,6 +74,22 @@ después de V1.
 
 ### ⇨ EMPIEZA AQUÍ (próxima sesión)
 
+> **Al 2026-08-19, lo de arriba del todo es esto** (lo de abajo es el histórico de la tarea 0,
+> conservado por su razonamiento). Por orden:
+>
+> 1. **Gold set con casos del DOGC (~20k).** Único bloqueo de la parte de IA, con el 22 encima.
+>    Etiquetar solo sobre las **92 normas legibles** de esa fuente: las otras 172 son `ilegible`
+>    (ADR 0020) y no tienen texto que etiquetar; una o dos como caso propio, para medir que el
+>    pipeline las reconoce.
+> 2. **Recuperar las 172 del DOGC por PDF (~25k + ADR).** Es el único formato con texto: el XML
+>    no existe para ellas y el HTML es un contenedor de JavaScript. Sube la cobertura de esa
+>    fuente del 35 % al ~100 % si funciona.
+>
+> El hueco del DOGC **ya no está abierto como hueco invisible**: está medido (172 de 264, el 65 %)
+> y visible en el embudo del worker, en `/api/documentos`, en `/api/cobertura` y en las dos
+> pantallas que lo enseñan. Lo que queda es **recuperarlo**, que es otra cosa.
+
+
 **Orden obligatorio, y ha cambiado con la revisión de 2026-08-07.** El gold set sigue siendo
 el cuello de botella y sigue siendo lo siguiente, pero hay dos tareas cortas que van **antes**
 porque cambian lo que hay que etiquetar. Etiquetar 200 documentos dos veces no es una opción.
@@ -2098,7 +2114,12 @@ buscando calidad sigue prohibido sin gold set (sección 8).
 
 ---
 
-### ⚠️ 12 normas del DOGC son invisibles para el pipeline — 2026-08-18
+### ⚠️→✅ 12 normas del DOGC son invisibles para el pipeline — 2026-08-18
+
+> **La cifra estaba corta y el diagnóstico incompleto: son 172, y no son XML con un DOCTYPE
+> de más sino páginas de error. Cerrado el 2026-08-19 con el ADR 0020 — ver la entrada
+> siguiente. Se conserva porque el razonamiento que llevó a la decisión 2 sigue siendo el
+> bueno, y porque enseña lo que costó no medir antes de escribir la cifra.**
 
 Apareció buscando candidatos para el gold set, no buscándolo: al leer los 263 cuerpos catalanes
 archivados, **12 fallan con `DtdForbidden`** — el documento declara un DOCTYPE y `xml_safe` lo
@@ -2124,3 +2145,121 @@ Lo que hay que decidir (y aún no está decidido, por eso queda escrito y no imp
 
 La segunda es obligatoria haga lo que haga la primera: **una norma que no se puede analizar tiene
 que verse**, o el sistema afirma una cobertura que no tiene.
+
+
+---
+
+### ✅ El hueco del DOGC, medido y visible: el estado `ilegible` (ADR 0020) — 2026-08-19
+
+El encargo era: drenar la fase 2 para separar lo que faltaba por descargar de lo que de verdad no
+se puede leer, y luego darle estado propio. Lo primero cambió lo segundo.
+
+#### 1. La fase 2 estaba drenada, así que el hueco no era de descarga
+
+`--fase2` dejó la cola de descarga en **0** (había **1** norma pendiente en toda la tabla, no
+172). Las 172 que seguían en `pendiente` **ya tenían su cuerpo archivado**: lo que fallaba era
+leerlo. Sin ese paso previo, el trabajo se habría hecho sobre un diagnóstico falso.
+
+#### 2. No son 12, son 172 — y no son un DOCTYPE de más, son la página de error del portal
+
+| | |
+|---|---|
+| normas del DOGC ingeridas | 264 |
+| cuerpos archivados que **no se pueden parsear** | **172 (65 %)** |
+| de esas, contenido real | la **página de error** del Portal Jurídic, 12 KB, **HTTP 200** |
+| huellas distintas entre las 172 | 172 — no es un fichero repetido, cada respuesta trae su ruido |
+| cobertura real de la segunda fuente | **92 de 264 (35 %)** |
+
+La estimación de 12 salió de una lectura parcial. La cifra buena salió de contar las 264 con el
+mismo código que usa el pipeline. **Cualquier medición del DOGC —gold set incluido— es sobre el
+35 %, y así hay que publicarla.**
+
+Lo comprobado sobre `DOGC-24291044` (ORDEN ESP/214/2024), pidiendo formato por formato:
+
+- `.../spa/xml` → página de error, HTTP 200. `.../cat/xml` → **la misma página de error**.
+- `.../spa/html` → 77 KB de contenedor JavaScript: **cero apariciones** de «Artículo» o «Anexo».
+- `.../spa/pdf` → **PDF nativo de 883 KB, con el texto dentro.**
+
+O sea que la opción 1 que quedó escrita ayer —reintentar en otro formato— **no funciona por HTML**
+y solo es viable por **PDF**, que es extracción de texto (permitida por 6.1; no hace falta OCR
+porque el PDF es nativo). No se ha implementado: es otra etapa y otro ADR.
+
+Y una cosa que el conjunto de datos abiertos no dice y ahora está en `docs/fuentes.md`: **anuncia
+un `url_es_format_xml` para las 264**. La fuente promete un formato que sirve en el 35 % de los
+casos, y lo niega con un 200.
+
+#### 3. El estado `ilegible`, que es lo que se pedía y era obligatorio pasara lo que pasara
+
+ADR 0020, migración `b8d2e40a71c5` escrita a mano. Lo que lo hace posible es una distinción de
+tipos, no un valor nuevo: **`leer_cuerpo` levanta `CuerpoIlegible`** cuando hay cuerpo y no se
+puede leer, y reserva `None` para «todavía no hay cuerpo». Antes las dos cosas eran el mismo
+`None`, y por eso el prefiltro degradaba a fase 1 y la norma acababa en `pendiente`.
+
+Cuatro decisiones que conviene no volver a discutir sin leer el ADR:
+
+- **`ilegible` gana a cualquier señal del título.** Un `relevante` sacado del título metería la
+  norma en la cola del extractor, que lee el cuerpo del almacén: un fallo por pasada, para
+  siempre, y una cola que promete trabajo que nadie puede hacer.
+- **Se reintenta en cada pasada** (`prefiltro_version_texto` a NULL a propósito). Es lo único que
+  recupera la norma sola si su cuerpo pasa a ser legible. Tiene test: el estado sale solo.
+- **Se conservan los términos del título**, que son la pista para priorizar la recuperación.
+- **No se toca `xml_safe`.** Y hay que decir lo contrario de lo que parece: el control es **lo
+  único** que impidió que 172 páginas de error entraran como normas. Sin él, el prefiltro las
+  habría descartado por falta de vocabulario y **nada habría fallado visiblemente**. Es el mismo
+  modo de fallo que el articulado dentro de un atributo (ADR 0019), y la segunda vez que esta
+  fuente lo produce.
+
+#### Verificado, no solo con tests
+
+- **552 tests en verde** (12 nuevos), `ruff` y `mypy` limpios, `tsc -b --noEmit` limpio.
+- Migración aplicada contra Postgres real: **14 CHECK**, `estadoprefiltro` sustituida y no
+  duplicada, `origenclasificacion` intacta.
+- `--reprefiltrar` sobre datos reales: **172 evaluadas → 172 ilegibles, 0 pendientes**. Estado
+  final del DOGC: 41 sospecha, 51 descartada, **172 ilegible, 0 pendiente**.
+- `GET /api/documentos/3499` devuelve `"prefiltro_estado":"ilegible"`.
+- En el navegador (Archivo, DOGC-S-2024-12-31): la insignia **⊘ NO SE PUEDE LEER** en color de
+  alerta —no de descarte, no de retroceso— y el contador **«0 de 2 entran en la cola · ⊘ 2 SIN
+  PODER LEER»** fuera de la frase del embudo, para que no se lea como una categoría de descarte.
+- La fixture del test es la página de error **real**, recortada, no un XML inventado con un
+  DOCTYPE: lo que hay que poder reconocer es el caso que se cuela en el archivo.
+
+#### 4. La cobertura pública deja de aparentar lo que no es
+
+Lo encontró el `revisor-seguridad` sobre este mismo diff, y es el hallazgo que más valor tuvo:
+la regla que yo acababa de escribir en 7.2 —«cualquier cifra de cobertura va acompañada de
+cuántas de sus normas son ilegibles»— **la incumplía `GET /api/cobertura`**, que es literalmente
+la única ruta que existe para declarar los huecos del proyecto (ADR 0014). El embudo del worker y
+la pantalla de Archivo contaban el hueco; la API pública, no.
+
+`/api/cobertura` gana `normas` e `ilegibles` por comunidad y en el total, siempre las dos juntas
+(`ilegibles` a solas no dice si son 172 de 264 o de 20.000), agregadas en SQL como el resto del
+endpoint. En el panel de Catalunya se ve así: «Autonómico **1 de 1**» —cierto, la fuente está
+activa— y debajo, en ámbar, «**172 de 264 normas** están descargadas y archivadas, pero su texto
+llegó en un formato que el sistema no puede leer». Las dos cosas son verdad y hacen falta las
+dos. Cuatro tests nuevos lo fijan.
+
+Los otros tres hallazgos de la auditoría fueron BAJA y se resolvieron así: **una línea de
+WARNING** por pasada cuando hay ilegibles (no un código de salida distinto de cero: el cron
+quedaría en rojo permanente mientras el hueco siga abierto, y un rojo que siempre está rojo no
+avisa de nada) y el **`downgrade` de la migración cuenta y anuncia** cuántas filas pierden la
+distinción antes de tocarlas. Queda abierto y anotado: `services/cuerpo.py` escribe **una línea
+ERROR por norma ilegible y por pasada** —172 idénticas— y esa repetición puede enterrar la única
+traza que diría que un control de seguridad saltó de verdad.
+
+#### Lo que este trabajo NO hace, dicho para que no se dé por hecho
+
+- **El color del mapa se sigue calculando con `vigiladas`**, no con la parte legible. Hoy no
+  engaña porque el 35 % legible del DOGC sí se analiza, pero una comunidad con fuente activa y
+  todo su contenido ilegible se pintaría igual que una vigilada de verdad.
+- No recupera ni una de las 172. Para eso hace falta la etapa de PDF.
+
+#### Siguiente, por orden
+
+1. **Gold set con casos del DOGC (~20k).** Sigue siendo lo único que hace evaluable la parte de
+   IA, y con el 22 encima. Ahora se puede etiquetar sabiendo cuáles son etiquetables: **solo las
+   92 legibles**, y el caso ilegible merece uno o dos casos propios para que el gold set mida
+   también que el pipeline los reconoce.
+2. **Recuperar las 172 por PDF (~25k, y su ADR).** Extracción de texto de PDF nativo, sin OCR.
+   Sube la cobertura del DOGC del 35 % al ~100 % si funciona.
+3. **`docs/CLAUDE.md` está en 62 KB, por encima del límite de ~55 KB que él mismo fija.** Ya
+   estaba en 60 KB antes de este trabajo. Es coste fijo de cada subagente; toca una poda.
