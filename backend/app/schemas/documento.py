@@ -54,9 +54,15 @@ class NormaResumen(BaseModel):
     # comprobar por qué una norma no llegó a analizarse, en vez de tener que fiarse. Un
     # filtro que decide en silencio qué se mira y qué no es justo lo que este proyecto
     # denuncia en la administración; sería incoherente esconder el nuestro.
+    #
+    # `ilegible` (ADR 0020) merece mención aparte al leer este campo desde fuera: **no significa
+    # que la norma se haya descartado**, significa que su texto está archivado y el pipeline no
+    # puede parsearlo, así que nadie la está vigilando. Un cliente que agregue estados y lo meta
+    # en el saco de los descartes publicaría una cobertura que no existe.
     prefiltro_estado: str
     # Términos del vocabulario que la hicieron pasar. Lista vacía si se descartó, null si
-    # todavía no se ha evaluado — la misma distinción que guarda la tabla.
+    # todavía no se ha evaluado — la misma distinción que guarda la tabla. En una `ilegible` son
+    # los del **título**, que es lo único legible de ella.
     prefiltro_terminos: list[str] | None
     # Qué eje disparó (7.3): `lexico`, `referencial`, o los dos. Se publica por el mismo
     # motivo que los términos: sin él, "esta norma pasó" no se puede auditar desde fuera. Y

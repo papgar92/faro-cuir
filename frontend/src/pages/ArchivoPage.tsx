@@ -167,16 +167,22 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
   // petición extra para contar lo que ya tenemos delante.
   const embudo = useMemo(() => {
     const normas = documento?.normas ?? [];
-    // Los CUATRO escalones, y ninguno se omite por ser cero. El embudo anterior contaba
+    // Los CINCO escalones, y ninguno se omite por ser cero. El embudo anterior contaba
     // relevantes y pendientes, así que las sospechas quedaban fuera y quien lo leyera daría
     // por hecho que las que faltaban se habían descartado. Mismo criterio que el log del
     // worker: un embudo al que le falta un peldaño no cuadra.
+    //
+    // `ilegibles` es el peldaño del ADR 0020 y el que más importa que se vea: son normas
+    // archivadas que el pipeline no puede parsear, o sea cobertura que este archivo aparenta y
+    // no tiene. Mientras vivieron dentro de `pendientes` había 172 normas del DOGC contadas
+    // como «esperando su texto íntegro» cuando su texto ya estaba descargado.
     return {
       total: normas.length,
       relevantes: normas.filter((n) => n.prefiltro_estado === "relevante").length,
       sospechas: normas.filter((n) => n.prefiltro_estado === "sospecha").length,
       descartadas: normas.filter((n) => n.prefiltro_estado === "descartada").length,
       pendientes: normas.filter((n) => n.prefiltro_estado === "pendiente").length,
+      ilegibles: normas.filter((n) => n.prefiltro_estado === "ilegible").length,
       enCola: normas.filter((n) => entraEnLaCola(n.prefiltro_estado)).length,
     };
   }, [documento]);
@@ -275,14 +281,25 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
                   Solo las que entran en la cola
                 </label>
                 {/* El embudo es la métrica de la etapa 1: cuántas normas se ahorra el
-                    extractor. Se enseña siempre, no solo cuando hay resultados, y con los
-                    cuatro escalones — el que falta se lee como un descarte. */}
+                    extractor. Se enseña siempre, no solo cuando hay resultados, y con todos
+                    los escalones — el que falta se lee como un descarte. */}
                 <span className="font-mono text-xs text-ink-3">
                   {embudo.enCola} de {embudo.total} entran en la cola
                   {embudo.sospechas > 0 && ` (${embudo.relevantes} + ${embudo.sospechas} sospecha)`}
                   {embudo.descartadas > 0 && ` · ${embudo.descartadas} descartadas`}
                   {embudo.pendientes > 0 && ` · ${embudo.pendientes} sin texto íntegro`}
                 </span>
+                {/* Fuera de la línea del embudo y con su propio color: no es un escalón más
+                    del filtro, es un hueco de cobertura (ADR 0020). Dentro de la misma frase
+                    se leería como una categoría de descarte, que es de donde viene. */}
+                {embudo.ilegibles > 0 && (
+                  <span
+                    title="Su texto está archivado y el pipeline no puede parsearlo. No hay vigilancia sobre ellas."
+                    className="rounded border border-alr bg-alr-soft px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-alr"
+                  >
+                    ⊘ {embudo.ilegibles} sin poder leer
+                  </span>
+                )}
               </div>
               <p aria-live="polite" className="m-0 mt-2 font-mono text-xs text-ink-3">
                 {coincidencias.length}{" "}

@@ -9,7 +9,10 @@ import type { EjePrefiltro, EstadoPrefiltro } from "../../api/client";
  * mirará; no dice absolutamente nada sobre si avanza o retrocede en derechos. Por eso usa
  * gris neutro y no la paleta de avance/retroceso.
  */
-const META: Record<EstadoPrefiltro, { etiqueta: string; glifo: string; clases: string }> = {
+const META: Record<
+  EstadoPrefiltro,
+  { etiqueta: string; glifo: string; clases: string; pista?: string }
+> = {
   relevante: {
     etiqueta: "Pasa el prefiltro",
     glifo: "◉",
@@ -33,6 +36,28 @@ const META: Record<EstadoPrefiltro, { etiqueta: string; glifo: string; clases: s
     etiqueta: "Sin evaluar",
     glifo: "◌",
     clases: "border-dashed border-line-2 text-ink-3",
+  },
+  // Quinto estado (ADR 0020), y el único de los cinco que sale del gris neutro. No contradice
+  // la nota de arriba —esto sigue sin ser una clasificación— porque lo que señala no es la
+  // norma: es un fallo de cobertura **nuestro**, y este es el único sitio de la interfaz donde
+  // ese fallo se ve. Dejarlo en el gris del descarte lo haría igual de invisible que estaba
+  // dentro de `pendiente`, que es justo el problema que el ADR arregla.
+  //
+  // Usa la paleta de **alerta** y no la de retroceso a propósito: `reg` significa "esta norma
+  // recorta un derecho", y esta insignia no afirma nada sobre el contenido de la norma. Lo que
+  // dice es "aquí no estamos mirando".
+  //
+  // «No se puede leer» y no «error»: dice qué pasa con esta norma, no que algo se haya roto al
+  // cargar la página.
+  ilegible: {
+    etiqueta: "No se puede leer",
+    glifo: "⊘",
+    clases: "border-alr bg-alr-soft text-alr",
+    // La pista importa porque lo siguiente que se ve en la insignia son los términos, y sin
+    // esto se leerían como términos del texto. Salen del título, que es lo único legible.
+    pista:
+      "Su texto está descargado y archivado, pero el pipeline no puede parsearlo: no hay " +
+      "vigilancia sobre esta norma. Lo que se ve viene solo de su título.",
   },
 };
 
@@ -62,6 +87,7 @@ export function PrefiltroBadge({ estado, terminos, ejes }: PrefiltroBadgeProps) 
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       <span
+        title={meta.pista}
         className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-wide ${meta.clases}`}
       >
         <span aria-hidden="true">{meta.glifo}</span>

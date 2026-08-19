@@ -40,7 +40,7 @@ from app.models.deteccion import Alerta, Deteccion, OrigenClasificacion
 from app.models.norma import EstadoPrefiltro, Norma, VersionNorma
 from app.pipeline import prefiltro, reglas, watchlist
 from app.pipeline.texto import VERSION_TEXTO_PLANO
-from app.services.cuerpo import leer_cuerpo
+from app.services.cuerpo import CuerpoIlegible, leer_cuerpo
 
 logger = logging.getLogger(__name__)
 
@@ -222,12 +222,24 @@ def aplicar(
     por_regla: dict[str, int] = {}
 
     for norma in normas:
-        cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
-        if cuerpo is None:
+        try:
+            cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+        except CuerpoIlegible:
             # `leer_cuerpo` ya lo ha registrado. No se marca como evaluada: la próxima pasada
             # tiene que volver a intentarlo, porque el fallo puede ser del almacén y no del
             # documento. Mismo criterio de idempotencia que el extractor con una extracción
             # fallida — la que no deja fila vuelve a la cola sola.
+            #
+            # Desde el ADR 0020 esta rama casi no se pisa: el prefiltro marca `ilegible` y
+            # `_COLA` no lo incluye, así que estas normas ya no llegan hasta aquí. Se conserva
+            # porque el cuerpo puede desaparecer del almacén **después** del prefiltro, y
+            # entonces esto es lo único que lo cuenta en vez de reventar la pasada entera.
+            ilegibles += 1
+            continue
+        if cuerpo is None:
+            # Inalcanzable con la cola actual (`documento_texto_id IS NOT NULL`), y se deja
+            # escrito en vez de asumido: si algún día la cola se amplía, esto cuenta la norma
+            # en lugar de fallar al leer `cuerpo.texto`.
             ilegibles += 1
             continue
 

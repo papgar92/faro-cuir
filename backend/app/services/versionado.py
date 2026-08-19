@@ -76,7 +76,7 @@ from app.security import hashing, url_guard, xml_safe
 from app.security.url_guard import UrlGuardError
 from app.security.xml_safe import XmlSafeError
 from app.services.archivo import archivar
-from app.services.cuerpo import leer_cuerpo
+from app.services.cuerpo import CuerpoIlegible, leer_cuerpo
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +141,14 @@ def _objetivos(
     oposición», que es el falso positivo que el eje léxico produce a destajo. Una norma que solo
     la cite no tiene diff que traer.
     """
-    cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+    # Sin cuerpo (`None`) y con cuerpo ilegible (`CuerpoIlegible`, ADR 0020) acaban igual aquí:
+    # sin referencias no hay nada que versionar. Se distinguen de todos modos porque el segundo
+    # ya se ha registrado como error en el log y el primero es rutina, y porque dejar la
+    # excepción suelta tumbaría el barrido entero por una norma.
+    try:
+        cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+    except CuerpoIlegible:
+        return ()
     if cuerpo is None:
         return ()
     objetivos: dict[str, NormaVigilada] = {}

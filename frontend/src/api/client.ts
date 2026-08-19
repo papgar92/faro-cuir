@@ -69,7 +69,7 @@ export interface TextoArchivadoApi {
 }
 
 /**
- * Los CUATRO estados de 7.2. `sospecha` faltaba aquí hasta el 2026-08-09 y el tipo declaraba
+ * Los CINCO estados de 7.2. `sospecha` faltaba aquí hasta el 2026-08-09 y el tipo declaraba
  * imposible un valor que el backend lleva emitiendo desde la tarea 0.b — hoy hay 23 normas en
  * ese estado sobre datos reales.
  *
@@ -78,8 +78,18 @@ export interface TextoArchivadoApi {
  * comparación `=== "relevante"` para decidir si una norma "pasa" pierde las sospechas en
  * silencio, que es exactamente el falso negativo que el proyecto no se puede permitir. Usa
  * `entraEnLaCola`.
+ *
+ * `ilegible` (ADR 0020) es el quinto y el único que no habla de la norma sino del sistema: su
+ * texto está archivado y el pipeline no puede parsearlo, así que no hay vigilancia sobre ella.
+ * **No es un descarte y no debe pintarse como tal**: es un hueco de cobertura, y la interfaz
+ * existe para declararlos (mismo criterio que `GET /api/cobertura` con las fuentes).
  */
-export type EstadoPrefiltro = "pendiente" | "sospecha" | "relevante" | "descartada";
+export type EstadoPrefiltro =
+  | "pendiente"
+  | "sospecha"
+  | "relevante"
+  | "descartada"
+  | "ilegible";
 
 export type EjePrefiltro = "lexico" | "referencial";
 
@@ -190,11 +200,22 @@ export interface CoberturaCcaaApi {
   niveles: CoberturaNivelApi[];
   conocidas: number;
   vigiladas: number;
+  /**
+   * Normas ingeridas de esta comunidad, y cuántas de ellas el pipeline **no puede leer**
+   * (ADR 0020). Es la diferencia entre estar suscrito a un boletín y estarlo leyendo:
+   * `vigiladas` cuenta fuentes activas, y una fuente activa puede entregar documentos
+   * ilegibles. Catalunya figuraba como «1 de 1 vigilada» con 172 de sus 264 normas sin que
+   * nadie las analizara.
+   */
+  normas: number;
+  ilegibles: number;
 }
 
 export interface CoberturaApi {
   conocidas: number;
   vigiladas: number;
+  normas: number;
+  ilegibles: number;
   por_ccaa: CoberturaCcaaApi[];
 }
 

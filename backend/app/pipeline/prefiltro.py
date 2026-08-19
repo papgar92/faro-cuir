@@ -311,6 +311,7 @@ def evaluar(
     texto_integro: str | None = None,
     referencias: tuple[ReferenciaAnterior, ...] = (),
     lista: Watchlist | None = None,
+    cuerpo_ilegible: bool = False,
 ) -> ResultadoPrefiltro:
     """Aplica los dos ejes del prefiltro y decide el estado.
 
@@ -318,6 +319,11 @@ def evaluar(
     resultado nunca puede ser `DESCARTADA` (CLAUDE.md 7.1) — como mucho `PENDIENTE`, que es
     "sigue esperando a que alguien lea el documento". El título es exactamente lo que un
     retroceso silencioso puede redactar de forma anodina.
+
+    `cuerpo_ilegible=True` es el caso del ADR 0020: hay cuerpo archivado y no se puede parsear.
+    Va como parámetro aparte y no como un `texto_integro` vacío porque son hechos opuestos —
+    "el documento no dice nada" frente a "no sabemos qué dice"— y una cadena vacía llevaría a
+    `DESCARTADA`, que es la conclusión exactamente contraria a la verdad.
 
     El órgano emisor entra siempre en el texto examinado porque a veces es donde está la
     señal: una resolución de la «Dirección General de Igualdad y Diversidad» puede tener un
@@ -351,6 +357,9 @@ def evaluar(
     version_watchlist = lista.version if lista is not None else None
 
     def resultado(estado: EstadoPrefiltro) -> ResultadoPrefiltro:
+        # `ILEGIBLE` no está aquí a propósito: sus términos —los del título— son lo único que
+        # tiene delante quien vaya a recuperar esa norma a mano, y son el orden en que conviene
+        # atacar la lista. Borrarlos dejaría 172 filas idénticas y sin ninguna pista.
         descarta = estado in (EstadoPrefiltro.DESCARTADA, EstadoPrefiltro.PENDIENTE)
         return ResultadoPrefiltro(
             estado=estado,
@@ -365,6 +374,19 @@ def evaluar(
         )
 
     # --- Decisión. El orden importa y es el de la fuerza de la señal. -----------------------
+    if cuerpo_ilegible:
+        # Va **primero, por delante de cualquier señal del título** (ADR 0020), y no es un
+        # descarte: es que no hay nada que decidir. Las etapas que siguen —extractor y catálogo
+        # de reglas— leen el cuerpo del almacén, así que dejar esta norma en la cola con un
+        # `relevante` sacado del título solo produciría un fallo por pasada, para siempre, y una
+        # cifra de cola que promete un trabajo que nadie puede hacer.
+        #
+        # Es además el estado más grave de los cinco y conviene tenerlo escrito: un cuerpo
+        # ilegible apaga **los dos ejes** a la vez. El léxico queda reducido al título, que es
+        # justo lo que 7.1 dice que no sirve para decidir, y el referencial desaparece del todo
+        # porque el `<analisis>` vive dentro del documento que no se ha podido parsear.
+        return resultado(EstadoPrefiltro.ILEGIBLE)
+
     if tocadas:
         # Modificar una norma de la watchlist pasa el filtro **por definición, diga lo que
         # diga su texto** (7.3). No se compara con el umbral léxico: son ejes distintos.

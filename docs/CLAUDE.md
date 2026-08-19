@@ -237,8 +237,8 @@ Entidades núcleo (nombres reales de tabla en snake_case):
   `titulo`, `rango` (ley|decreto|orden|instruccion|resolucion|proposicion), `organo_emisor`,
   `ambito` (sanitario|educativo|laboral|documental|general|...).
   Más las columnas del prefiltro: `prefiltro_estado`, `prefiltro_terminos`,
-  `prefiltro_version`, `prefiltro_evaluado_en`. **`prefiltro_estado` pasa a tener cuatro
-  valores** (ver 7.2): `pendiente` | `sospecha` | `relevante` | `descartada`.
+  `prefiltro_version`, `prefiltro_evaluado_en`. **`prefiltro_estado` tiene cinco valores**
+  (ver 7.2): `pendiente` | `sospecha` | `relevante` | `descartada` | `ilegible`.
 - **version_norma** — versionado. Una norma que modifica a otra genera una nueva versión con
   referencia a la anterior. Aquí vive el diff (texto_anterior / texto_nuevo por artículo).
   **Se puebla desde el ADR 0018**, con el texto consolidado del BOE: `norma_id` es la norma
@@ -465,14 +465,15 @@ reprocesar no duplica.
 
 ### 7.2 Estados del prefiltro
 
-`prefiltro_estado` pasa de tres a cuatro valores. Requiere migración y **ADR**:
+`prefiltro_estado` tiene **cinco** valores. Cada uno costó su migración y su **ADR**:
 
 | Estado | Significado | Consecuencia |
 |---|---|---|
-| `pendiente` | aún no evaluada | — |
+| `pendiente` | aún no evaluada, o sin cuerpo archivado todavía | — |
 | `sospecha` | indicio débil **sobre el texto íntegro ya descargado** | cola del extractor con prioridad baja; nunca se descarta sin revisar |
 | `relevante` | indicio fuerte sobre el texto íntegro | cola del extractor con prioridad alta |
 | `descartada` | descartada **tras** ver el texto completo | fin |
+| `ilegible` | hay cuerpo archivado y **el pipeline no puede parsearlo** (ADR 0020) | fuera de todas las colas automáticas; trabajo para una persona |
 
 **Ojo, esto cambió con el ADR 0011 y es fácil leerlo mal:** ningún estado del prefiltro decide
 ya qué se descarga —se descarga todo— sino qué entra en el LLM y en qué orden. `sospecha` no
@@ -482,9 +483,31 @@ es "descárgalo para mirar", es "ya está descargado y mirado, y merece un puest
 disparó** cada evaluación, no solo los términos: sin eso no se puede afinar un eje sin tocar
 los otros.
 
-**Aviso de migración (cuarta vez, ver sección 11):** al añadir el valor a la CHECK, el
+**`ilegible` es el único estado que no habla de la norma sino de nosotros** (ADR 0020), y las
+tres reglas que lo acompañan no son detalles de implementación:
+
+- **Manda por encima de cualquier señal del título**, incluso de un título lleno de vocabulario.
+  Un cuerpo ilegible apaga los **dos** ejes: el léxico queda reducido al título —que 7.1 dice
+  que no sirve para decidir— y el referencial desaparece, porque el `<analisis>` vive dentro del
+  documento que no se ha podido parsear.
+- **No es un descarte y no es fin de trayecto.** Se reintenta en cada pasada (el prefiltro deja
+  `prefiltro_version_texto` a NULL a propósito), que es lo único que recupera la norma sola si su
+  cuerpo pasa a ser legible. Y se conservan los términos del título, que son la pista para
+  priorizar la recuperación a mano.
+- **El embudo lo cuenta aparte y no se omite aunque sea cero.** Mientras vivió mezclado con
+  `pendiente`, 172 normas del DOGC —el 65 % de esa fuente— se leían como «esperando su texto
+  íntegro» con el texto ya descargado. Cualquier cifra de cobertura de una fuente va acompañada
+  de cuántas de sus normas son ilegibles, o afirma una vigilancia que no existe.
+
+**Que exista este estado no autoriza a relajar `xml_safe`** (6.1). En el caso que lo motivó, el
+control es lo único que impidió que 172 páginas de error entraran en el pipeline como si fueran
+normas: el prefiltro las habría descartado todas por falta de vocabulario y nada habría fallado
+visiblemente.
+
+**Aviso de migración (quinta vez, ver sección 11):** al añadir el valor a la CHECK, el
 autogenerate de alembic propondrá borrar CHECKs ajenas. Revisar SIEMPRE antes de aplicar y
 comprobar después: `SELECT conrelid::regclass, conname FROM pg_constraint WHERE contype='c'`.
+Hoy son **14** y la de `estadoprefiltro` se sustituye, no se suma.
 
 ### 7.3 Prefiltro de tres ejes (OR, no AND)
 
@@ -703,8 +726,10 @@ Si te encuentras haciendo cualquiera de estas, para:
   íntegro archivado** (tarea 0.c, escrito el 2026-08-09), **0016 cómo se representa una
   supresión sin texto** (escrito e implementado el 2026-08-09) y **0017 autenticación del panel
   de revisión** (escrito e implementado el 2026-08-14) y **0018 de dónde sale el texto anterior**
-  (escrito e implementado el 2026-08-15). Con el 0013 escrito **ya no queda ningún número
-  reservado**: el siguiente libre es el **0019**.
+  (escrito e implementado el 2026-08-15), **0019 el DOGC como segunda fuente** (escrito el
+  2026-08-17) y **0020 el estado `ilegible` del prefiltro** (escrito e implementado el
+  2026-08-18). Con el 0013 escrito **ya no queda ningún número reservado**: el siguiente libre es
+  el **0021**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).
@@ -724,7 +749,7 @@ cd backend && uvicorn app.main:app --reload
 
 # Migraciones
 alembic revision --autogenerate -m "..."   &&   alembic upgrade head
-# y DESPUÉS de cada upgrade, comprobar que siguen vivas las CHECK (hoy 13). El filtro honesto
+# y DESPUÉS de cada upgrade, comprobar que siguen vivas las CHECK (hoy 14). El filtro honesto
 # lleva `conrelid <> 0`: sin él salen dos filas de information_schema que no son del proyecto.
 psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
          WHERE contype='c' AND conrelid <> 0 ORDER BY 1,2"

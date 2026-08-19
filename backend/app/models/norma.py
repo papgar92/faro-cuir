@@ -66,12 +66,23 @@ class EstadoPrefiltro(enum.StrEnum):
 
     `SOSPECHA` no es "descárgalo para mirarlo": es "ya está descargado y mirado, y merece un
     puesto en la cola del extractor, aunque sea el último". Nunca se descarta sin revisar.
+
+    `ILEGIBLE` es el quinto estado y el único que no habla de la norma sino **de nosotros**
+    (ADR 0020): su cuerpo está descargado y archivado con su huella, y el pipeline no puede
+    leerlo. Existe porque sin él esas normas se quedaban en `PENDIENTE`, o sea confundidas con
+    "esperando su texto íntegro", y una norma que el sistema **no puede vigilar** tiene que
+    verse o el proyecto afirma una cobertura que no tiene (sección 1).
+
+    **No es un descarte y no es un fin de trayecto**: es trabajo pendiente para una persona.
+    Se separa de `DESCARTADA` porque descartar significa "leído y no nos afecta", que es un
+    hecho sobre el contenido; aquí no se ha leído nada.
     """
 
     PENDIENTE = "pendiente"
     SOSPECHA = "sospecha"
     RELEVANTE = "relevante"
     DESCARTADA = "descartada"
+    ILEGIBLE = "ilegible"
 
     @property
     def entra_en_la_cola_del_extractor(self) -> bool:
@@ -80,6 +91,11 @@ class EstadoPrefiltro(enum.StrEnum):
         Existe para que la cola del extractor no se escriba nunca como `== RELEVANTE`: eso fue
         cierto hasta el ADR 0011 y ahora perdería en silencio todo lo marcado como sospecha,
         que es justo lo que no se puede perder.
+
+        `ILEGIBLE` da `False`, y no por descarte: el extractor lee el cuerpo del almacén, así
+        que una norma cuyo cuerpo no se puede parsear solo podría sumar un fallo por pasada,
+        para siempre. Sacarla de la cola no le quita cobertura —no la tenía— sino que la manda
+        a la única cola que puede resolverla, que es la de una persona (ADR 0020).
         """
         return self in (EstadoPrefiltro.SOSPECHA, EstadoPrefiltro.RELEVANTE)
 

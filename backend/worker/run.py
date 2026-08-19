@@ -140,22 +140,27 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
 
 
 def _registrar_embudo(resumen: servicio_prefiltro.ResumenPrefiltro, *, reaplicado: bool) -> None:
-    """Escribe el embudo del prefiltro en el log, con sus cuatro escalones.
+    """Escribe el embudo del prefiltro en el log, con sus cinco escalones.
 
     El embudo se registra siempre, incluso cuando no se ha creado nada: es la cifra que dice
     cuánto trabajo se ahorra el extractor, y perderla en las reejecuciones dejaría el log sin
     la única métrica interesante de esta etapa.
 
-    **Las cuatro cifras van juntas y ninguna se omite por ser cero.** El log anterior decía
+    **Las cinco cifras van juntas y ninguna se omite por ser cero.** El log anterior decía
     "N relevantes, M descartadas" y con el estado `sospecha` (7.2) eso habría dejado fuera
     justo el escalón nuevo: un embudo al que le falta un peldaño no cuadra, y quien lo lea
-    dará por hecho que las que faltan se descartaron. `pendientes` es hoy la cifra grande y
-    tiene que verse — significa "esperando su texto íntegro", que es la tarea 0.c, no que
-    nadie las quiera.
+    dará por hecho que las que faltan se descartaron. `pendientes` significa "esperando su
+    texto íntegro", no que nadie las quiera.
+
+    **`ilegibles` es el peldaño del ADR 0020 y el que más cuesta reconocer**: son normas
+    archivadas que el pipeline no puede leer, o sea cobertura que el sistema aparenta y no
+    tiene. Vivió dos días mezclada con `pendientes` y por eso 172 normas del DOGC —el 65 % de
+    la segunda fuente— no aparecían en ninguna cifra como lo que eran.
     """
     logger.info(
         "Prefiltro%s (vocabulario %s, watchlist %s, texto %s): %s evaluadas → %s relevantes, "
-        "%s sospechas, %s descartadas, %s pendientes de texto íntegro. "
+        "%s sospechas, %s descartadas, %s pendientes de texto íntegro, "
+        "%s ILEGIBLES (archivadas y el pipeline no puede leerlas). "
         "%s de las evaluadas lo fueron sobre texto íntegro. "
         "%s pasan solo por términos de contexto. Por eje: %s.",
         " reaplicado" if reaplicado else "",
@@ -167,6 +172,7 @@ def _registrar_embudo(resumen: servicio_prefiltro.ResumenPrefiltro, *, reaplicad
         resumen.sospechas,
         resumen.descartadas,
         resumen.pendientes,
+        resumen.ilegibles,
         # Va en la misma línea que el embudo y no en otra a propósito: es la salvedad que
         # convierte estas cifras en una medición o en un límite superior (7.8), y separarla
         # sería invitar a copiar el embudo sin ella.
@@ -174,6 +180,24 @@ def _registrar_embudo(resumen: servicio_prefiltro.ResumenPrefiltro, *, reaplicad
         resumen.solo_por_contexto,
         resumen.por_eje or "ninguno",
     )
+    if resumen.ilegibles:
+        # Una línea aparte y en WARNING, no en el INFO del embudo. Motivo: el embudo se lee
+        # entero cuando alguien lo busca, y esto tiene que verse cuando nadie lo busca —es un
+        # hueco de vigilancia, no una métrica—. Es lo más cerca de la "degradación ruidosa" de
+        # 6.9.6 que se puede estar sin romper la pasada: fallar con código distinto de cero
+        # dejaría el cron en rojo permanente mientras el hueco del DOGC siga abierto, y un rojo
+        # que siempre está rojo no avisa de nada.
+        #
+        # Va aquí y no en `services/cuerpo.py` a propósito: allí se registra **una línea por
+        # norma** —172 `DtdForbidden` idénticas por pasada— y esa repetición entierra la única
+        # traza que diría que un control de seguridad saltó de verdad. Esto es el resumen que
+        # se puede leer de un vistazo.
+        logger.warning(
+            "%s normas tienen su texto archivado y el pipeline NO PUEDE LEERLO (ADR 0020): no "
+            "hay vigilancia sobre ellas, por mucho que su fuente figure como activa. Ninguna "
+            "cola automática las va a resolver; es trabajo para una persona.",
+            resumen.ilegibles,
+        )
 
 
 def _registrar_fase2(resumen: texto_integro.ResumenFase2) -> None:

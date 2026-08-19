@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.models.norma import EstadoPrefiltro, Norma
 from app.pipeline import prefiltro, watchlist
 from app.pipeline.texto import VERSION_TEXTO_PLANO
-from app.services.cuerpo import leer_cuerpo
+from app.services.cuerpo import CuerpoIlegible, leer_cuerpo
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,11 @@ class ResumenPrefiltro:
     # Ni descartadas ni en cola: evaluadas solo sobre el título y a la espera del texto
     # íntegro. Sobre el sumario no se descarta nunca (7.1).
     pendientes: int
+    # Cuerpo archivado que el pipeline no puede parsear (ADR 0020). **No se puede omitir del
+    # embudo aunque sea cero**: es la única cifra que dice cuánto de la cobertura que el sistema
+    # aparenta es en realidad un hueco, y mientras vivió mezclada con `pendientes` nadie la vio
+    # durante dos días con 172 normas del DOGC dentro.
+    ilegibles: int
     # De las que pasan, cuántas lo hicieron solo por términos genéricos. Mide el ruido que
     # aporta la lista de contexto, y por tanto qué se puede afinar sin tocar el recall de los
     # términos directos.
@@ -119,7 +124,7 @@ def aplicar(
     """
     ahora = datetime.datetime.now(datetime.UTC)
     relevantes = sospechas = descartadas = pendientes = solo_contexto = 0
-    con_texto = 0
+    ilegibles = con_texto = 0
     por_eje: dict[str, int] = {}
 
     # La watchlist se carga **una vez por pasada**, no por norma: son cientos de normas y el
@@ -133,7 +138,16 @@ def aplicar(
         # Aquí entra la fase 2 (tarea 0.c, ADR 0011 y 0015). `texto_integro=None` significa
         # que el cuerpo todavía no está archivado, y `evaluar` ya sabe que sobre el título no
         # se descarta nunca (7.1): como mucho queda `pendiente`.
-        cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+        # `CuerpoIlegible` es lo contrario de `None` y por eso no comparten rama (ADR 0020):
+        # `None` es "todavía no hay cuerpo" y degrada a fase 1; la excepción es "hay cuerpo y no
+        # se puede leer", que es un hueco de cobertura y tiene su propio estado.
+        try:
+            cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+        except CuerpoIlegible:
+            cuerpo = None
+            ilegible = True
+        else:
+            ilegible = False
         texto = cuerpo.texto if cuerpo is not None else None
         resultado = prefiltro.evaluar(
             norma.titulo,
@@ -141,6 +155,7 @@ def aplicar(
             texto_integro=texto,
             referencias=cuerpo.referencias if cuerpo is not None else (),
             lista=lista,
+            cuerpo_ilegible=ilegible,
         )
         if texto is not None:
             con_texto += 1
@@ -155,6 +170,17 @@ def aplicar(
         norma.prefiltro_version_watchlist = resultado.version_watchlist
         # NULL cuando se evaluó solo sobre el título: es lo que hará que esta norma se vuelva
         # a mirar en cuanto su cuerpo esté archivado.
+        #
+        # **Una `ilegible` también queda a NULL, y eso significa que se reintenta en cada
+        # pasada. Es deliberado** (ADR 0020): el reintento es lo único que la recupera sola el
+        # día que su cuerpo se pueda leer —porque se vuelva a descargar en otro formato, o
+        # porque el fallo fuera del almacén y no del documento— y marcarla como evaluada la
+        # dejaría congelada como ilegible para siempre. Es el mismo criterio con el que el
+        # catálogo de reglas no marca como evaluado lo que no ha podido leer.
+        #
+        # El coste está acotado y medido: son 172 ficheros de disco por pasada, ni red ni LLM.
+        # Lo que sí sería un problema es que el número creciera sin que nadie lo viera, y para
+        # eso está `ilegibles` en el embudo.
         norma.prefiltro_version_texto = VERSION_TEXTO_PLANO if texto is not None else None
         norma.prefiltro_evaluado_en = ahora
 
@@ -167,6 +193,8 @@ def aplicar(
             sospechas += 1
         elif resultado.estado is EstadoPrefiltro.PENDIENTE:
             pendientes += 1
+        elif resultado.estado is EstadoPrefiltro.ILEGIBLE:
+            ilegibles += 1
         else:
             descartadas += 1
 
@@ -181,6 +209,7 @@ def aplicar(
         sospechas=sospechas,
         descartadas=descartadas,
         pendientes=pendientes,
+        ilegibles=ilegibles,
         solo_por_contexto=solo_contexto,
         por_eje=por_eje,
         sobre_texto_integro=con_texto,

@@ -47,7 +47,7 @@ from app.models.deteccion import Clasificacion, Deteccion, OrigenClasificacion
 from app.models.norma import EstadoPrefiltro, Norma
 from app.pipeline.anclaje import VERSION_ANCLAJE, anclar
 from app.pipeline.texto import VERSION_TEXTO_PLANO
-from app.services.cuerpo import leer_cuerpo
+from app.services.cuerpo import CuerpoIlegible, leer_cuerpo
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +215,16 @@ def aplicar(
         # `leer_cuerpo` ya registra el motivo, y distingue el control de seguridad que salta
         # (mismo criterio que `worker/run.py` con la ingesta) del fichero que falta en el
         # almacén. Aquí las dos cosas cuentan igual: no hay extracción.
-        cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+        #
+        # Desde el ADR 0020 el cuerpo ilegible casi no llega hasta aquí —el prefiltro lo marca
+        # `ilegible` y `_COLA` no lo incluye—, pero la rama se queda: el fichero puede
+        # desaparecer del almacén después de que el prefiltro lo leyera, y esta es la diferencia
+        # entre contarlo como fallo y tumbar la pasada entera.
+        try:
+            cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+        except CuerpoIlegible:
+            fallidas += 1
+            continue
         if cuerpo is None:
             fallidas += 1
             continue
@@ -284,7 +293,6 @@ def aplicar(
         # 133,9 s (ADR 0011) y perder una hora de CPU por cerrar una terminal es inaceptable.
         session.commit()
         extraidas += 1
-
 
     return ResumenExtraccion(
         evaluadas=len(normas), extraidas=extraidas, fallidas=fallidas, punteros=punteros
