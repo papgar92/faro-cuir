@@ -1,9 +1,11 @@
 """Del almacén al material sobre el que trabajan las etapas del pipeline.
 
-Una norma con `documento_texto_id` tiene su texto íntegro archivado (ADR 0015). Tres etapas lo
-necesitan —prefiltro sobre texto íntegro, extractor y catálogo de reglas— y las tres necesitan
-exactamente lo mismo: leer del disco, parsear con `xml_safe`, derivar el texto con la versión
-vigente de `texto_plano` y sacar las referencias del `<analisis>`.
+Una norma con `documento_texto_id` tiene su texto íntegro archivado (ADR 0015). Cuatro etapas lo
+necesitan —prefiltro sobre texto íntegro, extractor, catálogo de reglas y versionado— y las
+cuatro necesitan exactamente lo mismo: leer del disco, parsear con `xml_safe`, derivar el texto
+con la versión vigente de `texto_plano` y reunir **las referencias a otras normas**, que desde el
+ADR 0022 vienen de dos sitios: el bloque `<analisis>` del BOE y las citas dentro del propio texto
+(`pipeline/citas.py`), que es lo único que hay en las fuentes que no publican ese bloque.
 
 Vivía como `_cuerpo` privado dentro de `services/prefiltro.py`. Se saca aquí al aparecer el
 tercer llamante, por el mismo motivo por el que `texto_plano` salió de `services/extraccion.py`
@@ -23,8 +25,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.models.norma import Norma
+from app.pipeline.citas import extraer_referencias_citadas
 from app.pipeline.referencias import ReferenciaAnterior, extraer_referencias_anteriores
 from app.pipeline.texto import texto_plano
+from app.pipeline.watchlist import Watchlist
 from app.security import xml_safe
 from app.security.hashing import UnsafeStoragePath
 from app.security.xml_safe import XmlSafeError
@@ -57,13 +61,30 @@ class Cuerpo:
     """El texto íntegro derivado de una norma y las referencias que declara."""
 
     texto: str
-    # Del bloque `<analisis>`, que se lee de la **raíz** del documento y no del texto derivado:
-    # es metadato estructurado del BOE y `texto_plano` lo deja fuera a propósito.
+    # **Dos orígenes, un solo tipo** (ADR 0022):
+    #
+    # - El bloque `<analisis>`, que se lee de la **raíz** del documento y no del texto derivado:
+    #   es metadato estructurado del BOE y `texto_plano` lo deja fuera a propósito.
+    # - Las **citas dentro del texto** (`pipeline/citas.py`), que es lo único que hay en las
+    #   fuentes que no publican ese bloque. El DOGC es una: 0 de sus 92 cuerpos legibles traen
+    #   referencias utilizables, frente a 211 de 2.968 en el BOE.
+    #
+    # Se fusionan aquí y no en cada llamante para que el prefiltro, el versionado y las reglas
+    # no tengan que saber de qué boletín viene una norma — el mismo criterio con el que
+    # `ingest/dogc.py` devuelve el `Sumario` del BOE en vez de un tipo propio.
     referencias: tuple[ReferenciaAnterior, ...]
 
 
-def leer_cuerpo(norma: Norma, *, almacen_root: Path) -> Cuerpo | None:
+def leer_cuerpo(
+    norma: Norma, *, almacen_root: Path, lista: Watchlist | None = None
+) -> Cuerpo | None:
     """El cuerpo archivado de una norma. `None` **solo** si todavía no hay cuerpo.
+
+    `lista` es la watchlist con la que buscar **citas en el texto** (ADR 0022). Se pasa y no se
+    carga aquí dentro a propósito: cargarla por su cuenta metería estado global en una función de
+    lectura, haría que el resultado dependiera de un fichero que el llamante no ve, y —lo que
+    delató el diseño— dejaría fuera de juego a los tests que sustituyen la watchlist. Sin `lista`
+    solo se devuelven las referencias del metadato, que es lo que necesita el extractor.
 
     Las dos situaciones que antes compartían el `None` ahora se distinguen en el tipo, y esa
     separación es todo el ADR 0020:
@@ -99,4 +120,12 @@ def leer_cuerpo(norma: Norma, *, almacen_root: Path) -> Cuerpo | None:
             exc,
         )
         raise CuerpoIlegible(norma.identificador_oficial) from exc
-    return Cuerpo(texto=texto_plano(raiz), referencias=extraer_referencias_anteriores(raiz))
+    texto = texto_plano(raiz)
+    # Primero lo que declara la fuente y después lo que dice el texto. Las dos listas se
+    # **concatenan sin deduplicar**: una norma puede salir en las dos, y eso no estorba porque
+    # quien las consume las trata como indicios sueltos —`prefiltro.evaluar` pregunta si alguna
+    # es modificativa, `versionado._objetivos` mete los objetivos en un `dict`— y ninguna cuenta
+    # cuántas hay. Deduplicar aquí obligaría a decidir cuál de los dos verbos gana, que es una
+    # decisión de pipeline y no de lectura.
+    citadas = extraer_referencias_citadas(texto, lista) if lista is not None else ()
+    return Cuerpo(texto=texto, referencias=extraer_referencias_anteriores(raiz) + citadas)

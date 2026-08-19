@@ -142,7 +142,7 @@ def aplicar(
         # `None` es "todavía no hay cuerpo" y degrada a fase 1; la excepción es "hay cuerpo y no
         # se puede leer", que es un hueco de cobertura y tiene su propio estado.
         try:
-            cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+            cuerpo = leer_cuerpo(norma, almacen_root=almacen_root, lista=lista)
         except CuerpoIlegible:
             cuerpo = None
             ilegible = True

@@ -146,7 +146,7 @@ def _objetivos(
     # ya se ha registrado como error en el log y el primero es rutina, y porque dejar la
     # excepción suelta tumbaría el barrido entero por una norma.
     try:
-        cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+        cuerpo = leer_cuerpo(norma, almacen_root=almacen_root, lista=lista)
     except CuerpoIlegible:
         return ()
     if cuerpo is None:

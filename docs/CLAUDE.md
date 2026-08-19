@@ -543,7 +543,16 @@ arte floral cuya única coincidencia es «plan de igualdad» en un temario— y 
 por **un solo término directo** en 28.000 caracteres con señal buena. Cualquier cambio que
 recupere el primero o pierda el segundo está mal.
 
-**Eje 2 — referencial (NUEVO, prioritario).** `config/watchlist.json` con normas objetivo por
+**Eje 2 — referencial. Dos fuentes de evidencia desde el ADR 0022, y hay que saber por qué:**
+el bloque `<analisis>` del BOE **y las citas dentro del texto** (`pipeline/citas.py`). La segunda
+existe porque la primera no vale fuera del BOE: medido el 2026-08-19, el eje dispara en **0 de
+los 92** cuerpos legibles del DOGC frente a 211 de 2.968 en el BOE, porque esa fuente no publica
+a quién afecta la norma en ningún metadato — solo en el texto. Reglas que **no** se relajan: solo
+la forma larga de la cita (número **y** fecha; la corta produjo 4 falsos positivos de 4 sobre el
+DOGC), el verbo se busca 200 caracteres hacia atrás, y sin verbo la referencia es `CITA`, que no
+dispara nada.
+
+`config/watchlist.json` con normas objetivo por
 identificador: Ley 4/2023, leyes trans autonómicas, reales decretos de cartera común de
 servicios del SNS, currículos educativos, normativa de documentación e identidad. **Cualquier
 disposición que modifique una norma de la watchlist pasa el filtro por definición, diga lo que
@@ -744,8 +753,9 @@ Si te encuentras haciendo cualquiera de estas, para:
   (escrito e implementado el 2026-08-15), **0019 el DOGC como segunda fuente** (escrito el
   2026-08-17) y **0020 el estado `ilegible` del prefiltro** (escrito e implementado el
   2026-08-18) y **0021 el eje léxico exige un término directo sobre texto íntegro** (escrito e
-  implementado el 2026-08-19). Con el 0013 escrito **ya no queda ningún número reservado**: el
-  siguiente libre es el **0022**.
+  implementado el 2026-08-19) y **0022 el eje referencial lee también las citas del texto**
+  (escrito e implementado el 2026-08-19). Con el 0013 escrito **ya no queda ningún número
+  reservado**: el siguiente libre es el **0023**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).

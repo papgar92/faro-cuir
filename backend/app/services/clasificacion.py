@@ -223,7 +223,7 @@ def aplicar(
 
     for norma in normas:
         try:
-            cuerpo = leer_cuerpo(norma, almacen_root=almacen_root)
+            cuerpo = leer_cuerpo(norma, almacen_root=almacen_root, lista=lista)
         except CuerpoIlegible:
             # `leer_cuerpo` ya lo ha registrado. No se marca como evaluada: la próxima pasada
             # tiene que volver a intentarlo, porque el fallo puede ser del almacén y no del
