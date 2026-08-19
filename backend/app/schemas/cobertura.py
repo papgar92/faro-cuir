@@ -37,6 +37,17 @@ class CoberturaCcaa(BaseModel):
     niveles: list[CoberturaNivel]
     conocidas: int
     vigiladas: int
+    # --- Cobertura real, no declarada (ADR 0020) ------------------------------------------
+    # `vigiladas` cuenta **fuentes activas**, y una fuente activa puede estar entregando
+    # documentos que el pipeline no consigue leer. Pasó con el DOGC: 172 de sus 264 normas
+    # llegaron como la página de error del portal, así que Catalunya figuraba como "1 de 1
+    # vigilada" con dos tercios de esa fuente sin analizar por nadie.
+    #
+    # Estas dos cifras son la diferencia entre "estamos suscritos a este boletín" y "lo estamos
+    # leyendo". Van juntas y ninguna se omite, por el mismo motivo que `conocidas` y `vigiladas`:
+    # `ilegibles` a solas no dice si son 172 de 264 o de 20.000.
+    normas: int
+    ilegibles: int
 
 
 class Cobertura(BaseModel):
@@ -51,4 +62,8 @@ class Cobertura(BaseModel):
 
     conocidas: int
     vigiladas: int
+    # Ídem, para el sistema entero. Ver `CoberturaCcaa`: sin esto, el único endpoint que existe
+    # para declarar los huecos del proyecto sería el único sitio donde este hueco no se ve.
+    normas: int
+    ilegibles: int
     por_ccaa: list[CoberturaCcaa]

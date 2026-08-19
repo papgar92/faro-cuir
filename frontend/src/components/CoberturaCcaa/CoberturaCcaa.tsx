@@ -85,6 +85,22 @@ export function CoberturaCcaa({ cobertura }: { cobertura: CoberturaCcaaApi | und
         ))}
       </ul>
 
+      {/* El hueco que `vigiladas` no puede expresar (ADR 0020): esta fuente se está leyendo y
+          aun así hay normas suyas que nadie puede analizar. Va **debajo del recuento de
+          fuentes y con su propio color**, porque contradice en parte lo que dice la línea de
+          arriba y esconderlo dejaría a esta pantalla afirmando una vigilancia que no existe —
+          justo lo que este componente existe para no hacer. */}
+      {cobertura.ilegibles > 0 && (
+        <p className="mt-2.5 rounded border border-alr bg-alr-soft p-2.5 text-xs leading-relaxed text-ink-2">
+          <strong className="font-semibold text-ink">
+            {cobertura.ilegibles} de {cobertura.normas} normas
+          </strong>{" "}
+          están descargadas y archivadas, pero su texto llegó en un formato que el sistema no
+          puede leer, así que <strong className="font-semibold text-ink">no se han analizado</strong>.
+          El boletín se está vigilando; esa parte de su contenido, no.
+        </p>
+      )}
+
       {cobertura.vigiladas === 0 && (
         <p className="mt-2.5 rounded border border-line bg-inset p-2.5 text-xs leading-relaxed text-ink-2">
           Ninguna de estas fuentes se está leyendo todavía. Que no aparezcan cambios{" "}

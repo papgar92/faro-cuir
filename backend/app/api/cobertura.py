@@ -18,7 +18,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
+from app.models.documento import Documento
 from app.models.fuente import Fuente
+from app.models.norma import EstadoPrefiltro, Norma
 from app.schemas.cobertura import Cobertura, CoberturaCcaa, CoberturaNivel
 
 router = APIRouter(prefix="/api", tags=["cobertura"])
@@ -27,6 +29,37 @@ router = APIRouter(prefix="/api", tags=["cobertura"])
 def get_session() -> Iterator[Session]:
     with SessionLocal() as session:
         yield session
+
+
+def _legibilidad(session: Session) -> dict[str | None, tuple[int, int]]:
+    """Cuántas normas hay por comunidad y cuántas de ellas el pipeline no puede leer (ADR 0020).
+
+    **Esto es lo que separa "vigilada" de "leída".** `Fuente.activa` dice que estamos suscritos a
+    un boletín; no dice que sus documentos se puedan analizar. El DOGC lo demostró: fuente activa,
+    ingesta correcta, huella y sello en cada documento, y 172 de 264 normas cuyo cuerpo archivado
+    es la página de error del portal. Sin esta consulta, la única ruta del proyecto que existe
+    para **declarar sus huecos** (ADR 0014) sería la única que no ve este.
+
+    Se agrega en SQL por lo mismo que la consulta de fuentes: contar en Python obligaría a traerse
+    miles de filas y a repetir aquí qué significa `ilegible`, que ya es un valor del enum.
+
+    La clave `None` son las normas de fuentes sin comunidad —el BOE—, que suman al total y no al
+    desglose. Se devuelven en vez de filtrarse para que el total del sistema no mienta por omisión.
+    """
+    filas = session.execute(
+        select(
+            Fuente.ccaa_codigo,
+            func.count().label("normas"),
+            func.count()
+            .filter(Norma.prefiltro_estado == EstadoPrefiltro.ILEGIBLE)
+            .label("ilegibles"),
+        )
+        .select_from(Norma)
+        .join(Documento, Documento.id == Norma.documento_id)
+        .join(Fuente, Fuente.id == Documento.fuente_id)
+        .group_by(Fuente.ccaa_codigo)
+    ).all()
+    return {codigo: (normas, ilegibles) for codigo, normas, ilegibles in filas}
 
 
 @router.get("/cobertura", response_model=Cobertura)
@@ -47,9 +80,13 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
         ).group_by(Fuente.ccaa_codigo, Fuente.ccaa, Fuente.ambito_territorial)
     ).all()
 
+    legibilidad = _legibilidad(session)
+
     por_ccaa: dict[str, CoberturaCcaa] = {}
     conocidas_total = 0
     vigiladas_total = 0
+    normas_total = 0
+    ilegibles_total = 0
 
     for codigo, nombre, ambito, conocidas, vigiladas in filas:
         conocidas_total += conocidas
@@ -60,7 +97,15 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
             continue
         entrada = por_ccaa.setdefault(
             codigo,
-            CoberturaCcaa(ccaa_codigo=codigo, ccaa=nombre, niveles=[], conocidas=0, vigiladas=0),
+            CoberturaCcaa(
+                ccaa_codigo=codigo,
+                ccaa=nombre,
+                niveles=[],
+                conocidas=0,
+                vigiladas=0,
+                normas=0,
+                ilegibles=0,
+            ),
         )
         entrada.niveles.append(
             CoberturaNivel(ambito=str(ambito), conocidas=conocidas, vigiladas=vigiladas)
@@ -68,11 +113,27 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
         entrada.conocidas += conocidas
         entrada.vigiladas += vigiladas
 
+    # El recuento de normas se suma **por comunidad y no por nivel**: la fila de `norma` sabe de
+    # qué fuente viene, así que el desglose por ámbito sería exacto, pero un cuarto número dentro
+    # de cada barra la vuelve ilegible y el hueco que hay que ver es el de la comunidad.
+    for codigo, (normas, ilegibles) in legibilidad.items():
+        normas_total += normas
+        ilegibles_total += ilegibles
+        entrada_ccaa = por_ccaa.get(codigo) if codigo is not None else None
+        if entrada_ccaa is None:
+            # Normas del BOE (sin comunidad), o de una fuente que ya no está en la tabla. Suman
+            # al total y no al desglose, igual que las fuentes.
+            continue
+        entrada_ccaa.normas += normas
+        entrada_ccaa.ilegibles += ilegibles
+
     for entrada in por_ccaa.values():
         entrada.niveles.sort(key=lambda nivel: nivel.ambito)
 
     return Cobertura(
         conocidas=conocidas_total,
         vigiladas=vigiladas_total,
+        normas=normas_total,
+        ilegibles=ilegibles_total,
         por_ccaa=sorted(por_ccaa.values(), key=lambda c: c.ccaa_codigo),
     )
