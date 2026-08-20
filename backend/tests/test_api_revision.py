@@ -342,6 +342,55 @@ class TestCola:
         _entrar(client)
         assert client.get("/api/revision/cola").json() == []
 
+    def test_una_supresion_de_organo_del_ambito_si_entra(self, sesion_db: Session) -> None:
+        """La segunda puerta del gate (ADR 0024).
+
+        «Se suprime el Consejo LGTBI» no nombra ninguna norma de la watchlist —ese consejo lo
+        creó un decreto que no está en ella— así que hasta hoy la detección se creaba y **moría
+        sin que nadie la mirase**: desaparecía quien vigila la ley y era invisible.
+
+        Sigue sin ser la puerta ancha que el ADR 0017 cerró: R-SUP-003 exige término directo y
+        nombre de órgano **en la misma cláusula**, y medido antes de abrirla, cero de las 10
+        detecciones de R-SUP-002 del corpus la cruzan.
+        """
+        norma = _sembrar(sesion_db)
+        deteccion = sesion_db.scalar(select(Deteccion).where(Deteccion.norma_id == norma.id))
+        assert deteccion is not None
+        deteccion.regla_aplicada = "R-SUP-003"
+        deteccion.evidencia_json = {
+            "regla": "R-SUP-003",
+            "normas_vigiladas": [],
+            "organos_afectados": ["consejo"],
+            "spans": [
+                {"inicio": 0, "fin": 44, "fragmento": "Se suprime el Consejo Nacional LGTBI."}
+            ],
+        }
+        sesion_db.commit()
+
+        resumen = servicio.encolar(sesion_db)
+        sesion_db.commit()
+
+        assert (resumen.candidatas, resumen.encoladas) == (1, 1)
+
+    def test_sin_norma_vigilada_ni_organo_sigue_fuera(self, sesion_db: Session) -> None:
+        """Lo que el ADR 0017 cerró sigue cerrado: R-SUP-002 a secas no llena la cola de ruido."""
+        norma = _sembrar(sesion_db)
+        deteccion = sesion_db.scalar(select(Deteccion).where(Deteccion.norma_id == norma.id))
+        assert deteccion is not None
+        deteccion.regla_aplicada = "R-SUP-002"
+        deteccion.evidencia_json = {
+            "regla": "R-SUP-002",
+            "normas_vigiladas": [],
+            "organos_afectados": [],
+            "spans": [{"inicio": 0, "fin": 26, "fragmento": "Se suprime el artículo 7."}],
+        }
+        sesion_db.commit()
+
+        resumen = servicio.encolar(sesion_db)
+        sesion_db.commit()
+
+        assert (resumen.candidatas, resumen.encoladas) == (0, 0)
+
     def test_encolar_es_idempotente(self, sesion_db: Session) -> None:
         _sembrar(sesion_db)
         assert servicio.encolar(sesion_db).encoladas == 1

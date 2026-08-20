@@ -177,6 +177,9 @@ def _evidencia_json(veredicto: reglas.Veredicto, *, ahora: datetime.datetime) ->
         "version_reglas": veredicto.version_reglas,
         "version_texto_plano": VERSION_TEXTO_PLANO,
         "normas_vigiladas": list(veredicto.normas_vigiladas),
+        # ADR 0024. Va junto a `normas_vigiladas` porque hace el mismo trabajo: decirle al
+        # gate humano por qué esta detección merece que alguien la mire.
+        "organos_afectados": list(veredicto.organos_afectados),
         "spans": [
             {"inicio": prueba.inicio, "fin": prueba.fin, "fragmento": prueba.fragmento}
             for prueba in veredicto.evidencia

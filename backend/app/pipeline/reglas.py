@@ -94,7 +94,7 @@ from app.pipeline.watchlist import Watchlist
 # cambios del catálogo el mismo día con la misma cadena de versión hacen que el segundo no
 # reevalúe nada, porque `--reclasificar` pregunta por la versión y la ve igual. No falla nada
 # visiblemente; simplemente el arreglo no llega a las filas ya escritas.
-VERSION_REGLAS = "2026.08.20.2"
+VERSION_REGLAS = "2026.08.20.3"
 
 # --- Identificadores estables de regla ---------------------------------------------------
 # Van a `deteccion.regla_aplicada` y son parte del contrato de auditoría: no se renombran. Si
@@ -102,6 +102,7 @@ VERSION_REGLAS = "2026.08.20.2"
 # usa un identificador nuevo y el viejo queda retirado, nunca reutilizado con otro significado.
 R_SUP_NORMA_VIGILADA = "R-SUP-001"
 R_SUP_SIN_NORMA_VIGILADA = "R-SUP-002"
+R_SUP_ORGANO = "R-SUP-003"
 R_DER_NORMA_VIGILADA = "R-DER-001"
 R_MOD_NORMA_VIGILADA = "R-MOD-001"
 
@@ -139,6 +140,20 @@ _SUPRESION = re.compile(
 # 400.000 caracteres volvería a valer como supresión de la norma vigilada.
 _SUPRESION_DECLARADA = re.compile(
     r"\bsuprime(?:n)?\b|\bse\s+suprim(?:e|en)\b|\bqueda(?:n)?\s+suprimid[oa]s?\b",
+    re.IGNORECASE,
+)
+
+# Cómo se nombra un **órgano** de los que vigilan el cumplimiento. Es la mitad de la condición
+# de R-SUP-003; la otra mitad es que en la misma cláusula haya un término DIRECTO del
+# vocabulario. Las dos juntas y sobre la misma cláusula, nunca sobre el documento entero: es la
+# lección del ADR 0023 aplicada antes de cometer el error, no después.
+#
+# La lista es corta y de denominaciones administrativas reales. No incluye «servicio» ni
+# «área» —demasiado frecuentes— ni «instituto», que en el BOE es casi siempre un centro
+# docente o de investigación.
+_ORGANO = re.compile(
+    r"\bconsejo\b|\bconsell\b|\bobservatorio\b|\bcomisi[óo]n\b|\bmesa\b"
+    r"|\bdirecci[óo]n\s+general\b|\bsubdirecci[óo]n\s+general\b|\bcomisionad[oa]\b",
     re.IGNORECASE,
 )
 
@@ -319,6 +334,10 @@ class Veredicto:
     # Normas de la watchlist que este documento modifica o deroga, según el `<analisis>` del
     # propio BOE. Vacío en R-SUP-002.
     normas_vigiladas: tuple[str, ...] = ()
+    # Órganos del ámbito que la cláusula suprime (R-SUP-003, ADR 0024). Es el **segundo** motivo
+    # por el que una detección puede llegar al gate humano: no señala una norma vigilada, señala
+    # que desaparece quien la vigila.
+    organos_afectados: tuple[str, ...] = ()
     # Diagnóstico de los punteros de la extracción (ADR 0016). **No participan en el
     # veredicto**: están aquí para poder medir si el modelo ve supresiones que las reglas no
     # ven, que es la condición que el ADR pone para reabrirse.
@@ -424,6 +443,29 @@ def derogaciones(texto: str) -> tuple[Evidencia, ...]:
     verificar contra el archivo, que es para lo que existe la evidencia.
     """
     return _clausulas_con(texto, _DEROGACION, _NORMA_CITADA)
+
+
+def supresiones_de_organo(supresion: tuple[Evidencia, ...]) -> tuple[Evidencia, ...]:
+    """De las supresiones ya detectadas, las que suprimen un **órgano del ámbito** (ADR 0024).
+
+    Dos condiciones **sobre la misma cláusula**, nunca sobre el documento: que nombre un órgano
+    y que contenga un término DIRECTO del vocabulario. «Se suprime el Consejo LGTBI de Aragón»
+    entra; «se suprime el artículo 7» de una convocatoria de oposiciones no, y tampoco entra un
+    documento que hable del colectivo en una página y suprima una comisión de urbanismo en otra.
+
+    **Su precisión está SIN OBSERVAR y hay que decirlo** (regla de oro 8). Medido el 2026-08-20
+    sobre las 10 detecciones de R-SUP-002 del corpus: **ninguna** cumple estas dos condiciones,
+    así que esta regla no ha disparado todavía ni una vez. Se acepta esa excepción a la costumbre
+    de la casa —no escribir reglas sin un documento delante— porque el coste es exactamente cero
+    ítems de más en la cola y el vector que cubre está documentado por las organizaciones de
+    referencia. Si algún día dispara mucho, este es el primer sitio donde mirar.
+    """
+    return tuple(
+        evidencia
+        for evidencia in supresion
+        if _ORGANO.search(evidencia.fragmento)
+        and prefiltro.terminos_presentes(evidencia.fragmento, solo_directos=True)
+    )
 
 
 def modificaciones(texto: str) -> tuple[Evidencia, ...]:
@@ -691,6 +733,33 @@ def clasificar(
             punteros_sin_corroborar=sin_corroborar,
             terminos_perdidos=perdidos,
             preceptos_con_diff=len(propios),
+        )
+
+    organos = supresiones_de_organo(supresion)
+    if organos:
+        # Va **antes** de R-SUP-002 y después de todo lo que identifica una norma vigilada: es
+        # más específica que «hay una supresión» y menos que «se toca la watchlist». Sin signo,
+        # como R-DER-001 y por lo mismo: suprimir un consejo puede ser desmantelarlo o fundirlo
+        # con otro, y cuál de las dos cosas es exige saber qué ocupa su lugar.
+        corroborados, sin_corroborar = corroborar(punteros, organos)
+        return Veredicto(
+            regla=R_SUP_ORGANO,
+            clasificacion=Clasificacion.INDETERMINADO,
+            severidad=3,
+            confianza=0.4,
+            evidencia=organos,
+            # Lo que hace que esto llegue al gate humano (ADR 0024). Se comprueba por el
+            # CONTENIDO de la evidencia y no por el identificador de la regla, igual que
+            # `normas_vigiladas`: así una regla futura entra o se queda fuera sola.
+            organos_afectados=tuple(
+                dict.fromkeys(
+                    coincidencia.group(0).lower()
+                    for evidencia in organos
+                    for coincidencia in _ORGANO.finditer(evidencia.fragmento)
+                )
+            ),
+            punteros_corroborados=corroborados,
+            punteros_sin_corroborar=sin_corroborar,
         )
 
     if supresion:

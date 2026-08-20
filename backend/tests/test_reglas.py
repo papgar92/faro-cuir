@@ -704,3 +704,67 @@ class TestDerogacionSeDeroga:
         )
 
         assert reglas.derogaciones(texto) == ()
+
+
+class TestSupresionDeOrgano:
+    """R-SUP-003 (ADR 0024): las dos condiciones van sobre la MISMA cláusula.
+
+    Es la lección del ADR 0023 aplicada antes de cometer el error en vez de después: comprobar
+    «hay una supresión» y «se habla del colectivo» por separado sobre un documento de 400.000
+    caracteres las hace coincidir por azar.
+    """
+
+    def test_suprimir_un_consejo_del_ambito_entra(self) -> None:
+        texto = (
+            "Disposición derogatoria. Se suprime el Consejo Nacional LGTBI, regulado en el "
+            "artículo 4."
+        )
+
+        veredicto = reglas.clasificar(texto, lista=LEY_2_2016)
+
+        assert veredicto is not None
+        assert veredicto.regla == reglas.R_SUP_ORGANO
+        assert veredicto.organos_afectados == ("consejo",)
+        # Sin signo, como R-DER-001 y por lo mismo: suprimir un órgano puede ser desmantelarlo o
+        # fundirlo con otro, y cuál de las dos es exige saber qué ocupa su lugar.
+        assert veredicto.clasificacion is Clasificacion.INDETERMINADO
+
+    def test_un_organo_ajeno_al_ambito_no_entra(self) -> None:
+        texto = "Se suprime la Comisión de Urbanismo prevista en el artículo 12."
+
+        veredicto = reglas.clasificar(texto, lista=LEY_2_2016)
+
+        assert veredicto is not None and veredicto.regla == reglas.R_SUP_SIN_NORMA_VIGILADA
+
+    def test_hablar_del_colectivo_sin_suprimir_un_organo_no_entra(self) -> None:
+        texto = "Se suprime el apartado 3 del artículo 9 sobre personas trans."
+
+        veredicto = reglas.clasificar(texto, lista=LEY_2_2016)
+
+        assert veredicto is not None and veredicto.regla == reglas.R_SUP_SIN_NORMA_VIGILADA
+
+    def test_las_dos_condiciones_en_clausulas_distintas_no_bastan(self) -> None:
+        """El falso positivo que el ADR 0023 costó caro, evitado por construcción."""
+        texto = (
+            "Artículo 1. Se suprime la Comisión de Urbanismo prevista en el artículo 12. "
+            "Artículo 90. Se suprime el apartado 3 del artículo 9 sobre personas trans."
+        )
+
+        veredicto = reglas.clasificar(texto, lista=LEY_2_2016)
+
+        assert veredicto is not None and veredicto.regla == reglas.R_SUP_SIN_NORMA_VIGILADA
+
+    def test_una_norma_vigilada_sigue_mandando_sobre_el_organo(self) -> None:
+        """El orden del catálogo: identificar una norma de la watchlist pesa más."""
+        texto = "Se suprime el Consejo LGTBI y se suprime el artículo 7."
+        referencias = (
+            ReferenciaAnterior(
+                identificador="BOE-A-2016-6728",
+                verbo="MODIFICA",
+                texto="SUPRIME el art. 7 de la Ley 2/2016, de 29 de marzo",
+            ),
+        )
+
+        veredicto = reglas.clasificar(texto, referencias=referencias, lista=LEY_2_2016)
+
+        assert veredicto is not None and veredicto.regla == reglas.R_SUP_NORMA_VIGILADA

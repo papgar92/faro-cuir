@@ -81,7 +81,16 @@ class ResumenEncolado:
 
 
 def _identifica_norma_vigilada(evidencia: object) -> bool:
-    """¿El veredicto señala una norma concreta de la watchlist?
+    """¿El veredicto señala algo concreto del ámbito: una norma vigilada **o un órgano**?
+
+    La segunda puerta la abre el ADR 0024 y cubre un caso que la primera dejaba fuera: «se
+    suprime el Consejo LGTBI de Aragón» no nombra ninguna norma de la watchlist —ese consejo lo
+    creó un decreto que no está en ella— así que la detección se creaba y **moría sin que nadie
+    la mirase**. Desaparece quien vigila la ley, y era invisible.
+
+    Sigue sin ser la puerta ancha que el ADR 0017 cerró: R-SUP-003 exige término directo **y**
+    nombre de órgano en la misma cláusula. Medido antes de abrirla: de las 10 detecciones de
+    R-SUP-002 del corpus, **cero** la cruzan.
 
     Se lee de `evidencia_json.normas_vigiladas` y **no de una lista de reglas escrita a mano**:
     así, una regla futura que identifique una norma vigilada entra en la cola sola, y una de
@@ -90,8 +99,11 @@ def _identifica_norma_vigilada(evidencia: object) -> bool:
     """
     if not isinstance(evidencia, dict):
         return False
-    vigiladas = evidencia.get("normas_vigiladas")
-    return isinstance(vigiladas, list) and len(vigiladas) > 0
+    for clave in ("normas_vigiladas", "organos_afectados"):
+        senalado = evidencia.get(clave)
+        if isinstance(senalado, list) and len(senalado) > 0:
+            return True
+    return False
 
 
 def encolar(session: Session) -> ResumenEncolado:
