@@ -188,3 +188,89 @@ class Alerta(Base):
     emitida_en: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class Semaforo(enum.StrEnum):
+    """Lo que el informe de apoyo **recomienda hacer**, no lo que la norma es. ADR 0025.
+
+    La distinción es la razón de ser de este enum y de que no reutilice `Clasificacion`:
+    `ALERTA` significa «yo publicaría esto», y de los tres primeros informes escritos, **dos de
+    los que recomiendan alerta son avances**. Confundir el color con el signo convertiría una
+    ayuda a la lectura en el veredicto que el ADR 0004 prohíbe persistir.
+    """
+
+    ALERTA = "alerta"
+    MIRAR = "mirar"
+    DESCARTAR = "descartar"
+
+
+class InformeRevision(Base):
+    """Informe de apoyo para quien revisa. **No es un veredicto.** ADR 0025.
+
+    Vive en su propia tabla y no en `deteccion` a propósito: `deteccion.clasificacion` la
+    escriben las reglas (ADR 0004 y 0016) y la CHECK `origenclasificacion` lo hace cumplir. Lo
+    que hay aquí lo escribe un asistente de IA fuera del sistema, y por eso **no puede tocar
+    nada de lo que el sistema afirma**. Si un día desaparecieran todos los informes, ninguna
+    alerta cambiaría de signo.
+
+    Tres campos son obligatorios y los tres por el mismo motivo — que quien revise pueda llevarle
+    la contraria sin releerse el BOE:
+
+    - `citas`: los fragmentos literales del texto archivado que sostienen lo que dice. Sin ellos
+      esto sería una opinión.
+    - `recomendacion`: qué haría el asistente y por qué.
+    - `refutacion`: **qué tendría que ver quien revisa para decidir lo contrario.** Es el campo
+      que impide que el informe funcione como un sello de goma, y por eso es NOT NULL: un
+      informe sin él no se guarda.
+
+    `generado_por` y `generado_en` no son metadatos de adorno: la interfaz tiene que poder decir
+    «esto lo preparó una IA el día X y no lo ha revisado nadie», que es la etiqueta que separa
+    este material de una alerta aprobada.
+    """
+
+    __tablename__ = "informe_revision"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Uno por ítem de la cola. Si hay que rehacerlo, se sustituye: a diferencia de
+    # `version_norma`, esto no es archivo, es material de trabajo.
+    cola_revision_id: Mapped[int] = mapped_column(
+        ForeignKey("cola_revision.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    semaforo: Mapped[Semaforo] = mapped_column(
+        Enum(
+            Semaforo,
+            native_enum=False,
+            length=20,
+            create_constraint=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+    )
+    # Qué hace la norma, en una frase y sin jerga. Es lo que se lee primero.
+    resumen: Mapped[str] = mapped_column(Text, nullable=False)
+    # Qué persona concreta nota este cambio y en qué. Opcional: no siempre se puede decir.
+    a_quien_afecta: Mapped[str | None] = mapped_column(Text)
+    recomendacion: Mapped[str] = mapped_column(Text, nullable=False)
+    refutacion: Mapped[str] = mapped_column(Text, nullable=False)
+    # Fragmentos literales con su origen. Lista de objetos {"texto", "apartado", "version"}:
+    # `version` distingue la redacción vieja de la nueva cuando el informe compara dos.
+    citas: Mapped[list[dict[str, str]]] = mapped_column(JSON, nullable=False, default=list)
+    # **Quién más lo ha dicho, y dónde.** Lista de {"organizacion", "que_dice", "url"}.
+    #
+    # Es el campo que cambia la naturaleza de un hallazgo publicado sin revisión humana. Sin él,
+    # lo que se enseña es «un asistente de IA cree que esto es un retroceso», que no es
+    # publicable en un proyecto que presume de no opinar. Con él, lo que se enseña es: **el
+    # archivo prueba que este cambio ocurrió, y esta organización ya lo documentó** — dos hechos
+    # verificables por separado, ninguno de los dos nuestro.
+    #
+    # Vacío es legítimo y significa algo: nadie de las fuentes de referencia lo ha señalado
+    # todavía. Un hallazgo sin corroborar puede seguir siendo cierto, pero no puede publicarse
+    # como si alguien más lo respaldara.
+    corroboraciones: Mapped[list[dict[str, str]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    # Quién y cuándo. "Se lo preparó una IA" es parte de lo que hay que enseñar, no un detalle.
+    generado_por: Mapped[str] = mapped_column(String(120), nullable=False)
+    generado_en: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

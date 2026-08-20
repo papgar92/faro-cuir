@@ -770,8 +770,9 @@ Si te encuentras haciendo cualquiera de estas, para:
   implementado el 2026-08-19), **0022 el eje referencial lee también las citas del texto**
   (escrito e implementado el 2026-08-19) y **0023 el verbo tiene que ir pegado a la norma
   vigilada** (escrito e implementado el 2026-08-20) y **0024 la segunda puerta del gate humano**
-  (escrito e implementado el 2026-08-20). Con el 0013 escrito **ya no queda ningún número
-  reservado**: el siguiente libre es el **0025**.
+  (escrito e implementado el 2026-08-20) y **0025 el informe de apoyo y el hallazgo histórico**
+  (escrito el 2026-08-20, implementado a medias: falta la interfaz). Con el 0013 escrito **ya no
+  queda ningún número reservado**: el siguiente libre es el **0026**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).

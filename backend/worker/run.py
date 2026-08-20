@@ -14,6 +14,7 @@ import datetime
 import logging
 import sys
 import time
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -29,6 +30,7 @@ from app.security.url_guard import UrlGuardError
 from app.security.xml_safe import XmlSafeError
 from app.services import clasificacion as servicio_clasificacion
 from app.services import extraccion as servicio_extraccion
+from app.services import informes as servicio_informes
 from app.services import ingesta, texto_integro, versionado
 from app.services import prefiltro as servicio_prefiltro
 from app.services import revision as servicio_revision
@@ -116,6 +118,25 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--importar-informes",
+        type=Path,
+        metavar="FICHERO.json",
+        help=(
+            "No ingiere nada: carga informes de apoyo para la cola de revisión desde un JSON "
+            "(ADR 0025). Los escribe un asistente de IA FUERA del sistema, porque el modelo "
+            "local no da para esto (ADR 0008 y la medición del 2026-08-18). No tocan la "
+            "clasificación ni resuelven nada: son material de lectura para quien decide."
+        ),
+    )
+    parser.add_argument(
+        "--generado-por",
+        default="asistente de IA (sin revisión humana)",
+        help=(
+            "Quién ha escrito los informes que se importan. Se enseña en el panel junto a cada "
+            "uno: «esto lo preparó X y no lo ha revisado nadie» es parte de lo que hay que decir."
+        ),
+    )
+    parser.add_argument(
         "--reclasificar",
         action="store_true",
         help=(
@@ -129,7 +150,12 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
     # `--fuente` deja de ser obligatorio porque ninguno de los modos de mantenimiento ingiere;
     # se sigue exigiendo para todo lo demás, que sí necesita saber de dónde descargar.
     mantenimiento = (
-        args.reprefiltrar or args.fase2 or args.reclasificar or args.versionar or args.extraer
+        args.reprefiltrar
+        or args.fase2
+        or args.reclasificar
+        or args.versionar
+        or args.extraer
+        or args.importar_informes is not None
     )
     if not mantenimiento and args.fuente is None:
         parser.error(
@@ -355,6 +381,23 @@ def main(argv: list[str] | None = None) -> int:
             resumen_extraccion.extraidas,
             resumen_extraccion.fallidas,
             resumen_extraccion.punteros,
+        )
+        return 0
+
+    if args.importar_informes is not None:
+        with SessionLocal() as session:
+            resumen_informes = servicio_informes.importar(
+                session, args.importar_informes, generado_por=args.generado_por
+            )
+        logger.info(
+            "Informes de apoyo (ADR 0025): %s leídos → %s nuevos, %s sustituidos, "
+            "%s sin ítem en la cola, %s inválidos. **No resuelven nada**: la cola sigue "
+            "esperando a que una persona decida (regla de oro 4).",
+            resumen_informes.leidos,
+            resumen_informes.importados,
+            resumen_informes.sustituidos,
+            resumen_informes.sin_item,
+            resumen_informes.invalidos,
         )
         return 0
 
