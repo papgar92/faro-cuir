@@ -63,7 +63,7 @@ from app.pipeline.watchlist import Watchlist
 # descartó" deja de ser comprobable. La versión cubre el eje entero, no solo la lista de
 # palabras — es lo que hace que `--reprefiltrar` recoja un cambio como el del ADR 0021, donde no
 # se tocó ni un término y sin embargo cambió el resultado de 100 normas.
-VERSION_VOCABULARIO = "2026.08.19"
+VERSION_VOCABULARIO = "2026.08.20"
 
 # Cuántos términos DIRECTOS distintos hacen falta, sobre el texto íntegro, para que una norma
 # entre como RELEVANTE en vez de como SOSPECHA.
@@ -106,6 +106,13 @@ class Categoria(StrEnum):
 # no nombrarlo. Se incluyen a propósito las variantes antiguas o clínicas ("disforia de
 # genero", "transexualidad") porque una norma que recorta derechos suele usar el vocabulario
 # de hace veinte años, no el actual.
+#
+# **El singular NO cubre el plural, y es el error más fácil de cometer aquí.** `_contiene` exige
+# límites de palabra, así que «intersexual» no encuentra «intersexuales». El diccionario tenía el
+# par para `lesbiana` y `transexual` y no para `homosexual`, `bisexual`, `transgenero`,
+# `intersexual` ni `no binario/a`: un documento que dijera «personas intersexuales» y nada más
+# **se descartaba**, porque sin término DIRECTO no se entra en la cola (ADR 0021). Corregido el
+# 2026-08-20. Al añadir un término, añade sus dos números.
 _VOCABULARIO: dict[str, Categoria] = {
     # --- Colectivo e identidad ------------------------------------------------------------
     "lgtbi": Categoria.DIRECTO,
@@ -114,8 +121,10 @@ _VOCABULARIO: dict[str, Categoria] = {
     "lgbti": Categoria.DIRECTO,
     "lgbt": Categoria.DIRECTO,
     "homosexual": Categoria.DIRECTO,
+    "homosexuales": Categoria.DIRECTO,
     "homosexualidad": Categoria.DIRECTO,
     "bisexual": Categoria.DIRECTO,
+    "bisexuales": Categoria.DIRECTO,
     "lesbiana": Categoria.DIRECTO,
     "lesbianas": Categoria.DIRECTO,
     "gais": Categoria.DIRECTO,
@@ -123,15 +132,25 @@ _VOCABULARIO: dict[str, Categoria] = {
     "transexuales": Categoria.DIRECTO,
     "transexualidad": Categoria.DIRECTO,
     "transgenero": Categoria.DIRECTO,
+    "transgeneros": Categoria.DIRECTO,
     "intersexual": Categoria.DIRECTO,
+    "intersexuales": Categoria.DIRECTO,
     "intersexualidad": Categoria.DIRECTO,
     "no binario": Categoria.DIRECTO,
     "no binaria": Categoria.DIRECTO,
+    "no binarios": Categoria.DIRECTO,
+    "no binarias": Categoria.DIRECTO,
     "personas trans": Categoria.DIRECTO,
     "poblacion trans": Categoria.DIRECTO,
     "menores trans": Categoria.DIRECTO,
     "queer": Categoria.DIRECTO,
     # --- Identidad y expresión de género ---------------------------------------------------
+    # El TERCER EJE del Rainbow Map de ILGA-Europe, y no estaba en el diccionario: sus
+    # indicadores 18-24, 43-45 y 75-76 van de «características sexuales», que es como la
+    # normativa nombra a las personas intersex sin decir «intersex». Es además la fórmula
+    # literal del título de la ley canaria que ya está en la watchlist. Lo encontró el
+    # jurista-lgtbi al contrastar el vocabulario con las fuentes de referencia (2026-08-20).
+    "caracteristicas sexuales": Categoria.DIRECTO,
     "identidad de genero": Categoria.DIRECTO,
     "identidad sexual": Categoria.DIRECTO,
     "expresion de genero": Categoria.DIRECTO,
