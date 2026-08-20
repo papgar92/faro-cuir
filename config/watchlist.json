@@ -1,5 +1,5 @@
 {
-  "version": "2026.08.19",
+  "version": "2026.08.20",
 
   "_formato": [
     "JSON con la biblioteca estandar, sin dependencias (CLAUDE.md seccion 3). JSON no admite",
@@ -17,7 +17,12 @@
 
   "_cobertura": [
     "AUDITORIA COMPLETA DE LAS 17 CCAA, verificada una a una contra boe.es el 2026-08-08.",
-    "15 comunidades tienen ley LGTBI y/o trans; sus 17 leyes estan todas en esta lista.",
+    "15 comunidades tienen ley LGTBI y/o trans; sus 20 leyes estan todas en esta lista.",
+    "OJO: esta linea decia 17 y era FALSA hasta el 2026-08-20. Faltaban las leyes trans de",
+    "Andalucia, Aragon y la Comunitat Valenciana, que como Madrid y Euskadi tienen DOS leyes",
+    "-una trans y otra LGTBI- y solo estaba una de cada par. Una afirmacion de cobertura sin",
+    "comprobar dentro del propio fichero que la sostiene es el peor sitio donde ponerla:",
+    "quien la lee da por vigilado lo que no lo esta. Al anadir o quitar, recuenta.",
     "ASTURIAS y CASTILLA Y LEON son las dos unicas que NO tienen ley autonomica. Eso esta",
     "verificado, no es un hueco de la auditoria: no hay identificador que anotar porque no hay",
     "norma. Asturias aprobo un ANTEPROYECTO el 2026-03-09; cuando se apruebe habra que anadirla.",
@@ -106,6 +111,24 @@
       "ambito": "CM",
       "titulo": "Ley 5/2022, de 6 de mayo, de Diversidad Sexual y Derechos LGTBI en Castilla-La Mancha",
       "nota": "Castilla-La Mancha. Verificada el 2026-08-08."
+    },
+    {
+      "identificador": "BOE-A-2014-8608",
+      "ambito": "AN",
+      "titulo": "Ley 2/2014, de 8 de julio, integral para la no discriminacion por motivos de identidad de genero y reconocimiento de los derechos de las personas transexuales de Andalucia",
+      "nota": "Andalucia, ley trans. Verificada contra el BOE el 2026-08-20. FALTABA: esta comunidad tiene DOS leyes -una trans y otra LGTBI- y la lista solo recogia una. Lo encontro el jurista-lgtbi al contrastar la watchlist con las fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistia). La ley trans es siempre la mitad mas expuesta del par."
+    },
+    {
+      "identificador": "BOE-A-2018-7154",
+      "ambito": "AR",
+      "titulo": "Ley 4/2018, de 19 de abril, de Identidad y Expresion de Genero e Igualdad Social y no Discriminacion de Aragon",
+      "nota": "Aragon, ley trans. Verificada contra el BOE el 2026-08-20. FALTABA: esta comunidad tiene DOS leyes -una trans y otra LGTBI- y la lista solo recogia una. Lo encontro el jurista-lgtbi al contrastar la watchlist con las fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistia). La ley trans es siempre la mitad mas expuesta del par. Y es el caso vivo: en marzo de 2025 hubo un intento de derogarla en las Cortes de Aragon. Sin esta entrada, una norma que la modificara no disparaba el eje referencial."
+    },
+    {
+      "identificador": "BOE-A-2017-5118",
+      "ambito": "VC",
+      "titulo": "Ley 8/2017, de 7 de abril, integral del reconocimiento del derecho a la identidad y a la expresion de genero de la Comunitat Valenciana",
+      "nota": "Comunitat Valenciana, ley trans. Verificada contra el BOE el 2026-08-20. FALTABA: esta comunidad tiene DOS leyes -una trans y otra LGTBI- y la lista solo recogia una. Lo encontro el jurista-lgtbi al contrastar la watchlist con las fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistia). La ley trans es siempre la mitad mas expuesta del par. Correccion de errores en BOE-A-2017-7173, no anotada aqui porque la watchlist vigila la norma, no sus erratas."
     },
     {
       "identificador": "BOE-A-2014-11990",
