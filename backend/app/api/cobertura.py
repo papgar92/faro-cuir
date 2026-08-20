@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models.documento import Documento
+from app.models.documento import Documento, TipoDocumento
 from app.models.fuente import Fuente
 from app.models.norma import EstadoPrefiltro, Norma
 from app.schemas.cobertura import Cobertura, CoberturaCcaa, CoberturaNivel
@@ -130,10 +130,18 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
     for entrada in por_ccaa.values():
         entrada.niveles.sort(key=lambda nivel: nivel.ambito)
 
+    # Los sumarios, que es lo que `GET /api/documentos` lista y lo que la portada llama
+    # «documentos archivados». Los cuerpos y los consolidados no se cuentan aquí por lo mismo que
+    # no se listan allí (ADR 0015): son material del archivo, no boletines ingeridos.
+    documentos = session.scalar(
+        select(func.count()).select_from(Documento).where(Documento.tipo == TipoDocumento.SUMARIO)
+    )
+
     return Cobertura(
         conocidas=conocidas_total,
         vigiladas=vigiladas_total,
         normas=normas_total,
         ilegibles=ilegibles_total,
+        documentos=documentos or 0,
         por_ccaa=sorted(por_ccaa.values(), key=lambda c: c.ccaa_codigo),
     )

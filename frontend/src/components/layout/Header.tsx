@@ -1,4 +1,4 @@
-import { listarDocumentos } from "../../api/client";
+import { listarDocumentos, obtenerCobertura } from "../../api/client";
 import { useRecurso } from "../../api/useRecurso";
 import { formatearFecha } from "../../lib/formato";
 import type { Screen } from "../../lib/navigation";
@@ -67,20 +67,27 @@ function PulsoDemo() {
  * miente sobre el volumen del sistema es peor que una petición de más.
  */
 function PulsoReal() {
-  const estado = useRecurso((signal) => listarDocumentos({ limite: 100 }, signal), []);
+  // Dos peticiones y no una, y la de la lista pide **un** documento en vez de cien. El total
+  // sale de `/api/cobertura`, que es donde viven los agregados: pedir cien y contarlos hacía que
+  // esta franja dijera «100 documentos archivados» con 162 en el almacén, que es exactamente lo
+  // que este componente existe para no hacer. De paso baja el payload de cien documentos con su
+  // huella a uno.
+  const totales = useRecurso((signal) => obtenerCobertura(signal), []);
+  const estado = useRecurso((signal) => listarDocumentos({ limite: 1 }, signal), []);
 
   if (estado.fase === "cargando") return <span className="text-ink-3">Consultando la API…</span>;
   if (estado.fase === "error") return <span className="text-ink-3">API no disponible</span>;
 
   const documentos = estado.datos;
   const ultimo = documentos[0];
+  const archivados = totales.fase === "listo" ? totales.datos.documentos : documentos.length;
 
   return (
     <>
       <span className="font-medium text-ink">Pulso · datos reales</span>
       <span>
-        <span className="font-medium text-ink">{documentos.length}</span>{" "}
-        {documentos.length === 1 ? "documento archivado" : "documentos archivados"}
+        <span className="font-medium text-ink">{archivados}</span>{" "}
+        {archivados === 1 ? "documento archivado" : "documentos archivados"}
       </span>
       {ultimo && (
         <span>

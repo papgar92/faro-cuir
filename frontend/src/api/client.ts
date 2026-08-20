@@ -216,6 +216,12 @@ export interface CoberturaApi {
   vigiladas: number;
   normas: number;
   ilegibles: number;
+  /**
+   * Boletines archivados, contados en la base. **No se sustituye por `documentos.length`**:
+   * `listarDocumentos` tiene tope 100, y contarlo por la longitud de la lista hacía que la
+   * franja de la portada dijera «100 documentos archivados» con 162 en el almacén.
+   */
+  documentos: number;
   por_ccaa: CoberturaCcaaApi[];
 }
 

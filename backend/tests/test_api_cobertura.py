@@ -153,3 +153,36 @@ def test_sin_normas_ingeridas_las_cifras_son_cero_y_no_faltan(client: TestClient
     cuerpo = client.get("/api/cobertura").json()
 
     assert (cuerpo["normas"], cuerpo["ilegibles"]) == (0, 0)
+
+
+def test_cuenta_los_boletines_archivados_y_no_los_cuerpos(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """La cifra que la portada llama «documentos archivados».
+
+    Vivía como `len()` de `GET /api/documentos`, que tiene tope 100: con 162 sumarios en el
+    almacén, la franja de la portada decía **100**. Una lista topada contada por su longitud no
+    es un total, y el componente que la enseña existe justamente para no mentir sobre el volumen
+    del sistema.
+
+    Se cuentan **sumarios**, no cuerpos ni consolidados, por lo mismo que `GET /api/documentos`
+    solo lista sumarios (ADR 0015).
+    """
+    fuente = _fuente(sesion_db, codigo="CT")
+    _normas(sesion_db, fuente, EstadoPrefiltro.DESCARTADA)
+    sesion_db.add(
+        Documento(
+            fuente_id=fuente.id,
+            identificador_oficial="CUERPO-1",
+            fecha_publicacion=datetime.date(2024, 12, 31),
+            url_original="https://ejemplo.invalid/cuerpo",
+            sha256="f" * 64,
+            sello_tiempo=datetime.datetime.now(datetime.UTC),
+            ruta_almacen="ff/ff/" + "f" * 64 + ".xml",
+            estado_pipeline=EstadoPipeline.INGERIDO,
+            tipo=TipoDocumento.TEXTO_NORMA,
+        )
+    )
+    sesion_db.commit()
+
+    assert client.get("/api/cobertura").json()["documentos"] == 1

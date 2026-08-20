@@ -66,4 +66,9 @@ class Cobertura(BaseModel):
     # para declarar los huecos del proyecto sería el único sitio donde este hueco no se ve.
     normas: int
     ilegibles: int
+    # Boletines archivados. Va aquí y no en `GET /api/documentos` porque aquel **lista** y por
+    # tanto tiene tope (100), y una lista topada contada por su longitud es una cifra falsa: la
+    # franja de la portada decía «100 documentos archivados» con 162 en el almacén. Un total es
+    # un agregado, y los agregados de este sistema viven en esta ruta.
+    documentos: int
     por_ccaa: list[CoberturaCcaa]
