@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2024-12290",
+  "fuente": "boe",
+  "fecha_publicacion": "2024-06-18",
+  "titulo": "Orden SND/606/2024, de 13 de junio, por la que se crea el Comité Asesor para la Cartera Común de Servicios en el Área de Genética, y por la que se modifica el anexo III del Real Decreto 1030/2006, de 15 de septiembre, por el que se establece la cartera de servicios comunes del Sistema Nacional de Salud.",
+  "organo_emisor": "MINISTERIO DE SANIDAD",
+  "prefiltro_esperado": "relevante",
+  "ejes_esperados": [
+    "referencial"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "248722e77a61b6efb72554089776536353dbac866f4445de2f2b2b55e1edf153",
+  "notas": "EL VECTOR SANITARIO, que el corpus declaraba en el modelo de dominio ('ambito sanitario') y no tenia medido con ningun caso. Y es de manual: una ORDEN -rango bajo, el instrumento que la seccion 1 dice que hay que vigilar- que modifica el anexo III del Real Decreto 1030/2006, la cartera comun de servicios del SNS, que esta en la watchlist (BOE-A-2006-16212).\n\nLo que regula, verificado sobre el cuerpo archivado el 2026-08-19, es el acceso a la REPRODUCCION HUMANA ASISTIDA en el sistema publico, y lo hace nombrando al colectivo: los criterios de inclusion son 'mujeres sin pareja, personas transexuales que conservan la capacidad de gestar y mujeres lesbianas', con edades maximas (38, 40 anos) y numero maximo de ciclos (cuatro, seis). Es exactamente el derecho que se quito en 2014 y se devolvio en 2018, y esta escrito en una orden ministerial: cambiar 'y mujeres lesbianas' o bajar un umbral de edad estrecha un derecho sin titulares y sin tocar ninguna ley.\n\nPor eso 'relevante' y no 'sospecha': aqui no se menciona el ambito, se REGULA sobre el. Es el unico caso del corpus, junto a la reforma madrilena, donde el texto decide quien accede a que.\n\n'ejes_esperados' declara solo 'referencial' aunque el lexico tambien dispare (tres terminos directos: 'lesbianas', 'transexual', 'transexuales'): asi el caso mide el eje que lo hace irrenunciable -modifica una norma vigilada, diga lo que diga su texto- y no se vuelve verde por el motivo equivocado si cambia el vocabulario.\n\nSEGUNDA VALIDACION EN LA NATURALEZA DEL ADR 0022: las dos fuentes del eje referencial dan MODIFICA por separado sobre esta norma. El <analisis> lo declara y el eje por citas del texto lo encuentra por su cuenta. La primera fue BOE-A-2021-1859.\n\nComo se encontro: no ingiriendo dias seguidos, sino preguntandole al BOE cuales de sus normas han modificado la cartera comun (backend/scripts/quien_modifica.py). De esa lista salen 12 ordenes mas que tocan este mismo real decreto y que siguen sin ingerir; este es el primero."
+}
