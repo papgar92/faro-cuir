@@ -88,9 +88,14 @@ watchlist. Cada una tiene su test en `tests/test_citas.py`.
 
 ## Consecuencias
 
-- **Aportación única sobre el corpus actual: cero, y hay que decirlo así.** Reevaluadas las
-  3.232 normas, el eje referencial dispara en **3, las mismas 3 que ya disparaba con el
+- **Aportación única de este ADR sobre el corpus: cero, y hay que decirlo así.** Reevaluadas
+  las 3.232 normas, el eje referencial dispara en **3, las mismas 3 que ya disparaba con el
   `<analisis>`**. Presentar ese 3 como resultado de este ADR sería apuntarse un trabajo ajeno.
+- **Distinto de la aportación del eje, que dejó de ser cero el 2026-08-20**: `BOE-A-2014-11444`
+  —la orden que concreta el alcance de la reproducción asistida en la cartera del SNS— entra en
+  la cola **solo** por el eje referencial (cero términos directos; el léxico la descarta desde el
+  ADR 0021). Pero ahí quien la caza es el `<analisis>` del BOE, no las citas de este ADR. Dos
+  cifras distintas que es fácil sumar por error.
 - **Lo que sí queda demostrado son dos cosas.** Una: encuentra la modificación **leyendo solo el
   texto** — sobre `BOE-A-2024-10767` (la reforma madrileña de 2023) saca `BOE-A-2016-6728` con
   verbo `SUPRIME` sin tocar el metadato, y lo delató un test que se puso rojo al conectarlo,

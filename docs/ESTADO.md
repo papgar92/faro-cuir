@@ -2682,3 +2682,64 @@ sitios, esta vez dentro de casa.
    corpus.
 2. **Recuperar las 172 ilegibles del DOGC por PDF** (~25k + ADR).
 3. **Terminar la poda de `docs/CLAUDE.md`** (63,5 KB con el límite en ~55).
+
+
+---
+
+### ✅ El eje referencial deja de valer cero, y lo que rescata son órdenes sanitarias — 2026-08-20
+
+Doce días de BOE ingeridos a tiro hecho con `quien_modifica.py` —**doce días, doce aciertos**, un
+`relevante` por día y siempre la norma buscada— y de ahí sale el resultado que al proyecto le
+faltaba desde que existe el eje 2.
+
+#### La cifra
+
+De las **15 normas `relevante`** del corpus, **5 tienen CERO términos directos**. Las cinco son
+órdenes ministeriales que modifican la cartera común de servicios del SNS. Desde el ADR 0021 el
+eje léxico las descarta —sus únicas coincidencias son de contexto: «cartera de servicios»,
+«reproducción humana asistida»— así que **sin el eje referencial las cinco se caen del sistema**.
+
+Medido evaluando el mismo cuerpo archivado dos veces (`BOE-A-2014-11444`):
+
+    con eje referencial -> relevante
+    SIN eje referencial -> DESCARTADA
+
+Hasta hoy, la aportación **única** del eje referencial medida sobre el corpus era **cero**: los
+casos donde disparaba los cazaba también el léxico, y así estaba escrito en el README del gold
+set y en el ADR 0022. **Ya no.** Y hay que separar dos cifras que es fácil sumar por error: lo
+que deja de ser cero es la aportación del **eje**; la de su segunda fuente de evidencia —las
+citas del texto, ADR 0022— sigue siendo cero, porque a estas cinco las caza el `<analisis>`.
+
+#### Por qué importa que sean justo esas cinco
+
+`BOE-A-2014-11444` está en el gold set como el caso insignia del eje. Es la **Orden SSI/2065/2014**
+que concreta el alcance de la cartera común en, entre otras áreas, la **reproducción humana
+asistida** — el instrumento por el que se fija quién accede a esa prestación en el sistema
+público, que es lo que se restringió en 2014 y se rectificó en 2018. 43.510 caracteres, rango
+bajo, un martes de octubre, y **ni una sola palabra del colectivo en el texto**.
+
+Es, palabra por palabra, lo que CLAUDE.md 7.3 dice que el eje viene a tapar: «una instrucción que
+elimina un derecho no dice "identidad de género", dice "se modifica el epígrafe 4.3 del anexo
+II"». El corpus ya tiene el documento que lo demuestra.
+
+#### Estado
+
+- **5.700+ normas**, 164 boletines, 15 relevantes, 45 sospechas, 172 ilegibles.
+- **Gold set: 32 casos**, todos coincidiendo.
+- **El gate humano tiene 7 ítems pendientes**, y no son ruido: dos leyes de acompañamiento que
+  modifican leyes LGTBI autonómicas, cuatro órdenes de la cartera del SNS y la nueva ley LGBTI
+  catalana. Eso es el sistema entregando trabajo real a una persona.
+- `version_norma` tiene **100 filas con texto anterior** sobre 6 normas vigiladas, 26 de ellas de
+  la cartera del SNS: el «antes decía / ahora dice» que hace útil una alerta.
+- La franja de la portada decía **«100 documentos archivados»** con 163 en el almacén, porque
+  contaba la longitud de una lista topada a 100. Arreglado: el total sale de `/api/cobertura`, y
+  de paso la petición baja de cien documentos a uno.
+
+#### Siguiente, por orden
+
+1. **Quedan ~14 normas modificadoras sin ingerir** de la lista de `quien_modifica.py`, casi todas
+   órdenes de la cartera del SNS entre 2009 y 2019. Cada día son ~4 minutos y el acierto va 12
+   de 12.
+2. **Recuperar las 172 ilegibles del DOGC por PDF** (~25k + ADR).
+3. **`docs/CLAUDE.md` está en 63,5 KB** con el límite en ~55. La parte mecánica de la poda está
+   hecha; lo que queda son reescrituras de prosa normativa y **eso lo decide una persona**.

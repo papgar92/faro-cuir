@@ -50,8 +50,13 @@ encajando dentro de «decreto ley 4/2023».
 
 Reevaluado el corpus entero (3.232 normas, 3.060 cuerpos legibles) el 2026-08-19: el eje
 referencial dispara en **3 normas, las mismas 3 que ya disparaba con el `<analisis>`**. O sea que
-la aportación **única** de este módulo sobre el corpus actual es **cero**, y hay que decirlo así
-en vez de presentar el 3 como si fuera suyo.
+la aportación **única de este módulo** sobre el corpus es **cero**, y hay que decirlo así en vez
+de presentar el 3 como si fuera suyo.
+
+**Ojo con no confundir eso con la aportación del eje**, que sí dejó de ser cero al día siguiente:
+`BOE-A-2014-11444` (gold set) entra en la cola **solo** por el eje referencial —cero términos
+directos, y el léxico la descarta desde el ADR 0021— pero quien la caza ahí es el `<analisis>`,
+no este módulo. Son dos cifras distintas y las dos hay que decirlas enteras.
 
 Lo que sí está demostrado son dos cosas, y ninguna es un adjetivo:
 

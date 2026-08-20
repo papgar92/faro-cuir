@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2014-11444",
+  "fuente": "boe",
+  "fecha_publicacion": "2014-11-06",
+  "titulo": "Orden SSI/2065/2014, de 31 de octubre, por la que se modifican los anexos I, II y III del Real Decreto 1030/2006, de 15 de septiembre, por el que se establece la cartera de servicios comunes del Sistema Nacional de Salud y el procedimiento para su actualización.",
+  "organo_emisor": "MINISTERIO DE SANIDAD, SERVICIOS SOCIALES E IGUALDAD",
+  "prefiltro_esperado": "relevante",
+  "ejes_esperados": [
+    "referencial"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "778dba2a47fc76d266f80f03043314e5a65568884e65f3c7b8db37a7ce57447f",
+  "notas": "**EL CASO QUE JUSTIFICA EL EJE REFERENCIAL, y hasta ahora el corpus no lo tenia.** CLAUDE.md 7.3 describe asi el agujero que ese eje viene a tapar: «una instruccion que elimina un derecho no dice 'identidad de genero', dice 'se modifica el epigrafe 4.3 del anexo II'». Esto es literalmente eso.\n\nMedido el 2026-08-20 evaluando el mismo cuerpo archivado dos veces:\n\n    con eje referencial -> relevante\n    SIN eje referencial -> DESCARTADA\n\nCERO terminos directos en 43.510 caracteres. Sus unicas coincidencias con el vocabulario son de contexto -'cartera de servicios', 'cartera comun de servicios', 'reproduccion humana asistida'- y desde el ADR 0021 los terminos de contexto por si solos no bastan sobre texto integro. O sea que el eje lexico la descarta y lo unico que la salva es que el <analisis> del BOE declare que modifica el Real Decreto 1030/2006, que esta en la watchlist.\n\nHasta este documento, la aportacion UNICA del eje referencial medida sobre el corpus era cero: los casos donde disparaba los cazaba tambien el lexico. Aqui deja de serlo, y con la mejor materia posible.\n\nY lo que la orden hace importa tanto como que se detecte: concreta el alcance de la cartera comun en, entre otras areas, la REPRODUCCION HUMANA ASISTIDA -verificado sobre el cuerpo archivado-. Es el instrumento por el que se fijan los criterios de acceso a esa prestacion en el sistema publico, que es donde se decidio en 2014 quien podia acceder y donde se rectifico en 2018. Un rango bajo, un martes de octubre, sin una sola palabra del colectivo en el texto.\n\n'ejes_esperados' declara SOLO 'referencial', que aqui no es una convencion sino el objeto de la medicion: si algun dia este caso pasa por el eje lexico, sera porque alguien ha tocado el vocabulario, y el test tiene que seguir exigiendo el eje que de verdad lo sostiene.\n\n'clasificacion_esperada' en null: R-MOD-001 lo deja en 'indeterminado' y decir si esto fue avance o retroceso exige comparar los anexos antes y despues, que es trabajo del gate humano con el diff delante (version_norma ya tiene 26 filas de esta norma vigilada).\n\nSe encontro con backend/scripts/quien_modifica.py: se le pregunta al BOE que normas han modificado el RD 1030/2006 y se ingiere ese dia."
+}

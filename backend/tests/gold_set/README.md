@@ -82,6 +82,17 @@ evaluado**. Ahora hay tres, y funcionan como un solo experimento:
   **cita** la ley LGTBI. Es el control: sin él, un eje referencial que disparase con cualquier
   mención pasaría el gold set igual de verde que uno correcto.
 
+**Y el 2026-08-20 dejó de ser cierto que su aportación única fuera cero.**
+`boe-a-2014-11444` —la orden que concreta el alcance de la reproducción humana asistida en la
+cartera común del SNS— tiene **cero términos directos** en 43.510 caracteres, así que el eje
+léxico la descarta desde el ADR 0021. Medido evaluando el mismo cuerpo dos veces: **con eje
+referencial `relevante`, sin él `descartada`**. Es el caso que 7.3 describe palabra por palabra:
+la instrucción que no dice «identidad de género», dice «se modifica el anexo II».
+
+Cuidado con no mezclar dos cosas al leer esa cifra: lo que deja de ser cero es la aportación del
+**eje**. La de la segunda fuente de evidencia del eje —las citas del texto, ADR 0022— sigue
+siendo cero, porque aquí quien lo caza es el `<analisis>` del BOE.
+
 No se encontraron ingiriendo días al azar: **se le preguntó al BOE**. El texto consolidado de
 cada norma vigilada trae en `<analisis><referencias><posteriores>` quién la ha modificado
 después, y de ahí salieron 29 normas modificadoras con la fecha exacta que había que ingerir.
