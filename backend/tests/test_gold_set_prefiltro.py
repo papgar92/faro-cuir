@@ -93,15 +93,26 @@ def test_la_etiqueta_declara_sus_ejes(caso: CasoGoldSet) -> None:
 def test_el_corpus_no_es_suficiente_para_medir_recall() -> None:
     """Un test que existe para dejar constancia, no para comprobar código.
 
-    Con tres casos no hay recall que publicar. Este test **falla a propósito el día que el
-    corpus crezca**, y su mensaje dice qué hay que hacer entonces: no basta con tener más casos,
-    hay que cambiar la forma de medir (comparar contra el texto íntegro, tarea 0.c) antes de
-    afirmar ninguna cifra. Es la forma de que el aviso de la sección 11 no se olvide justo
-    cuando deja de ser obvio.
+    **Falla a propósito cuando el corpus crece**, para que el aviso no se olvide justo cuando
+    deja de ser obvio. Saltó por primera vez el 2026-08-20 al llegar a 30 casos, y en esa
+    revisión una de sus tres condiciones ya estaba cumplida y las otras dos no:
+
+    - ~~(1) que el worker descargue texto íntegro~~ — **hecho** desde la tarea 0.c (ADR 0011 y
+      0015). El corpus entero se evalúa ya sobre el cuerpo archivado, no sobre el título.
+    - (2) el recall se reporta **desglosado por eje** (7.3), nunca agregado.
+    - (3) siempre con el **tamaño de la muestra y su intervalo de confianza**.
+
+    Y la revisión añadió una cuarta que no existía cuando se escribió el test, porque entonces
+    solo había una fuente: **(4) qué parte de cada fuente es legible**. En el DOGC, 172 de sus
+    264 normas son `ilegible` (ADR 0020), así que cualquier cifra suya es sobre el 35 % de su
+    contenido y publicarla sin esa salvedad es afirmar una cobertura que no existe.
+
+    El próximo corte es **60**, que es el mínimo del plan recortado (sección 11): ahí es donde
+    tiene sentido volver a preguntarse si ya se puede publicar algo y con qué salvedades.
     """
-    assert len(CASOS) < 30, (
-        "El corpus ha crecido. Antes de publicar NINGUNA cifra de recall: (1) el worker tiene "
-        "que descargar texto íntegro (tarea 0.c) para poder comparar contra lo que se etiquetó, "
-        "(2) el recall se reporta DESGLOSADO POR EJE (7.3) y (3) siempre con el tamaño de la "
-        "muestra y su intervalo de confianza. Reescribe este test cuando eso esté."
+    assert len(CASOS) < 60, (
+        "El corpus ha llegado al mínimo del plan. Antes de publicar NINGUNA cifra de recall: "
+        "(1) el recall se reporta DESGLOSADO POR EJE (7.3), (2) siempre con el tamaño de la "
+        "muestra y su intervalo de confianza, y (3) con qué parte de cada fuente es legible "
+        "(ADR 0020: el DOGC solo lo es en un 35 %). Reescribe este test cuando eso esté."
     )

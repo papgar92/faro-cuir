@@ -36,6 +36,7 @@ from pathlib import Path
 import pytest
 
 from app.pipeline import prefiltro
+from app.pipeline.citas import extraer_referencias_citadas
 from app.pipeline.referencias import extraer_referencias_anteriores
 from app.pipeline.texto import texto_plano
 from app.pipeline.watchlist import cargar
@@ -56,8 +57,26 @@ def _ruta(sha256: str) -> Path:
     return ALMACEN / sha256[:2] / sha256[2:4] / f"{sha256}.xml"
 
 
+# Resultado ya calculado de cada caso, por `sha256`. **No es micro-optimización**: cada caso se
+# evalúa desde tres sitios (los dos tests parametrizados y el desglose), y evaluar significa leer
+# el fichero, parsearlo con `xml_safe`, derivar el texto y pasarle los dos ejes por encima. Con
+# los cuerpos que entraron el 2026-08-20 —uno de 1.975.355 caracteres y varios de medio millón—
+# eso llevó la suite entera de 2 a **35 minutos**. Con la caché vuelve a los 2.
+_EVALUADOS: dict[str, object] = {}
+
+
 def _evaluar(caso: CasoGoldSet):  # type: ignore[no-untyped-def]
     """Evalúa el caso sobre su cuerpo archivado, o salta diciendo qué falta."""
+    if caso.sha256_cuerpo is not None and caso.sha256_cuerpo in _EVALUADOS:
+        return _EVALUADOS[caso.sha256_cuerpo]
+    resultado = _evaluar_sin_cache(caso)
+    if caso.sha256_cuerpo is not None:
+        _EVALUADOS[caso.sha256_cuerpo] = resultado
+    return resultado
+
+
+def _evaluar_sin_cache(caso: CasoGoldSet):  # type: ignore[no-untyped-def]
+    """Lo de siempre: leer del almacén y pasar el prefiltro entero."""
     if caso.sha256_cuerpo is None:
         pytest.skip(f"{caso.identificador_oficial}: el caso no declara `sha256_cuerpo`")
     ruta = _ruta(caso.sha256_cuerpo)
@@ -67,11 +86,19 @@ def _evaluar(caso: CasoGoldSet):  # type: ignore[no-untyped-def]
             "Para tenerlo: docker compose exec worker python -m worker.run --fase2"
         )
     raiz = xml_safe.parse(ruta.read_bytes())
+    texto = texto_plano(raiz)
+    # **Las DOS fuentes de referencia, como en producción** (ADR 0022). Medir solo con el
+    # `<analisis>` mediría un pipeline que no existe: `services/cuerpo.leer_cuerpo` concatena las
+    # dos, y en una fuente como el DOGC la primera está vacía siempre. Un gold set que evalúe con
+    # menos evidencia que el sistema real da un recall que nadie puede usar.
+    referencias = extraer_referencias_anteriores(raiz) + extraer_referencias_citadas(
+        texto, WATCHLIST
+    )
     return prefiltro.evaluar(
         caso.titulo,
         organo_emisor=caso.organo_emisor,
-        texto_integro=texto_plano(raiz),
-        referencias=extraer_referencias_anteriores(raiz),
+        texto_integro=texto,
+        referencias=referencias,
         lista=WATCHLIST,
     )
 

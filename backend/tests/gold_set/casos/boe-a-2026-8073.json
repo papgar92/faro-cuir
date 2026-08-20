@@ -1,0 +1,14 @@
+{
+  "identificador_oficial": "BOE-A-2026-8073",
+  "fuente": "boe",
+  "fecha_publicacion": "2026-04-11",
+  "titulo": "Ley 13/2025, de 29 de diciembre, de los derechos de las personas LGBTI y la erradicación de la LGBTI-fobia.",
+  "organo_emisor": "COMUNIDAD AUTÓNOMA DE CATALUÑA",
+  "prefiltro_esperado": "relevante",
+  "ejes_esperados": [
+    "referencial"
+  ],
+  "clasificacion_esperada": null,
+  "sha256_cuerpo": "f45cf29ceab5bb768a526d0e26beb213e260bb7fb45c897c8b4d8fabf3bbf450",
+  "notas": "LA LEY QUE EL CLASIFICADOR LLAMO RETROCESO, y es un AVANCE. Es la nueva ley LGBTI catalana, que deroga y sustituye a la Ley 11/2014 vigilada (BOE-A-2014-11990) ampliando proteccion: noventa y cinco articulos, cinco titulos. 34 terminos directos, el maximo del corpus.\n\nCuando entro en el corpus, el 2026-08-20, el catalogo le puso 'retroceso' con severidad 4. El motivo: R-SUP-001 exigia 'hay una supresion en el texto' Y 'se toca una norma vigilada' sin comprobar que la supresion fuera DE esa norma, y esta ley suprime -en una disposicion final- un apartado de la Ley de finanzas publicas de Cataluna. Una ley que amplia derechos clasificada como lo contrario por una clausula sobre presupuestos: el peor error posible en un sistema que existe para detectar retrocesos. Ese hallazgo es el ADR 0023, y esta norma es su caso.\n\nDespues del arreglo cae en R-DER-001, 'indeterminado' con severidad 4, que es lo correcto y lo que la cabecera de pipeline/reglas.py lleva escrito desde el ADR 0016: derogar es lo que hace tanto quien desmonta una ley como quien la sustituye por otra mejor, y decidir cual de las dos exige mirar que ocupa su lugar. Eso lo hace una persona.\n\nY destapo el fallo simetrico: su disposicion derogatoria dice 'Se deroga la Ley 11/2014, de 10 de octubre', y R-DER-001 NO la veia porque el patron excluia 'se deroga' sin 'expresamente'. Sin las dos correcciones juntas, esta norma acababa en R-SUP-002 con severidad 2 y con la clausula de finanzas publicas como evidencia: el sistema le habria ensenado a quien revisa un asunto presupuestario cuando lo que habia pasado es que la ley LGBTI catalana fue derogada y sustituida.\n\n'clasificacion_esperada' se queda en null a proposito, aunque leyendo el titulo y el objeto parezca obvio que es un avance. Etiquetarlo exigiria comparar las dos leyes precepto a precepto -que es justo lo que R-DER-001 no puede hacer y por lo que no afirma signo-, y poner 'avance' de oido seria inventar una conclusion que nadie ha sacado (regla de oro 8).\n\nSe encontro con backend/scripts/quien_modifica.py, preguntandole al BOE quien ha modificado cada norma vigilada."
+}

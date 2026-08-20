@@ -656,10 +656,27 @@ vieja, así que hasta el ADR 0018 **el diff de una modificación no se podía co
 supresión y la derogación son los dos únicos cambios que no necesitan texto anterior.
 
 **Ese muro lo tira el ADR 0018**, que trae el texto anterior desde la legislación consolidada del
-BOE y puebla `version_norma`. Lo que eso desbloquea es una familia de reglas sobre modificación,
-y **no está escrita**: el ADR 0018 establece el hecho (antes decía esto, ahora dice esto otro),
-no el veredicto. Escribirla sigue exigiendo lo de siempre — `regla_aplicada`, spans de evidencia
-sobre el texto archivado, y nada que dependa del juicio del modelo.
+BOE y puebla `version_norma`. Sobre él se escribió R-MOD-001, que **sigue sin afirmar signo**: el
+ADR 0018 establece el hecho (antes decía esto, ahora dice esto otro), no el veredicto.
+
+**Regla que costó 2 falsos positivos de 4 y que no se relaja (ADR 0023): el verbo tiene que ir
+pegado a la norma vigilada.** No basta con que el documento contenga una supresión *y* toque una
+norma de la watchlist; hace falta que **la propia referencia declare** que la supresión es de esa
+norma. Las dos cosas comprobadas por separado se cumplen a la vez en cualquier ley extensa sin
+tener nada que ver entre sí, y así fue como una ley cuyo título es «de los derechos de las
+personas LGBTI y la erradicación de la LGBTI-fobia» acabó clasificada como **retroceso** con
+severidad 4, por una cláusula sobre finanzas públicas escondida en una disposición final.
+
+Dos corolarios que valen para cualquier regla futura:
+
+- **La condición que sostiene un signo se comprueba sobre la evidencia que lo nombra**, no sobre
+  el documento entero. Es el mismo criterio que el eje referencial del prefiltro (7.3) y el que
+  `pipeline/citas.py` aplica al verbo: un verbo suelto a 400.000 caracteres no dice de qué norma
+  habla.
+- **Perder el signo no es perder la vigilancia.** Cuando la evidencia no sostiene el signo, la
+  norma cae a una regla `indeterminado` y sigue yendo a la cola de revisión. Afirmar un signo que
+  no se puede sostener es lo que prohíbe la regla de oro 2; callarlo solo cuesta que lo decida
+  una persona, que es lo que 7.7 existe para hacer.
 
 ### 7.7 Gate humano
 
@@ -750,9 +767,10 @@ Si te encuentras haciendo cualquiera de estas, para:
   (escrito e implementado el 2026-08-15), **0019 el DOGC como segunda fuente** (escrito el
   2026-08-17) y **0020 el estado `ilegible` del prefiltro** (escrito e implementado el
   2026-08-18) y **0021 el eje léxico exige un término directo sobre texto íntegro** (escrito e
-  implementado el 2026-08-19) y **0022 el eje referencial lee también las citas del texto**
-  (escrito e implementado el 2026-08-19). Con el 0013 escrito **ya no queda ningún número
-  reservado**: el siguiente libre es el **0023**.
+  implementado el 2026-08-19), **0022 el eje referencial lee también las citas del texto**
+  (escrito e implementado el 2026-08-19) y **0023 el verbo tiene que ir pegado a la norma
+  vigilada** (escrito e implementado el 2026-08-20). Con el 0013 escrito **ya no queda ningún
+  número reservado**: el siguiente libre es el **0024**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).

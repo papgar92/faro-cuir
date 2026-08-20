@@ -556,17 +556,59 @@ class TestModificacion:
         assert reglas.clasificar(texto, referencias=referencias, lista=LEY_2_2016) is None
 
     def test_la_supresion_manda_sobre_la_modificacion(self) -> None:
-        """Orden del catálogo: la única regla que afirma signo va primero."""
+        """Orden del catálogo: la única regla que afirma signo va primero.
+
+        **Con la referencia declarando la supresión** (ADR 0023): sin eso, la supresión del
+        cuerpo no se le puede atribuir a la norma vigilada y manda R-MOD-001. Lo comprueba el
+        test de abajo.
+        """
         texto = (
             "Siete. Se suprime el artículo 7. Ocho. El artículo 8 queda redactado como sigue: «…»"
         )
         referencias = (
-            ReferenciaAnterior(identificador="BOE-A-2016-6728", verbo="MODIFICA", texto="arts."),
+            ReferenciaAnterior(
+                identificador="BOE-A-2016-6728",
+                verbo="MODIFICA",
+                texto="los arts. 8 y 9; y SUPRIME el art. 7 de la Ley 2/2016, de 29 de marzo",
+            ),
         )
 
         veredicto = reglas.clasificar(texto, referencias=referencias, lista=LEY_2_2016)
 
         assert veredicto is not None and veredicto.regla == reglas.R_SUP_NORMA_VIGILADA
+
+    def test_una_supresion_ajena_a_la_norma_vigilada_no_afirma_retroceso(self) -> None:
+        """El fallo que costó 2 falsos positivos de 4 sobre datos reales (ADR 0023).
+
+        Es el patrón de la ley de acompañamiento: el documento modifica una norma vigilada **y**
+        suprime algo que no tiene nada que ver, en otro artículo, a 400.000 caracteres de
+        distancia. La referencia dice exactamente qué se le hace a la norma vigilada —«el art.
+        8.5 y la disposición final 2»— y ahí no hay ninguna supresión.
+
+        No se pierde vigilancia: cae a R-MOD-001, que sigue yendo a la cola de revisión con su
+        evidencia. Lo que se deja de afirmar es el **signo**.
+        """
+        # Las dos cláusulas son reales: la modificación es la de `BOE-A-2021-1859` sobre la ley
+        # LGTBI valenciana, y la supresión es la que `BOE-A-2026-8073` -la nueva ley LGBTI
+        # catalana, que AMPLÍA derechos- le hace a la ley de finanzas públicas.
+        texto = (
+            "Artículo 40. El apartado 5 del artículo 8 de la Ley 23/2018 queda redactado como "
+            "sigue: «…». Disposición final. Se suprime el apartado 7 del artículo 92 del texto "
+            "refundido de la Ley de finanzas públicas de Cataluña."
+        )
+        referencias = (
+            ReferenciaAnterior(
+                identificador="BOE-A-2016-6728",
+                verbo="MODIFICA",
+                texto="el art. 8.5 y la disposición final 2",
+            ),
+        )
+
+        veredicto = reglas.clasificar(texto, referencias=referencias, lista=LEY_2_2016)
+
+        assert veredicto is not None
+        assert veredicto.regla == reglas.R_MOD_NORMA_VIGILADA
+        assert veredicto.clasificacion is not Clasificacion.RETROCESO
 
 
 class TestTerminosPerdidos:
@@ -599,3 +641,66 @@ class TestTerminosPerdidos:
         )
 
         assert reglas.terminos_perdidos((igual,)) == ()
+
+
+class TestDerogacionSeDeroga:
+    """«Se deroga» a secas: las cinco formas del corpus, una por caso (ADR 0023).
+
+    El patrón excluía esta construcción entera hasta el 2026-08-20, y eso le costó el caso más
+    limpio que ha entrado en el corpus: `BOE-A-2026-8073`, la nueva ley LGBTI catalana, deroga
+    con ella la Ley 11/2014 que está en la watchlist. Lo que separa la forma operativa del ruido
+    no era «expresamente» —como se creyó al escribir la primera versión— sino que **el ruido va
+    en una oración de relativo**, porque es el título de otra norma citado dentro de esta.
+    """
+
+    def test_la_forma_operativa_que_faltaba(self) -> None:
+        """Literal de `BOE-A-2026-8073`."""
+        texto = (
+            "Disposición derogatoria. Se deroga la Ley 11/2014, de 10 de octubre, para "
+            "garantizar los derechos de lesbianas, gais, bisexuales, transgéneros e intersexuales."
+        )
+
+        assert len(reglas.derogaciones(texto)) == 1
+
+    def test_la_forma_operativa_clasica_sigue(self) -> None:
+        texto = "Queda derogada la Ley 3/2007, de 15 de marzo, reguladora de la rectificación."
+
+        assert len(reglas.derogaciones(texto)) == 1
+
+    def test_el_preambulo_contando_lo_que_hara_no_deroga_nada(self) -> None:
+        """Literal de la Ley 4/2023, y el caso que decidió el criterio.
+
+        Si la construcción se aceptara en cualquier posición, el caso insignia del proyecto
+        emitiría **dos** evidencias para una sola derogación y una de ellas sería el preámbulo.
+        La operativa abre frase; esta va incrustada en medio de otra.
+        """
+        texto = (
+            "Mediante la disposición derogatoria única se deroga la Ley 3/2007, de 15 de marzo, "
+            "reguladora de la rectificación registral."
+        )
+
+        assert reglas.derogaciones(texto) == ()
+
+    def test_el_titulo_de_un_reglamento_europeo_citado_no_deroga_nada(self) -> None:
+        """El ruido de verdad, y el motivo por el que la construcción estaba excluida."""
+        texto = (
+            "Reglamento (UE) 2016/679, relativo a la protección de las personas físicas y por el "
+            "que se deroga la Directiva 95/46/CE."
+        )
+
+        assert reglas.derogaciones(texto) == ()
+
+    def test_ni_en_plural(self) -> None:
+        texto = "Reglamento por el que se derogan los Reglamentos (UE) 1234/2007 y 234/1979."
+
+        assert reglas.derogaciones(texto) == ()
+
+    def test_la_clausula_de_arrastre_la_sigue_parando_el_nombre_de_la_norma(self) -> None:
+        """Esta abre frase igual que la operativa: lo que la rechaza es no nombrar ninguna norma
+        con número, que es la condición que `derogaciones` ya exigía."""
+        texto = (
+            "Se derogan las disposiciones de igual o inferior rango que contradigan lo dispuesto "
+            "en este real decreto."
+        )
+
+        assert reglas.derogaciones(texto) == ()

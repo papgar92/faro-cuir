@@ -2586,3 +2586,99 @@ Ejecutadas las dos fuentes de evidencia por separado sobre los cuerpos archivado
    cuesta unos 3 minutos de ingesta.
 2. **Recuperar las 172 ilegibles del DOGC por PDF** (~25k + ADR).
 3. **Terminar la poda de `docs/CLAUDE.md`** (62,2 KB con el límite en ~55).
+
+
+---
+
+### ✅ El gold set encontró un falso positivo del clasificador, y era grave (ADR 0023) — 2026-08-20
+
+Esto es lo que un gold set existe para hacer, y ha tardado un día en hacerlo. Al ampliar el
+corpus con normas que modifican la watchlist —buscadas a propósito con `quien_modifica.py`—
+apareció que **R-SUP-001, la única regla que afirma un signo, iba 2 de 4 en falsos positivos**.
+
+#### El error, y por qué es el peor posible aquí
+
+`BOE-A-2026-8073` es la **nueva ley LGBTI catalana**: noventa y cinco artículos, deroga y
+sustituye a la Ley 11/2014 vigilada ampliando protección, 34 términos directos (el máximo del
+corpus). El catálogo la clasificó **`retroceso`, severidad 4**.
+
+El motivo: R-SUP-001 exigía «hay una supresión en el texto» **y** «se toca una norma vigilada»,
+sin comprobar que la supresión fuera *de esa norma*. Esta ley suprime, en una disposición final,
+un apartado de la **Ley de finanzas públicas de Cataluña**. Eso bastaba. Una ley que amplía
+derechos clasificada como lo contrario por una cláusula sobre presupuestos.
+
+El mismo patrón afectaba a `BOE-A-2021-1859`, la ley de medidas fiscales valenciana: modifica la
+ley LGTBI valenciana **y** suprime unas tasas de un centro público. Dos hechos sin relación en
+457.720 caracteres.
+
+#### El arreglo: el verbo tiene que ir pegado a la norma
+
+Lo que separa los verdaderos positivos de los falsos ya estaba delante y no se leía: **la propia
+referencia lo dice**. En los buenos, el `<analisis>` del BOE escribe «…y **SUPRIME** los arts. 7,
+24 y 45, 48 y los títulos X y XIV»; en los falsos, solo «el art. 8.5 y la disposición final 2».
+
+R-SUP-001 pasa a exigir que la referencia declare la supresión, y la evidencia del veredicto
+nombra esa norma y no cualquier vigilada que el documento toque de paso. Vale para las dos
+fuentes del ADR 0022 (el metadato y la cita del texto).
+
+#### Y el mismo caso destapó el fallo simétrico
+
+La disposición derogatoria catalana dice «**Se deroga** la Ley 11/2014, de 10 de octubre», y
+R-DER-001 **no la veía**: el patrón excluía `se deroga` sin «expresamente». Con el primer arreglo
+puesto, esa norma caía a R-SUP-002 con severidad 2 y con la cláusula de finanzas como evidencia —
+el sistema le habría enseñado a quien revisa un asunto presupuestario cuando lo que pasó es que
+la ley LGBTI catalana fue derogada y sustituida.
+
+Al mirar juntas las tres formas de ruido del corpus se ve que **lo que las separa no es
+«expresamente», es la posición**: la operativa abre frase y el ruido va incrustado, sea el título
+de un reglamento europeo citado («…y por el que se deroga la Directiva 95/46/CE») o el preámbulo
+contando lo que hará («Mediante la disposición derogatoria única se deroga la Ley 3/2007…»). Ese
+segundo ejemplo es del caso insignia y es el que fija el criterio: sin él, la Ley 4/2023 emitiría
+dos evidencias para una sola derogación y una sería el preámbulo hablando de derogar.
+
+#### El efecto, medido sobre 5.229 normas
+
+| | antes | después |
+|---|---|---|
+| `R-SUP-001` → **retroceso** | 4 (2 falsos) | **2**, las dos reformas madrileñas |
+| `R-DER-001` → indeterminado | 1 | **2** (entra la ley catalana) |
+| `R-MOD-001` → indeterminado | 2 | 6 |
+
+**Las dos leyes que amplían derechos —la Ley 4/2023 y la Ley 13/2025 catalana— quedan las dos en
+`indeterminado`**, severidad 4, a la cola de revisión. Las tres alertas ya emitidas conservan su
+veredicto, y el aviso de «YA TIENE ALERTA EMITIDA y el catálogo reescribe su evidencia» saltó en
+las tres como debía.
+
+#### Un tropiezo propio que queda escrito en la constante
+
+`VERSION_REGLAS` lleva sufijo numérico desde hoy (`2026.08.20.2`). Hice dos cambios del catálogo
+el mismo día con la misma cadena de versión, y el segundo **no reevaluó nada**: `--reclasificar`
+pregunta por la versión, la vio igual y se saltó las 56 filas. No falla nada visiblemente; el
+arreglo simplemente no llega. Es el mismo modo de fallo mudo que este proyecto persigue en otros
+sitios, esta vez dentro de casa.
+
+#### Estado del corpus
+
+- **5.229 normas** (desde 3.232 esta mañana), 157+8 sumarios, 11 relevantes, 45 sospechas, 172
+  ilegibles, **0 pendientes**.
+- **Gold set: 31 casos**, todos coincidiendo con su etiqueta, y desde hoy evaluados con **las
+  dos fuentes de referencia** del ADR 0022 y no solo con el `<analisis>`: medir con menos
+  evidencia que el sistema real da un recall que nadie puede usar.
+- **La suite pasó de 2 a 35 minutos y vuelve a estar en 1:37.** Los cuerpos que entraron hoy
+  —uno de 1.975.355 caracteres y varios de medio millón— se leían, parseaban y prefiltraban
+  **tres veces por caso**, una por cada test que los mira. Se memoizan por `sha256`.
+- El test `test_el_corpus_no_es_suficiente_para_medir_recall` saltó al pasar de 30 casos, que es
+  para lo que estaba puesto. Reescrito: de sus tres condiciones, la primera (que el worker
+  descargue texto íntegro) ya está cumplida desde la tarea 0.c, y se le añadió una cuarta que no
+  existía cuando se escribió porque solo había una fuente — **qué parte de cada fuente es
+  legible**. El próximo corte es 60, el mínimo del plan.
+
+#### Siguiente, por orden
+
+1. **Seguir el filón**: de las 29 normas que `quien_modifica.py` encontró, quedan unas 20 sin
+   ingerir, casi todas órdenes que tocan la cartera común del SNS entre 2009 y 2022. La de 2014
+   (`BOE-A-2014-11444`, anexos I, II y III) es la más interesante: es el año en que se restringió
+   el acceso a la reproducción asistida, y sería el primer **retroceso histórico verificable** del
+   corpus.
+2. **Recuperar las 172 ilegibles del DOGC por PDF** (~25k + ADR).
+3. **Terminar la poda de `docs/CLAUDE.md`** (63,5 KB con el límite en ~55).

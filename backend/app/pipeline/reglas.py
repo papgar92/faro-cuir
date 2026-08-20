@@ -89,7 +89,12 @@ from app.pipeline.watchlist import Watchlist
 # cada detección y obliga a reevaluar lo anterior, igual que `VERSION_VOCABULARIO` y la versión
 # de la watchlist: sin esto, dos alertas de fechas distintas no serían comparables porque no se
 # sabría si las produjo el mismo catálogo.
-VERSION_REGLAS = "2026.08.15.1"
+#
+# **Lleva sufijo numérico y no solo la fecha, y es por un tropiezo real del 2026-08-20**: dos
+# cambios del catálogo el mismo día con la misma cadena de versión hacen que el segundo no
+# reevalúe nada, porque `--reclasificar` pregunta por la versión y la ve igual. No falla nada
+# visiblemente; simplemente el arreglo no llega a las filas ya escritas.
+VERSION_REGLAS = "2026.08.20.2"
 
 # --- Identificadores estables de regla ---------------------------------------------------
 # Van a `deteccion.regla_aplicada` y son parte del contrato de auditoría: no se renombran. Si
@@ -119,6 +124,24 @@ _SUPRESION = re.compile(
     re.IGNORECASE,
 )
 
+# Cómo se declara, **en una referencia**, que el documento suprime preceptos de la norma
+# referenciada (ADR 0023). Es un idioma distinto del texto normativo y por eso es un patrón
+# aparte de `_SUPRESION`, no una ampliación suya:
+#
+#   <analisis> del BOE   «…y SUPRIME los arts. 7, 24 y 45, 48 y los títulos X y XIV»
+#                        Tercera persona y sin «se»: `_SUPRESION` no lo reconoce y no debe,
+#                        porque sobre texto normativo esa forma no suprime nada.
+#   cita del texto       «Se suprime el apartado 2 del artículo 8 de la Ley 2/2016, de 29 de
+#                        marzo» — el recorte que acompaña a la referencia (ADR 0022).
+#
+# Se aplica **solo al texto de la referencia**, nunca al cuerpo del documento. Aplicarlo al
+# cuerpo devolvería el problema que este patrón viene a arreglar: cualquier «SUPRIME» suelto en
+# 400.000 caracteres volvería a valer como supresión de la norma vigilada.
+_SUPRESION_DECLARADA = re.compile(
+    r"\bsuprime(?:n)?\b|\bse\s+suprim(?:e|en)\b|\bqueda(?:n)?\s+suprimid[oa]s?\b",
+    re.IGNORECASE,
+)
+
 # Construcciones **operativas** de derogación, con el mismo criterio que `_SUPRESION`: las que
 # derogan, no las que hablan de derogar. El corpus enseña exactamente dónde está la línea, y
 # estas cuatro formas salen de él (12 referencias `DEROGA` sobre 652 cuerpos archivados):
@@ -132,10 +155,31 @@ _SUPRESION = re.compile(
 #               «Se derogan las disposiciones de igual o inferior rango que contradigan…»
 #               ← cláusula de arrastre genérica, sin norma identificada: no dice qué cae.
 #
-# `se deroga` a secas queda fuera **a propósito** y es lo que separa las dos columnas: aparece
-# en las tres formas de ruido y en ninguna de las operativas sin ir acompañado de «expresamente».
+# **`se deroga` a secas ya no queda fuera, y el corpus explica por qué cambió** (ADR 0023). La
+# versión anterior lo excluía entero porque aparecía en las tres formas de ruido de arriba, y eso
+# le costó el caso más limpio que ha entrado en el corpus: `BOE-A-2026-8073` —la nueva ley LGBTI
+# catalana— dice «**Disposición derogatoria. Se deroga la Ley 11/2014, de 10 de octubre**», que
+# es la derogación de una norma vigilada por su ley sucesora. R-DER-001 no la veía, así que esa
+# norma caía a R-SUP-002 con severidad 2 y con una supresión **ajena** como evidencia.
+#
+# Lo que separa las dos columnas no era «expresamente», era **la posición**: la forma operativa
+# **abre la frase** —«Disposición derogatoria. Se deroga la Ley 11/2014…»— y el ruido va siempre
+# incrustado en medio de otra, porque es el título de una norma citado dentro de esta («…y por el
+# que se deroga la Directiva 95/46/CE») o el preámbulo contando lo que hará la disposición
+# derogatoria («Mediante la disposición derogatoria única se deroga la Ley 3/2007…»).
+#
+# Ese segundo ejemplo es real y es del caso insignia: si la construcción se aceptara en cualquier
+# posición, la Ley 4/2023 emitiría dos evidencias para una sola derogación y una de ellas sería
+# el preámbulo hablando de derogar. Exigir el principio de frase mantiene la distinción que da
+# nombre a este bloque: las que **derogan**, no las que **hablan** de derogar.
+#
+# La tercera forma de ruido, «Se derogan las disposiciones de igual o inferior rango que
+# contradigan…», sí abre frase, y a esa la sigue rechazando `_NORMA_CITADA`: no nombra ninguna
+# norma con número.
 _DEROGACION = re.compile(
-    r"\bqueda(?:n)?\s+derogad[oa]s?\b" r"|\bse\s+deroga(?:n)?\s+expresamente\b",
+    r"\bqueda(?:n)?\s+derogad[oa]s?\b"
+    r"|\bse\s+deroga(?:n)?\s+expresamente\b"
+    r"|(?:^|(?<=[.;:»])\s{0,3})se\s+deroga(?:n)?\b",
     re.IGNORECASE,
 )
 
@@ -466,6 +510,44 @@ def _vigiladas(referencias: tuple[ReferenciaAnterior, ...], lista: Watchlist) ->
     )
 
 
+def _suprimidas(referencias: tuple[ReferenciaAnterior, ...], lista: Watchlist) -> tuple[str, ...]:
+    """Normas de la watchlist a las que este documento **suprime preceptos**, según la referencia.
+
+    Es la condición que le faltaba a R-SUP-001 y que le costó **2 falsos positivos de 4** (ADR
+    0023). La regla exigía «hay una supresión en el texto» **y** «se toca una norma vigilada»,
+    sin comprobar que la supresión fuera *de esa norma*. En una ley de acompañamiento o en una
+    ley extensa esas dos cosas coexisten sin tener nada que ver:
+
+    - `BOE-A-2021-1859`, ley de medidas fiscales valenciana: modifica la ley LGTBI valenciana
+      (art. 8.5) **y** suprime unas tasas de un centro público. Veredicto: `retroceso`, severidad
+      4, con una cláusula sobre tasas como evidencia.
+    - `BOE-A-2026-8073`, la **nueva ley LGBTI catalana**, que amplía derechos: deroga la Ley
+      11/2014 vigilada **y** suprime un apartado de la Ley de finanzas públicas de Cataluña.
+      Veredicto: `retroceso`. Un avance clasificado como lo contrario, que es el peor error
+      posible en un sistema que existe para detectar retrocesos.
+
+    Lo que separa los dos casos ya estaba delante y no se estaba leyendo: **la propia referencia
+    lo dice**. En los verdaderos positivos el `<analisis>` del BOE escribe «el título, el
+    preámbulo y determinados preceptos; y SUPRIME los arts. 7, 24 y 45, 48 y los títulos X y XIV»;
+    en los falsos, solo «el art. 8.5 y la disposición final 2». Y en una referencia sacada del
+    texto (ADR 0022), el recorte que la acompaña trae la cláusula pegada a la cita.
+
+    **El coste en recall está acotado y es aceptable**: una norma que suprima preceptos de una
+    vigilada sin que la referencia lo declare no sale de la cola de revisión — cae a R-MOD-001 o
+    a R-DER-001, que son `indeterminado`. Lo que se pierde es el **signo**, no la vigilancia, y
+    afirmar un signo que no se puede sostener es justo lo que prohíbe la regla de oro 2.
+    """
+    return tuple(
+        dict.fromkeys(
+            referencia.identificador
+            for referencia in referencias
+            if referencia.es_modificativa
+            and lista.contiene(referencia.identificador)
+            and _SUPRESION_DECLARADA.search(referencia.texto) is not None
+        )
+    )
+
+
 def _derogadas(referencias: tuple[ReferenciaAnterior, ...], lista: Watchlist) -> tuple[str, ...]:
     """Normas de la watchlist que este documento **deroga**, según el `<analisis>` oficial.
 
@@ -547,6 +629,11 @@ def clasificar(
         return None
 
     vigiladas = _vigiladas(referencias, lista)
+    # Las vigiladas a las que la referencia declara que se les suprimen preceptos. Es un
+    # subconjunto de `vigiladas` y es lo único que puede sostener el signo de R-SUP-001 (ADR
+    # 0023): sin esta distinción, una supresión cualquiera del documento se atribuía a la norma
+    # vigilada por el simple hecho de coexistir con ella en el mismo texto.
+    suprimidas = _suprimidas(referencias, lista)
     derogadas = _derogadas(referencias, lista)
 
     # El diff archivado acompaña a **toda** regla que identifique una norma vigilada, no solo a
@@ -557,7 +644,7 @@ def clasificar(
     propios = tuple(d for d in diffs if d.norma_afectada in vigiladas)
     perdidos = terminos_perdidos(propios)
 
-    if supresion and vigiladas:
+    if supresion and suprimidas:
         corroborados, sin_corroborar = corroborar(punteros, supresion)
         return Veredicto(
             regla=R_SUP_NORMA_VIGILADA,
@@ -565,7 +652,10 @@ def clasificar(
             severidad=4,
             confianza=0.8,
             evidencia=supresion,
-            normas_vigiladas=vigiladas,
+            # `suprimidas` y no `vigiladas`: lo que sostiene este veredicto es la norma a la que
+            # se le suprimen preceptos, no cualquier vigilada que el documento toque de paso. Y
+            # es lo que lee el gate humano en `evidencia_json.normas_vigiladas` (ADR 0017).
+            normas_vigiladas=suprimidas,
             punteros_corroborados=corroborados,
             punteros_sin_corroborar=sin_corroborar,
             terminos_perdidos=perdidos,
