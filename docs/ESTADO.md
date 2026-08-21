@@ -31,7 +31,21 @@ Dos cosas, siempre:
      tests, migración si toca y verificación en navegador o curl- ronda los **15-30k**. Si te
      sale más de 50k, sospecha de la estimación antes que del alcance. -->
 
-### ⇨ PLAN A V1 — pedido por el humano el 2026-08-08, fecha objetivo **2026-08-22**
+### ⇨ PLAN A V1 — pedido por el humano el 2026-08-08, fecha objetivo **2026-09-10**
+
+> **El plazo se movió del 22 de agosto al ~10 de septiembre el 2026-08-21**, a petición del
+> humano. No es solo más tiempo: **cambia qué cabe**. Con dos días, el histórico grande estaba
+> descartado y la fuerza del proyecto tenía que salir del rigor sobre un corpus pequeño. Con
+> veinte, un año entero de BOE son ~83 horas de máquina despierta y **sí cabe**.
+>
+> Lo que eso reordena, y está desarrollado en la última entrada de este fichero: la ingesta pasa
+> a ser una tarea de fondo que corre sola durante días, y el trabajo de sesión se va a la
+> interfaz del ADR 0025, al gold set y a recuperar las 172 ilegibles del DOGC.
+>
+> **El cuello de botella medido no es el pipeline, es que la máquina se duerme.** El ritmo real
+> son 834 documentos/hora, unos 20 minutos por día de BOE; la noche del 20 al 21 de agosto se
+> perdieron 15 horas por suspensión. Con la suspensión desactivada, un año son cuatro días de
+> reloj.
 
 Dos semanas. Lo que sigue es el recorte que hace que quepa; si el humano quiere otro, manda él.
 
