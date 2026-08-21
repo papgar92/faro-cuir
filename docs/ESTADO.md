@@ -2882,9 +2882,19 @@ que conserva la capacidad de gestar**». La reparación de 2021 modificó el sub
 —espermatozoides donados— y **no tocó el `ii)`**. Si el texto anterior no llevaba la fórmula, esto
 es la reparación completándose cinco años después, dentro de una orden que habla de otra cosa.
 
-Queda como `mirar` y **no como hallazgo**, a propósito: lo decide leer `version_norma.texto_anterior`,
-que es una consulta y no una opinión. Nadie lo ha publicado — se buscó y no hay nada en clave
-LGTBI+ sobre esta orden.
+**Comprobado en la misma sesión, y salió que no.** El texto anterior (`version_norma`, bloque
+`A5-3`, que existe gracias al ADR 0018) decía ya literalmente «Edad de la mujer **o persona
+transexual que conserva la capacidad de gestar**». Es continuidad, no extensión: no hay hallazgo.
+Lo que sí cambia es otra cosa —desaparece «establecido antes de los 36 años» del fallo ovárico
+prematuro—, que amplía el acceso de verdad pero no depende de la orientación ni de la identidad,
+así que cae fuera de lo que este sistema publica. El informe se rehízo a `descartar` con las dos
+redacciones citadas una al lado de otra.
+
+**Esto es el campo `refutacion` funcionando tal y como se diseñó**, y conviene dejarlo escrito
+porque es la primera vez que se ve: el informe traía «si el texto anterior ya lo incluía, esto es
+descartar» como hipótesis alternativa, se comprobó, y la comprobación tumbó la recomendación del
+propio asistente. Sin ese campo, la hipótesis bonita se habría quedado en pie por no llevarle nadie
+la contraria.
 
 #### La ingesta, y la prueba de que esto no es una demo
 
