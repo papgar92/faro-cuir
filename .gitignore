@@ -45,3 +45,6 @@ Thumbs.db
 
 # Notas sueltas del humano (ya recogidas en CLAUDE.md seccion 12)
 Mejoras.txt
+
+# Informes de apoyo importados a mano (ADR 0025): no son codigo ni archivo.
+backend/data/informes-*.json

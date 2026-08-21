@@ -65,6 +65,59 @@ class TextoArchivadoRevision(BaseModel):
     url_original: str
 
 
+class CitaInforme(BaseModel):
+    """Un fragmento literal que el informe usa para sostener lo que dice."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    texto: str
+    # De qué apartado sale, tal y como lo nombra la norma («5.3.8.1.a)»). Opcional: no todos los
+    # informes comparan redacciones.
+    apartado: str | None = None
+    # `vieja` o `nueva` cuando el informe enfrenta dos redacciones. Sin esto, dos citas seguidas
+    # no se distinguen y quien lee no sabe cuál es el antes.
+    version: str | None = None
+
+
+class CorroboracionInforme(BaseModel):
+    """Quién más lo ha dicho, con enlace. ADR 0025, decisión 4."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    organizacion: str
+    que_dice: str | None = None
+    url: str | None = None
+
+
+class InformeApoyo(BaseModel):
+    """El dosier que un asistente de IA prepara para quien revisa. **No es un veredicto.**
+
+    Se publica en la cola del panel y **nunca en la API pública de alertas**: es material de
+    lectura para decidir, no una conclusión del sistema. La clasificación sigue viniendo de
+    `clasificacion`, que la escriben las reglas (ADR 0004).
+
+    `refutacion` no es opcional ni aquí ni en el esquema de la base, y es el campo que impide
+    que esto funcione como un sello de goma: quien revisa tiene que poder llevarle la contraria
+    sin releerse el BOE. La interfaz lo enseña **siempre que enseñe la recomendación**.
+    """
+
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    # `alerta` | `mirar` | `descartar`. **No es el signo**: «alerta» significa «yo publicaría
+    # esto», y dos de los tres primeros informes que lo recomiendan son avances.
+    semaforo: str
+    resumen: str
+    a_quien_afecta: str | None
+    recomendacion: str
+    refutacion: str
+    citas: list[CitaInforme] = Field(default_factory=list)
+    corroboraciones: list[CorroboracionInforme] = Field(default_factory=list)
+    # Quién lo escribió y cuándo. Se publican para que la interfaz pueda decir «esto lo preparó
+    # una IA y no lo ha revisado nadie», que es la etiqueta que lo separa de una alerta.
+    generado_por: str
+    generado_en: datetime.datetime
+
+
 class ItemRevision(BaseModel):
     """Un ítem de la cola, tal y como lo ve quien tiene que decidir."""
 
@@ -105,6 +158,10 @@ class ItemRevision(BaseModel):
 
     norma: NormaRevision
     texto_archivado: TextoArchivadoRevision | None
+    # `None` mientras nadie haya preparado informe para este ítem, que es el estado normal: los
+    # informes se importan a mano (ADR 0025) y no existen para todo. La interfaz no debe pintar
+    # un hueco distinto de «aún no hay informe».
+    informe: InformeApoyo | None = None
 
 
 class ResolucionRevision(BaseModel):

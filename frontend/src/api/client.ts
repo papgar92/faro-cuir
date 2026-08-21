@@ -346,6 +346,28 @@ export interface SpanEvidenciaApi {
   fragmento: string;
 }
 
+/** Espejo de `InformeApoyo`. Ver `ItemRevisionApi.informe`. */
+export interface InformeApoyoApi {
+  /**
+   * `alerta` | `mirar` | `descartar`. **No es el signo**: «alerta» significa «yo publicaría
+   * esto», y de los tres primeros informes que lo recomendaron, dos eran avances. Pintarlo con
+   * la paleta de retroceso sería mentir sobre lo que dice.
+   */
+  semaforo: "alerta" | "mirar" | "descartar";
+  resumen: string;
+  a_quien_afecta: string | null;
+  recomendacion: string;
+  /** Qué tendría que ver quien revisa para decidir lo contrario. **Se enseña siempre que se
+   *  enseñe la recomendación**: es lo que impide que el informe funcione como un sello. */
+  refutacion: string;
+  citas: { texto: string; apartado: string | null; version: string | null }[];
+  /** Quién más lo ha dicho, con enlace (ADR 0025, decisión 4). Vacío significa que ninguna de
+   *  las organizaciones de referencia lo ha señalado todavía. */
+  corroboraciones: { organizacion: string; que_dice: string | null; url: string | null }[];
+  generado_por: string;
+  generado_en: string;
+}
+
 export interface ItemRevisionApi {
   id: number;
   estado: "pendiente" | "aprobada" | "descartada";
@@ -372,6 +394,15 @@ export interface ItemRevisionApi {
   version_reglas: string | null;
   version_texto_plano: string | null;
   normas_vigiladas: string[];
+  /**
+   * El dosier que un asistente de IA prepara para quien revisa (ADR 0025). `null` mientras nadie
+   * lo haya escrito, que es el estado normal.
+   *
+   * **No es un veredicto y no sustituye a `clasificacion`**, que la escriben las reglas. Se
+   * pinta SIEMPRE debajo de la evidencia: leer «yo publicaría esto» antes que el artículo es lo
+   * que convierte al gate humano en un trámite de confirmación.
+   */
+  informe: InformeApoyoApi | null;
   spans: SpanEvidenciaApi[];
   /**
    * El diff archivado, **entero y sin recortar por fecha**: quien revisa es el gate, así que

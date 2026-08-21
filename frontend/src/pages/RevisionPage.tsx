@@ -34,6 +34,7 @@ import {
   comprobarSesionPanel,
   listarColaRevision,
   resolverRevision,
+  type InformeApoyoApi,
   type ItemRevisionApi,
 } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
@@ -118,6 +119,117 @@ function Login({ onEntrar }: { onEntrar: () => void }) {
         </p>
       </form>
     </main>
+  );
+}
+
+const SEMAFORO: Record<
+  InformeApoyoApi["semaforo"],
+  { etiqueta: string; glifo: string; clases: string }
+> = {
+  // Colores de **prioridad de lectura**, no de la paleta avance/retroceso. Es deliberado: el
+  // semáforo dice «yo publicaría esto», no «esto recorta un derecho», y dos de los tres primeros
+  // informes en rojo eran avances. Usar `reg` aquí haría que el color afirmara lo que el informe
+  // no afirma.
+  alerta: { etiqueta: "Yo lo publicaría", glifo: "●", clases: "border-alr bg-alr-soft text-alr" },
+  mirar: { etiqueta: "Míralo con calma", glifo: "◐", clases: "border-line-2 bg-inset text-ink-2" },
+  descartar: { etiqueta: "Yo lo descartaría", glifo: "○", clases: "border-line-2 text-ink-3" },
+};
+
+/**
+ * El dosier de apoyo, si alguien lo ha preparado. ADR 0025.
+ *
+ * **Va debajo de la evidencia y del diff, nunca encima, y eso no es maquetación.** Si quien
+ * revisa lee «yo publicaría esto» antes que el artículo, deja de juzgar y pasa a confirmar: el
+ * gate humano se vacía por dentro sin que nadie lo desactive (CLAUDE.md 13.4). El orden de la
+ * pantalla es el único sitio donde ese riesgo se puede administrar.
+ *
+ * Por lo mismo, `refutacion` se pinta con el mismo peso visual que la recomendación y nunca
+ * plegada: es lo que le da a quien revisa con qué llevarle la contraria en treinta segundos.
+ */
+function InformeDeApoyo({ informe }: { informe: InformeApoyoApi }) {
+  const meta = SEMAFORO[informe.semaforo];
+  return (
+    <section className="mt-5 rounded border border-dashed border-line-2 bg-inset p-3.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-wide ${meta.clases}`}
+        >
+          <span aria-hidden="true">{meta.glifo}</span>
+          {meta.etiqueta}
+        </span>
+        {/* La etiqueta que separa esto de una alerta aprobada. No se esconde ni se abrevia. */}
+        <span className="font-mono text-[10.5px] text-ink-3">
+          informe de apoyo · lo preparó {informe.generado_por} · no lo ha revisado nadie
+        </span>
+      </div>
+
+      <p className="mt-2.5 text-sm leading-relaxed text-ink">{informe.resumen}</p>
+
+      {informe.a_quien_afecta && (
+        <p className="mt-2 text-sm leading-relaxed text-ink-2">
+          <span className="font-semibold text-ink">A quién afecta: </span>
+          {informe.a_quien_afecta}
+        </p>
+      )}
+
+      {informe.citas.length > 0 && (
+        <ul className="mt-3 list-none space-y-2 p-0">
+          {informe.citas.map((cita, indice) => (
+            <li key={indice} className="border-l-2 border-line-2 pl-2.5">
+              <p className="m-0 text-[13px] leading-relaxed text-ink-2">«{cita.texto}»</p>
+              {(cita.apartado || cita.version) && (
+                <p className="m-0 mt-0.5 font-mono text-[10.5px] text-ink-3">
+                  {[cita.apartado, cita.version && `redacción ${cita.version}`]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Lo que hace publicable un hallazgo sin revisión humana: que alguien con nombre ya lo
+          dijera. Vacío significa que ninguna organización de referencia lo ha señalado, y eso
+          también es información. */}
+      {informe.corroboraciones.length > 0 && (
+        <div className="mt-3">
+          <h5 className="m-0 text-[11px] font-semibold uppercase tracking-wide text-ink-3">
+            Quién más lo ha dicho
+          </h5>
+          <ul className="mt-1 list-none space-y-1 p-0 text-[13px] leading-relaxed text-ink-2">
+            {informe.corroboraciones.map((fuente, indice) => (
+              <li key={indice}>
+                <span className="font-semibold text-ink">{fuente.organizacion}</span>
+                {fuente.que_dice && `: ${fuente.que_dice}`}{" "}
+                {fuente.url && (
+                  <a
+                    href={fuente.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-link underline"
+                  >
+                    fuente ↗
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+        <p className="m-0 text-[13px] leading-relaxed text-ink-2">
+          <span className="font-semibold text-ink">Recomendación: </span>
+          {informe.recomendacion}
+        </p>
+        {/* Mismo peso visual que la recomendación, y jamás plegado. Ver la cabecera. */}
+        <p className="m-0 rounded border border-line-2 bg-surface p-2 text-[13px] leading-relaxed text-ink-2">
+          <span className="font-semibold text-ink">Qué le refutaría: </span>
+          {informe.refutacion}
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -321,6 +433,10 @@ function Tarjeta({ item, onResuelto }: TarjetaProps) {
           ))}
         </div>
       </fieldset>
+
+      {/* ADR 0025: DESPUÉS de la evidencia y del diff, y antes de decidir. Es el último
+          material de lectura, no el primero — ver la cabecera de `InformeDeApoyo`. */}
+      {item.informe && <InformeDeApoyo informe={item.informe} />}
 
       <label htmlFor={`nota-${item.id}`} className="mt-4 block text-xs font-medium text-ink">
         Nota de revisión (opcional, se guarda con la decisión)

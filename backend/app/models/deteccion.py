@@ -15,7 +15,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -151,6 +151,12 @@ class ColaRevision(Base):
     # que se resolvió y cuándo, y almacenar quién revisa qué en un proyecto sobre derechos
     # LGTBI+ crearía un dato personal sensible que no necesitamos (sección 6.4).
     nota_revision: Mapped[str | None] = mapped_column(Text)
+    # El informe de apoyo, si alguien lo ha preparado (ADR 0025). `uselist=False` porque es uno
+    # por ítem, y `cascade` para que borrar el ítem se lleve su material de trabajo: el informe
+    # no es archivo y no tiene por qué sobrevivirle.
+    informe: Mapped["InformeRevision | None"] = relationship(
+        back_populates="item", uselist=False, cascade="all, delete-orphan"
+    )
 
     # El signo que fija **la persona** que revisa, cuando la regla no lo afirmó o se quedó corta.
     # Va aparte de `deteccion.clasificacion` y no lo sobrescribe: aquella es lo que derivó una
@@ -236,6 +242,7 @@ class InformeRevision(Base):
     cola_revision_id: Mapped[int] = mapped_column(
         ForeignKey("cola_revision.id", ondelete="CASCADE"), nullable=False, unique=True
     )
+    item: Mapped["ColaRevision"] = relationship(back_populates="informe")
     semaforo: Mapped[Semaforo] = mapped_column(
         Enum(
             Semaforo,

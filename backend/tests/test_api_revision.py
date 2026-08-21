@@ -38,7 +38,9 @@ from app.models.deteccion import (
     ColaRevision,
     Deteccion,
     EstadoRevision,
+    InformeRevision,
     OrigenClasificacion,
+    Semaforo,
 )
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.fuente import AmbitoTerritorial, FormatoFuente, Fuente, TipoFuente
@@ -630,3 +632,77 @@ class TestSoloEntraLoQueSenalaUnaNormaVigilada:
         sesion_db.commit()
 
         assert (resumen.candidatas, resumen.encoladas) == (1, 1)
+
+
+class TestInformeDeApoyo:
+    """El dosier del ADR 0025 en la cola, y lo que la API garantiza sobre él."""
+
+    def _con_informe(self, sesion_db: Session, **campos: object) -> None:
+        norma = _sembrar(sesion_db)
+        deteccion = sesion_db.scalar(select(Deteccion).where(Deteccion.norma_id == norma.id))
+        assert deteccion is not None
+        servicio.encolar(sesion_db)
+        item = sesion_db.scalar(
+            select(ColaRevision).where(ColaRevision.deteccion_id == deteccion.id)
+        )
+        assert item is not None
+        base: dict[str, object] = {
+            "semaforo": Semaforo.ALERTA,
+            "resumen": "Ata el acceso a un diagnóstico que solo cumple una pareja heterosexual.",
+            "recomendacion": "A alerta, con signo retroceso.",
+            "refutacion": "Que la redacción anterior ya exigiera lo mismo.",
+            "citas": [{"texto": "Se aplicarán a las personas…", "apartado": "5.3.8.1.a)"}],
+            "corroboraciones": [],
+            "generado_por": "agente jurista-lgtbi",
+        }
+        base.update(campos)
+        sesion_db.add(InformeRevision(cola_revision_id=item.id, **base))
+        sesion_db.commit()
+
+    def test_la_cola_trae_el_informe_con_su_refutacion(
+        self, client: TestClient, sesion_db: Session
+    ) -> None:
+        """`refutacion` viaja siempre: es lo que permite llevarle la contraria al informe.
+
+        Si algún día se cayera del contrato, la interfaz enseñaría una recomendación sin con qué
+        rebatirla, que es exactamente el sello de goma que el ADR 0025 evita.
+        """
+        self._con_informe(sesion_db)
+        _entrar(client)
+
+        (item,) = client.get("/api/revision/cola").json()
+
+        assert item["informe"]["semaforo"] == "alerta"
+        assert item["informe"]["refutacion"]
+        assert item["informe"]["generado_por"] == "agente jurista-lgtbi"
+
+    def test_el_informe_no_toca_la_clasificacion_de_la_regla(
+        self, client: TestClient, sesion_db: Session
+    ) -> None:
+        """La prueba de que la separación del ADR 0025 es real y no nominal.
+
+        El informe recomienda alerta con signo retroceso; la detección sembrada es lo que las
+        reglas dijeron. Que convivan sin pisarse es el ADR 0004 intacto: si un día el informe
+        escribiera `clasificacion`, este test se pondría rojo.
+        """
+        self._con_informe(sesion_db)
+        _entrar(client)
+
+        (item,) = client.get("/api/revision/cola").json()
+
+        assert item["informe"]["semaforo"] == "alerta"
+        assert item["clasificacion"] == "retroceso"
+        assert item["origen"] == "derivado_diff"
+
+    def test_un_item_sin_informe_lo_dice_con_null(
+        self, client: TestClient, sesion_db: Session
+    ) -> None:
+        """Es el estado normal: los informes se importan a mano y no existen para todo."""
+        _sembrar(sesion_db)
+        servicio.encolar(sesion_db)
+        sesion_db.commit()
+        _entrar(client)
+
+        (item,) = client.get("/api/revision/cola").json()
+
+        assert item["informe"] is None

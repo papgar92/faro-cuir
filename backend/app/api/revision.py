@@ -42,6 +42,7 @@ from app.models.norma import Norma
 from app.schemas.alerta import CambioPrecepto
 from app.schemas.revision import (
     Credenciales,
+    InformeApoyo,
     ItemRevision,
     NormaRevision,
     ResolucionRevision,
@@ -184,6 +185,11 @@ def _item(
         texto_archivado=(
             TextoArchivadoRevision.model_validate(cuerpo) if cuerpo is not None else None
         ),
+        # ADR 0025. Va **el último del objeto** a propósito, y no es cosmética: la interfaz lo
+        # pinta debajo de la evidencia porque leer «yo publicaría esto» antes que el artículo
+        # convierte al gate humano en un trámite de confirmación. El orden del contrato ayuda a
+        # que la interfaz lo respete.
+        informe=(InformeApoyo.model_validate(cola.informe) if cola.informe is not None else None),
     )
 
 
