@@ -2834,3 +2834,86 @@ cuatro días de reloj. Si la ingesta parece lenta, mira eso antes que el código
 5. **Las 172 ilegibles del DOGC por PDF** (~25k + ADR).
 6. **La poda de `CLAUDE.md`**, en 63,5 KB con su límite en ~55. La parte mecánica está hecha; lo
    que queda son reescrituras de prosa normativa y **lo decide una persona**.
+
+### ✅ Los informes tienen corroboración, y dos hallazgos ya son publicables — 2026-08-21
+
+El campo `corroboraciones` del ADR 0025 existía y se pintaba desde ayer, pero **estaba vacío en
+los tres informes que había**: se escribieron antes que él. Sin corroboración no hay hallazgo
+publicable, así que esto era lo que bloqueaba el objetivo del histórico. Ya no.
+
+Los **siete** ítems pendientes de la cola tienen informe nuevo, generado por el subagente
+`jurista-lgtbi` sobre el **texto archivado real** —se le volcó el contenido alrededor de cada span
+de evidencia, para que las citas salieran del fichero sellado y no de su memoria— y verificados de
+punta a punta hasta el esquema de la API.
+
+#### Lo que sale publicable, y lo que no
+
+| | ítems | por qué |
+|---|---|---|
+| **Hallazgo publicable** | `BOE-A-2014-11444`, `BOE-A-2021-18287` | semáforo `alerta`, sin aprobación humana **y con corroboración** |
+| Solo para el gate | los otros cinco | o no son `alerta`, o nadie los ha documentado |
+
+Los dos publicables son el par exclusión→reparación de la reproducción asistida, y su respaldo es
+el bueno: el **Ministerio reconociendo por escrito y en el BOE** que su propia orden de 2014 dejó
+fuera a «las mujeres sin pareja, las lesbianas o las personas transexuales que conservan la
+capacidad de gestar», más **FELGTBI+** y **Civio**, que cita el mismo requisito de «coito vaginal»
+que está en nuestro texto archivado. Son dos hechos verificables por separado y ninguno nuestro,
+que es exactamente lo que pide la decisión 4 del ADR 0025.
+
+#### Lo que no se ha encontrado, dicho como toca
+
+**Dos informes van con `corroboraciones: []` y eso es un resultado, no un hueco.** Las órdenes
+SND/454/2025 y SND/44/2022 no las ha comentado ninguna organización: solo hay repositorios legales
+y prensa sanitaria. Es coherente con que ninguna de las dos toque nada del colectivo, y es también
+el perfil de lo que este proyecto existe para leer — cambios de anexo técnico sin titulares, que
+casi nunca tienen a quién citar. Sirven igual para el gate humano; a la web no salen.
+
+Se rechazaron corroboraciones que habrían colado fácil: un artículo de gTt-VIH de 2010 que habla de
+la fase previa y no de la orden de 2015, y no se forzó ningún informe de Amnistía sobre 2014 —se
+buscó y no existe—. Las dos que se conservan pese a no ser del todo directas (una nota de 2021 en
+la orden de 2026, y un artículo de opinión de 2025 en la de 2019) **llevan la reserva escrita dentro
+del propio campo `que_dice`**, para que quien revise la lea antes que el enlace.
+
+#### Un hallazgo nuevo, y es de los silenciosos
+
+La Orden SND/356/2026 —título: cribados prenatales, neonatales y de cáncer colorrectal— retoca de
+paso el apartado `5.3.8.3.b)2.ºii)`, ovocitos donados, y ahí dice «la mujer **o persona transexual
+que conserva la capacidad de gestar**». La reparación de 2021 modificó el subapartado hermano `i)`
+—espermatozoides donados— y **no tocó el `ii)`**. Si el texto anterior no llevaba la fórmula, esto
+es la reparación completándose cinco años después, dentro de una orden que habla de otra cosa.
+
+Queda como `mirar` y **no como hallazgo**, a propósito: lo decide leer `version_norma.texto_anterior`,
+que es una consulta y no una opinión. Nadie lo ha publicado — se buscó y no hay nada en clave
+LGTBI+ sobre esta orden.
+
+#### La ingesta, y la prueba de que esto no es una demo
+
+Sobrevivió al corte de cuota de las 20:40 sin que nadie la tocara: está desacoplada dentro del
+contenedor y siguió sola. Va hacia atrás por meses (agosto→abril de 2026 hechos, ~1 mes/hora) y el
+corpus está en **32.332 cuerpos archivados, de 2014 a hoy**. Para comparar: el ADR 0011 se decidió
+midiendo sobre 436 normas.
+
+Mientras se escribía todo esto **aparecieron dos ítems nuevos en la cola** (`BOE-A-2026-15302` y la
+Ley 3/2026 de cribado neonatal), encontrados por el backfill en julio de 2026. El pipeline está
+produciendo detecciones solo, sin que nadie lo lance.
+
+#### Dos cosas que quedan dichas y no resueltas
+
+1. **Los JSON de informes están en `.gitignore`** (línea 54, decisión explícita de una sesión
+   anterior: «no son código ni archivo»). Es coherente con el ADR, pero cuestan una tanda de
+   subagente y de búsqueda web, y son la única explicación de qué hay en `informe_revision`. Se
+   intentó versionarlos y **se revirtió**: contradecía una decisión escrita, y eso lo decide una
+   persona. Si se pierde `backend/data/`, se pierden.
+2. **Ningún informe se ha aprobado.** La cola sigue con los nueve `pendiente`: el importador no
+   resuelve nada y la regla de oro 4 sigue intacta.
+
+#### Siguiente, por orden
+
+1. **La superficie pública de hallazgos** (~20k): lista y feed, con su etiqueta y separada de las
+   alertas. Ya hay dos hallazgos reales que enseñar, así que deja de ser trabajo a ciegas.
+2. **Resolver la comprobación de la SND/356/2026** (~5k): leer el texto anterior del
+   `5.3.8.3.b)2.ºii)`. Barato y puede convertir un `mirar` en el tercer hallazgo.
+3. **Seguir la ingesta hacia atrás.** Tarea de fondo, se lanza y se deja.
+4. **Gold set de 32 a 60-80 casos** (~20k).
+5. **Las 172 ilegibles del DOGC por PDF** (~25k + ADR).
+6. **La poda de `CLAUDE.md`**, en 63,5 KB con su límite en ~55. Lo decide una persona.
