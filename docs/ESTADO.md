@@ -2757,3 +2757,80 @@ II"». El corpus ya tiene el documento que lo demuestra.
 2. **Recuperar las 172 ilegibles del DOGC por PDF** (~25k + ADR).
 3. **`docs/CLAUDE.md` está en 63,5 KB** con el límite en ~55. La parte mecánica de la poda está
    hecha; lo que queda son reescrituras de prosa normativa y **eso lo decide una persona**.
+
+
+---
+
+### ✅ El informe de apoyo entra en el producto, y el gate gana su segunda puerta — 2026-08-20/21
+
+Dos ADR y el cierre del ciclo que empezó con el gold set: el sistema detecta, el catálogo
+clasifica, un asistente prepara el trabajo y **decide una persona**.
+
+#### ADR 0024 — la segunda puerta del gate
+
+«Se suprime el Consejo LGTBI de Aragón» no nombra ninguna norma vigilada —ese consejo lo creó un
+decreto que no está en la watchlist— así que la detección se creaba y **moría sin que nadie la
+mirase**. Desaparecía quien vigila la ley y era invisible.
+
+`R-SUP-003` exige las dos condiciones **sobre la misma cláusula**: nombre de órgano y término
+directo. Es el ADR 0023 aplicado antes de cometer el error, con un test que siembra las dos
+condiciones en cláusulas distintas y exige que **no** dispare. El gate lo comprueba por el
+contenido de la evidencia (`organos_afectados`), no por el identificador de la regla.
+
+**Medido antes de abrirla: de las 10 detecciones de R-SUP-002 del corpus, cero la cruzan.** Coste
+en ruido, cero. Y por lo mismo **su precisión está sin observar**: es la primera regla del
+catálogo que entra sin un documento del corpus delante, y queda escrito en el ADR.
+
+#### ADR 0025 — el informe de apoyo, y el hallazgo que no es una alerta
+
+El dosier que el `jurista-lgtbi` escribe para cada ítem deja de vivir en una conversación:
+`informe_revision`, colgando de `cola_revision` y **nunca de `deteccion`**. Si se borrara la tabla
+entera, ninguna alerta cambiaría de signo — esa es la prueba de que la separación es real.
+
+Cuatro decisiones que no se relajan:
+
+1. **`refutacion` es NOT NULL** en el esquema y se rechaza antes en el importador. Sin «qué me
+   refutaría», la recomendación funciona como un sello de goma.
+2. **El semáforo no es el signo.** «Alerta» significa «yo publicaría esto»: de los tres primeros
+   informes en rojo, **dos son avances**. Enum propio y paleta de prioridad, no de retroceso.
+3. **La generación vive fuera del sistema y se dice.** El único modelo que el proyecto puede
+   permitirse es el 3B local, con 36 % de timeouts y la mitad de las respuestas sin anclar. Un
+   panel que dijera «análisis del asistente» con eso detrás prometería lo que el sistema no hace.
+4. **Un hallazgo histórico no entra nunca en la tabla `alerta`.** Se deriva de tener informe con
+   semáforo `alerta` sin aprobación humana. Dos superficies en dos sitios distintos de la base, y
+   por eso la frase de la portada sigue siendo literalmente cierta.
+
+Y `corroboraciones` —lo que FELGTBI+, Amnistía o ILGA ya han documentado, con enlace— es lo que
+hace publicable un hallazgo sin revisión humana: sin ese campo se publicaría la opinión de un
+modelo; con él, **dos hechos verificables y ninguno nuestro**.
+
+#### El panel
+
+El informe se pinta **debajo de la evidencia y del diff, nunca encima**, y eso no es maquetación:
+leer «yo publicaría esto» antes que el artículo convierte al gate en un trámite. Está escrito en
+la cabecera del componente para que nadie lo reordene por hacer sitio. `refutacion` va con el
+mismo peso visual que la recomendación y **jamás plegada**.
+
+Verificado importando los tres informes reales del 2026-08-20. **665 tests en verde.**
+
+#### La ingesta de fondo, y el cuello de botella que no era el pipeline
+
+Corriendo hacia atrás desde hoy, por bloques mensuales, para que la cobertura sea **contigua y
+llegue siempre hasta hoy** — un archivo que termina hace un mes se ve fatal en una demo.
+
+**El ritmo real son 834 documentos/hora**, unos 20 minutos por día de BOE. La noche del 20 al 21
+se perdieron **15 horas porque el ordenador se durmió**; con la suspensión desactivada, un año son
+cuatro días de reloj. Si la ingesta parece lenta, mira eso antes que el código.
+
+#### Siguiente, por orden
+
+1. **Rehacer los siete informes con corroboraciones** (~15k). El campo existe y se pinta, pero los
+   informes de hoy se escribieron antes que él. **Sin corroboración no hay hallazgo publicable**,
+   así que esto bloquea el objetivo del histórico.
+2. **La superficie pública de hallazgos** (~20k): lista y feed, con su etiqueta y separada de las
+   alertas. Es la otra mitad del ADR 0025.
+3. **Seguir la ingesta hacia atrás** mes a mes. Es tarea de fondo: se lanza y se deja.
+4. **Gold set de 32 a 60-80 casos** (~20k). Ahora habrá corpus corriente contra el que medir.
+5. **Las 172 ilegibles del DOGC por PDF** (~25k + ADR).
+6. **La poda de `CLAUDE.md`**, en 63,5 KB con su límite en ~55. La parte mecánica está hecha; lo
+   que queda son reescrituras de prosa normativa y **lo decide una persona**.
