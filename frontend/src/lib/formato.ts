@@ -24,10 +24,19 @@ const MESES = [
  * día del calendario, no un instante.
  */
 export function formatearFecha(iso: string): string {
-  const [anio, mes, dia] = iso.split("-");
+  // `slice(0, 10)` porque esto recibe las dos formas: `fecha_publicacion` es una fecha suelta
+  // (`2014-11-06`) pero `generado_en` de un informe es un instante completo
+  // (`2026-08-21T20:50:00Z`). Sin recortar, el dia salia como `21T20:50:00Z` y la pantalla
+  // publicaba «el NaN ago 2026» — visto en el navegador el 2026-08-22, no por ningun test.
+  const [anio, mes, dia] = iso.slice(0, 10).split("-");
   const indiceMes = Number(mes) - 1;
-  if (!anio || !dia || Number.isNaN(indiceMes) || !MESES[indiceMes]) return iso;
-  return `${Number(dia)} ${MESES[indiceMes]} ${anio}`;
+  const numeroDia = Number(dia);
+  // Se comprueba que el dia sea un NUMERO, no solo que exista: esa era exactamente la grieta
+  // por la que se colaba el NaN.
+  if (!anio || !dia || Number.isNaN(numeroDia) || Number.isNaN(indiceMes) || !MESES[indiceMes]) {
+    return iso;
+  }
+  return `${numeroDia} ${MESES[indiceMes]} ${anio}`;
 }
 
 /**

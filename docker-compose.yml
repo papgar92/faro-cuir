@@ -29,6 +29,11 @@ services:
   backend:
     build:
       context: ./backend
+    # Vuelve solo si el motor de Docker se reinicia o el equipo se apaga. Puesto el 2026-08-22,
+    # despues de que el engine se colgara y `db` y `frontend` volvieran solos mientras estos dos
+    # se quedaban fuera sin que nada lo dijera. `unless-stopped` y no `always` a proposito: si lo
+    # paras tu a mano, sigue parado.
+    restart: unless-stopped
     env_file:
       - .env
     # Ollama corre en la MAQUINA del humano, no en la red de compose. Dentro de un
@@ -72,6 +77,12 @@ services:
   worker:
     build:
       context: ./backend
+    # Igual que `backend`. OJO CON LO QUE ESTO **NO** ARREGLA: la ingesta de fondo se lanza con
+    # `docker compose exec -d worker sh /app/backfill.sh`, y un `exec` no es el comando del
+    # contenedor, asi que al reiniciarse vuelve el contenedor pero NO el backfill. Hay que
+    # relanzarlo a mano — barato desde que el script es reanudable: salta en segundos los bloques
+    # ya hechos y sigue por donde iba.
+    restart: unless-stopped
     env_file:
       - .env
     # Ollama corre en la MAQUINA del humano, no en la red de compose. Dentro de un

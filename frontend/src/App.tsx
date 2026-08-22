@@ -5,6 +5,7 @@ import { PANTALLAS_CON_MOCK, type Screen, type SeleccionNorma } from "./lib/navi
 import { AlertasPage } from "./pages/AlertasPage";
 import { ArchivoPage } from "./pages/ArchivoPage";
 import { FichaPage } from "./pages/FichaPage";
+import { HallazgosPage } from "./pages/HallazgosPage";
 import { MapaPage } from "./pages/MapaPage";
 import { RevisionPage } from "./pages/RevisionPage";
 
@@ -45,6 +46,7 @@ export default function App() {
       {screen === "alertas" && (
         <AlertasPage comunidadInicial={comunidadFiltro} onGoArchivo={goArchivo} />
       )}
+      {screen === "hallazgos" && <HallazgosPage />}
       {screen === "archivo" && <ArchivoPage onVerFicha={verFicha} />}
       {screen === "ficha" && <FichaPage seleccion={seleccion} onIrAlArchivo={goArchivo} />}
       {screen === "revision" && <RevisionPage />}

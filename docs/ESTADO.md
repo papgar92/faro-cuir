@@ -2927,3 +2927,96 @@ produciendo detecciones solo, sin que nadie lo lance.
 4. **Gold set de 32 a 60-80 casos** (~20k).
 5. **Las 172 ilegibles del DOGC por PDF** (~25k + ADR).
 6. **La poda de `CLAUDE.md`**, en 63,5 KB con su límite en ~55. Lo decide una persona.
+
+### ✅ La superficie pública de hallazgos existe, y el gate humano funcionó por primera vez — 2026-08-22
+
+Cierra el ADR 0025: los hallazgos ya tienen su sitio en el producto, separado de las alertas.
+
+#### El circuito completo, de punta a punta y con una persona dentro
+
+La noche del 21, después de importar los siete informes, **el humano resolvió los nueve ítems de
+la cola en once minutos**: cuatro aprobados y cinco descartados. Es la primera vez que el ciclo se
+recorre entero —el pipeline detecta, el catálogo clasifica, un asistente prepara el dosier y
+**decide una persona**— y conviene registrarlo porque es lo que el proyecto promete.
+
+Efecto colateral que confundió al principio: `/api/hallazgos` devuelve `[]`, y es **correcto**. Un
+hallazgo deja de serlo en cuanto alguien lo aprueba; pasa a `alerta` y a la otra pantalla. Hay un
+test que lo exige (`test_aprobar_un_hallazgo_lo_saca_de_aqui`).
+
+#### Dos signos publicados al revés, y cómo se corrigieron
+
+De los cuatro aprobados, dos quedaron con el signo contrario al de su informe: la Orden
+SSI/2065/2014 —la que **excluyó** a lesbianas, mujeres solas y personas trans de la RHA pública—
+salió como `avance`, y la Orden SCB/480/2019 —que **crea** el cribado de cérvix— como `retroceso`.
+Ya estaban servidos en `/api/alertas`.
+
+**Causa probable, y es un hallazgo de producto:** los cuatro títulos aprobados esa noche son casi
+idénticos («Orden …, por la que se modifican los anexos … del Real Decreto 1030/2006…») y en el
+panel los radios «Avance» y «Retroceso» van pegados, con 12 px de separación. Nueve ítems en once
+minutos. **El gate tiene que hacer el signo difícil de errar, no solo posible de fijar** — queda
+como tarea.
+
+Corregidos con autorización del humano en `backend/scripts/corregir_signos_20260822.sql`. Solo
+toca `clasificacion_humana`: no reabre la cola (ADR 0017), no re-emite alertas, no toca
+`deteccion.clasificacion`. **Va en un fichero con su porqué y no en un UPDATE suelto**, porque
+cambiar en silencio un dato ya publicado es la desindexación sin registro que este proyecto
+documenta para denunciarla.
+
+#### Qué se publica de un hallazgo, y qué no
+
+`GET /api/hallazgos` y su pantalla. Las tres condiciones viven **en el `where`** de
+`services/hallazgos.consulta()` y no en un bucle: informe con semáforo `alerta`, sin fila en
+`alerta`, y con al menos una corroboración. En el `where` no hay forma de pedir la lista sin
+ellas, porque no existe una consulta sin ellas.
+
+**La proyección pública del informe es más estrecha que la del panel, y esa es la decisión de
+diseño de la tarea.** Salen `resumen`, `a_quien_afecta`, `citas`, `corroboraciones` y
+`refutacion`. **No salen `recomendacion` ni `semaforo`**: son «yo publicaría esto», la opinión del
+asistente, y la regla de oro 2 dice que el sistema nunca emite un juicio propio. Un hallazgo
+afirma dos hechos verificables y ninguno nuestro —el cambio ocurrió, alguien lo denunció—, no un
+veredicto. `revisado_por_humano` es un `Literal[False]`: no se puede poner a `True` sin que
+Pydantic falle.
+
+#### Lo que encontró el navegador y no habría encontrado ningún test
+
+`formatearFecha` publicaba **«lo preparó un asistente de IA el NaN ago 2026»**. Recibía un
+instante completo (`2026-08-21T20:50:00Z`) donde esperaba una fecha suelta, y su guarda comprobaba
+que el día existiera pero no que fuera un número. Arreglado en la utilidad y no en la tarjeta,
+porque el fallo era suyo y lo heredaba cualquier llamante. Es el argumento de 13.2 sobre verificar
+en el navegador, otra vez.
+
+#### Los dos tests rojos, que llevaban tiempo rojos
+
+`test_el_historico_de_versiones_no_se_puede_alterar[UPDATE|DELETE]` fallaba **en la preparación**,
+no en la comprobación: su `INSERT` es anterior al ADR 0018 y no tenía las columnas que se
+volvieron obligatorias. O sea que **la inmutabilidad del archivo llevaba desde entonces sin
+verificarse** — el trigger existía, pero su test no llegaba a ejecutarlo. Un control cuyo test no
+lo alcanza no es un control comprobado. **678 tests en verde**, cero rojos.
+
+#### La ingesta, que hoy se cayó dos veces y ninguna perdió datos
+
+Se paró por suspensión del portátil (11,5 h) y luego por un cuelgue del motor de Docker. **Los
+datos nunca estuvieron en riesgo** —cada documento se confirma en Postgres según se descarga, y el
+volumen con nombre sobrevive a todo eso—, pero cada reinicio costaba ~5 horas repitiendo meses ya
+hechos porque la lista vivía en la memoria del shell.
+
+Ahora `backfill.sh` es **reanudable**: un fichero de marcas, una por bloque, escrita **solo si el
+worker sale con 0**. Un bloque interrumpido se repite entero, que es barato por el `sha256` y es
+lo único que evita huecos silenciosos. Probado: al relanzar saltó cinco meses en segundos.
+
+Y dos causas arregladas fuera del código: la suspensión en batería estaba a 3 minutos (ahora
+desactivada; apagar la **pantalla** es otro ajuste y no para nada, comprobado en el log), y
+`backend` y `worker` ya llevan `restart: unless-stopped`. **Ojo con lo que eso no arregla**: el
+backfill se lanza con `exec -d`, que no es el comando del contenedor, así que al reiniciarse
+vuelve el contenedor pero no la ingesta. Hay que relanzarla a mano.
+
+Corpus: **36.496 cuerpos archivados**, de 2014 a 2026.
+
+#### Siguiente, por orden
+
+1. **Que el signo sea difícil de errar en el panel** (~10k). Lo pide el incidente de arriba:
+   separar «Avance» y «Retroceso», y enseñar el identificador de la norma junto al selector.
+2. **Gold set de 32 a 60-80 casos** (~20k). Ahora hay corpus de sobra contra el que medir.
+3. **Las 172 ilegibles del DOGC por PDF** (~25k + ADR).
+4. **Feed Atom de hallazgos**, si se decide que lo tenga: hoy solo hay lista y pantalla.
+5. **La poda de `CLAUDE.md`**, en 63,5 KB con su límite en ~55. Lo decide una persona.

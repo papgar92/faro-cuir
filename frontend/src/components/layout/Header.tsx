@@ -15,6 +15,10 @@ interface HeaderProps {
 const NAV_ITEMS: Array<{ screen: Screen; label: string }> = [
   { screen: "mapa", label: "Mapa" },
   { screen: "alertas", label: "Alertas" },
+  // Los hallazgos historicos (ADR 0025). Entrada propia y separada de «Alertas» a
+  // proposito: son dos cosas que afirman cosas distintas -una la reviso una persona y
+  // la otra no- y fundirlas en un menu dejaria esa diferencia en manos de una etiqueta.
+  { screen: "hallazgos", label: "Hallazgos" },
   { screen: "archivo", label: "Archivo" },
   { screen: "ficha", label: "Ficha de norma" },
   // El panel del gate humano (ADR 0017). Está en la navegación pública a propósito: que exista

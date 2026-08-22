@@ -214,9 +214,17 @@ def test_el_historico_de_versiones_no_se_puede_alterar(operacion: str) -> None:
             )
             conexion.execute(
                 text(
-                    "INSERT INTO version_norma (norma_id, ordinal, texto_nuevo) "
-                    "SELECT id, 1, 'texto original' FROM norma "
-                    "WHERE identificador_oficial = 'TMP-TEST-N1'"
+                    # `norma_afectada` y `version_derivacion` son NOT NULL desde el ADR
+                    # 0018 y este INSERT no se actualizo entonces, asi que el test llevaba
+                    # fallando en la PREPARACION -no en la comprobacion- y la inmutabilidad
+                    # del archivo estaba sin verificar. Un control cuyo test no llega a
+                    # ejecutarlo no es un control comprobado.
+                    "INSERT INTO version_norma "
+                    "(norma_id, norma_afectada, version_derivacion, "
+                    " documento_consolidado_id, ordinal, texto_nuevo) "
+                    "SELECT id, 'BOE-A-2006-16212', '2026.08.15.1', documento_id, 1,"
+                    " 'texto original' "
+                    "FROM norma WHERE identificador_oficial = 'TMP-TEST-N1'"
                 )
             )
             with pytest.raises(SQLAlchemyError, match="inmutable"):

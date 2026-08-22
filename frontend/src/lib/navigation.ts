@@ -1,4 +1,4 @@
-export type Screen = "mapa" | "alertas" | "archivo" | "ficha" | "revision";
+export type Screen = "mapa" | "alertas" | "hallazgos" | "archivo" | "ficha" | "revision";
 
 /**
  * Qué norma tiene que pintar la Ficha. Hacen falta los dos ids: la API expone las normas
