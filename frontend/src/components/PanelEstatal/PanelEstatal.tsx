@@ -1,6 +1,7 @@
 import type { AlertaApi } from "../../api/client";
 import { COLOR_CLASSES, type ColorClasificacion } from "../../lib/classification";
 import type { ResumenEstatal } from "../../lib/mapa";
+import { CCAA_PATHS, MAPA_VIEWBOX } from "../MapaCCAA/ccaa-paths";
 
 /**
  * Lo que pasa en el **ámbito estatal**, que es el nivel que el mapa por comunidades no puede
@@ -48,14 +49,62 @@ const META_SIGNO: Record<
   indeterminado: { etiqueta: "sin signo", glifo: "?", color: "alr" },
 };
 
+/**
+ * Silueta de España **en contorno y sin rellenar**, como rótulo de la banda.
+ *
+ * La versión rellena se descartó y el motivo sigue vigente: un relleno obliga a elegir un color,
+ * y elegir un color aquí es emitir un veredicto nacional que ninguna regla derivó. **En contorno
+ * no afirma nada**: dice «esto va de todo el territorio» y se calla, que es exactamente lo que
+ * hace falta. El dato lo llevan los cuadrados de al lado.
+ *
+ * Se dibuja con **la misma geometría del mapa grande** (`CCAA_PATHS`) y no con un SVG aparte. Un
+ * segundo trazado de España en el repositorio seria una segunda verdad geográfica que se puede
+ * desincronizar de la primera sin que nadie lo note; asi, si el mapa se corrige, esto se corrige
+ * solo. Sin divisiones internas —un unico `stroke` por region a esta escala es ruido— y sin las
+ * Canarias en su recuadro, que a 44 px no se leen.
+ */
+function SiluetaEspana() {
+  return (
+    <svg
+      viewBox={`0 0 ${MAPA_VIEWBOX.ancho} ${MAPA_VIEWBOX.alto}`}
+      className="h-11 w-auto shrink-0"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {/*
+        Macizo y sin `stroke`, y esto se decidió MIRÁNDOLO: en contorno puro se dibujaban las
+        diecinueve fronteras interiores y a 44 px eso no es una silueta, es una maraña. Sin
+        trazo, las regiones se tocan y solo queda el perímetro — una forma limpia y reconocible.
+
+        Que esté macizo NO es la versión que se descartó. Lo que se descartó era rellenarla con un
+        color de ESTADO (`adv`/`reg`), porque eso obliga a elegir un signo y publica un veredicto
+        nacional que ninguna regla derivó. Esto es tinta: el mismo gris que las líneas de la
+        interfaz, sin significado semántico. Es un pictograma, no una medición.
+
+        Canarias se excluye: en el mapa grande vive en su recuadro, y aquí, sin recuadro, aparecía
+        como una mancha suelta a media pulgada del continente. A este tamaño el rótulo gana más
+        siendo legible que siendo exhaustivo.
+      */}
+      <g fill="var(--color-line-2)" opacity={0.55}>
+        {CCAA_PATHS.filter((path) => path.code !== "CN").map((path) => (
+          <path key={path.code} d={path.d} />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
 export function PanelEstatal({ resumen, onVerAlertas }: PanelEstatalProps) {
   return (
     <section className="mt-4 rounded border border-line bg-inset p-3.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="m-0 text-xs font-semibold uppercase tracking-wide text-ink-2">
-          Ámbito estatal · BOE
-        </h3>
-        <span className="font-mono text-xs text-ink-3">1 de 1 fuente vigilada</span>
+      <div className="flex items-start gap-3">
+        <SiluetaEspana />
+        <div className="flex flex-1 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 className="m-0 text-xs font-semibold uppercase tracking-wide text-ink-2">
+            Ámbito estatal · BOE
+          </h3>
+          <span className="font-mono text-xs text-ink-3">1 de 1 fuente vigilada</span>
+        </div>
       </div>
 
       {resumen.total === 0 ? (
