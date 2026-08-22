@@ -3449,6 +3449,27 @@ normas con cuerpo archivado**, el embudo ya se puede medir:
 | Pasan a la cola del LLM | **600 (0,90 %)** |
 | Ilegibles | 89 (0,13 %) |
 
+> **⚠️ CORRECCIÓN del mismo día — ese 0,90 % está diluido y no se debe volver a publicar solo.**
+> El **61 % del corpus son anuncios** (`BOE-B-*`: licitaciones, edictos, nombramientos), que no son
+> normativa. Separado por tipo de documento:
+>
+> | | normas | pasan | % |
+> |---|---|---|---|
+> | Anuncios (`BOE-B`) | 40.945 | 13 | **0,032 %** |
+> | Disposiciones | 26.302 | 592 | **2,25 %** |
+>
+> **El número honesto sobre normativa de verdad es 2,25 %**, no 0,90 %. El factor de reducción del
+> coste del LLM no cambia —se calcula sobre lo que hay que procesar, y hay que procesarlo todo—
+> pero cualquier afirmación sobre *selectividad del prefiltro* tiene que ir sobre disposiciones.
+>
+> **Los 13 anuncios que pasan son todos `sospecha`, ninguno `relevante`**, y cinco son licitaciones
+> de la Confederación Hidrográfica del Ebro. Es ruido, pero barato: 13 ítems de baja prioridad en
+> una cola de 600.
+>
+> **Aun así NO se propone excluir `BOE-B` de la ingesta.** Los edictos judiciales de rectificación
+> registral se publican ahí, y ese es justo el trámite que le importa a una persona trans. Un
+> rendimiento del 0,03 % no autoriza a dejar de mirar el sitio donde vive el caso individual.
+
 **Traducido a lo que cuesta**, que es donde el número significa algo. A 133,9 s por extracción
 (medido en el ADR 0011, en esta máquina):
 
