@@ -3480,3 +3480,54 @@ visto jamás**.
 El DOGC aporta ahora **30 relevantes y 52 sospechas**. Antes de recuperar los PDF tenía **3**. El
 lector de PDF no arregló una estadística de cobertura: multiplicó por diez la señal aprovechable de
 esa fuente.
+
+### ⚠️ El corpus creció 150 veces y la cola de revisión no creció nada — 2026-08-23
+
+Medido tras reclasificar sobre las 66.660 normas archivadas. **El cuello de botella ya no son los
+datos: son las reglas.**
+
+| etapa | cantidad | |
+|---|---|---|
+| Normas con texto íntegro archivado | 66.660 | |
+| Pasan el prefiltro | 600 | 0,90 % |
+| **Producen veredicto** | **46** | **7,7 % de las 600** |
+| Señalan una norma vigilada (llegan al gate) | 17 | |
+| En cola de revisión | 27 | **todas ya resueltas** |
+
+**Cero ítems nuevos.** Se ha pasado de 436 normas a 66.660 y el sistema encuentra lo mismo.
+
+#### Por qué, y no es el prefiltro
+
+El reparto por regla lo dice todo:
+
+| regla | detecciones | señalan norma vigilada |
+|---|---|---|
+| `R-SUP-002` (supresión sin norma vigilada) | 29 | **0** |
+| `R-MOD-001` (modificación de norma vigilada) | 13 | 13 |
+| `R-SUP-001` (supresión de norma vigilada) | **2** | 2 |
+| `R-DER-001` (derogación) | 2 | 2 |
+
+El catálogo solo sabe buscar cuatro cosas, y **tres son variantes de supresión**. `R-SUP-001`, que
+es la única regla que afirma `retroceso`, ha disparado **dos veces en 66.660 normas**. Y las 29 de
+`R-SUP-002` no llegan al gate por diseño (ADR 0017, con datos: iba 10 de 10 descartada).
+
+**El prefiltro no es el problema**: deja pasar 600 y de esas solo 46 tienen algo que una regla
+sepa reconocer. El embudo se estrecha en el catálogo, no antes.
+
+#### Lo que esto cambia en el plan
+
+Añadir más fuentes o más corpus **no va a producir más hallazgos** mientras el catálogo tenga cinco
+reglas. Lo que hace falta son **familias de reglas nuevas**, y para eso hace falta saber qué
+mecanismos jurídicos de retroceso existen que estas cuatro no ven — que es conocimiento de dominio
+y no de ingeniería.
+
+Hay un encargo lanzado al `jurista-lgtbi` justo sobre eso: los puntos ciegos del filtro, ordenados
+por lo invisible que es cada mecanismo, con la señal textual que delataría a cada uno y qué le
+falta a la watchlist de 24 normas. **Sin etiquetar nada** (13.4): diseña el examen, no lo responde.
+
+#### El aviso de método
+
+Que la cola no crezca **no significa que no haya retrocesos ahí fuera**. Significa que este
+catálogo no los ve. Es exactamente el falso negativo de 7.1: invisible, sin métrica que lo delate,
+y el fallo total del sistema. Que se haya hecho visible al medir a escala es justamente el valor de
+haber ingerido el corpus.
