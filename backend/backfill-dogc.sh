@@ -56,10 +56,27 @@ do
   fi
 done
 
+# Y al terminar, la recuperacion por PDF (ADR 0026). Va AQUI DENTRO y no como un lanzamiento
+# aparte por una razon medida el 2026-08-22: las ilegibles bajaron a 9 y volvieron a 12 en minutos,
+# porque esta misma ingesta trae normas nuevas -muchas solo en PDF- mas rapido de lo que una pasada
+# con tope las procesa. Encadenarla es lo unico que garantiza que el ultimo lote tambien se lea; si
+# no, la fuente acaba al dia y con un resto de normas ciegas que nadie ve.
+#
+# Idempotente: lo ya recuperado no se vuelve a tocar.
+echo "--- recuperacion por PDF de lo que haya quedado ilegible ($(date -u)) ---" >> "$LOG"
+FASE2_MAX_POR_EJECUCION=400 python -m worker.run --recuperar-pdf >> "$LOG" 2>&1
+
 echo "=== TERMINADO $(date -u) ===" >> "$LOG"
 
-# AVISO PARA QUIEN LEA EL RESULTADO: se espera que una parte grande de lo que entre quede en
-# `ilegible`. El DOGC publica muchas normas solo en PDF y el pipeline todavia no lo lee (ADR 0020:
-# 172 de 264 normas de la tanda de 2024, el 65 %). Eso NO es un fallo de este script y no se
-# arregla ingiriendo mas: se arregla con el lector de PDF, que sigue pendiente. Cualquier cifra de
-# cobertura de esta fuente tiene que ir acompañada de cuantas de sus normas son ilegibles.
+# AVISO PARA QUIEN LEA EL RESULTADO. Este comentario decia que el lector de PDF estaba pendiente;
+# se escribio horas antes de que existiera y se corrige aqui, porque un comentario obsoleto engaña
+# con autoridad.
+#
+# Al pasar por aqui, una parte grande de lo que entra queda en `ilegible` -el DOGC publica muchas
+# normas solo en PDF- y es la pasada encadenada de arriba la que lo resuelve: 235 -> 9 el 2026-08-22,
+# con CERO documentos que necesitaran OCR (ADR 0026). Lo que quede ilegible despues de esa pasada
+# **si** es un hueco de verdad y hay que mirarlo: seran PDF sin capa de texto, o algo que el
+# pipeline todavia no sabe leer.
+#
+# Y sigue en pie lo de siempre: cualquier cifra de cobertura de esta fuente tiene que ir acompañada
+# de cuantas de sus normas son ilegibles. Una fuente al dia con normas ciegas no esta vigilada.

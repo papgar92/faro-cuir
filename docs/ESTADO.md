@@ -3424,6 +3424,15 @@ un modelo publicada en un canal.
 tercios ciegos a **3 relevantes y 19 sospechas** evaluadas sobre su texto de verdad. Antes esas
 normas estaban descargadas, selladas y sin que nadie pudiera leerlas.
 
+**La recuperación hay que relanzarla mientras el DOGC siga ingiriendo.** Las ilegibles bajaron a 9
+y volvieron a 12 en minutos: no es que fallara nada, es que el backfill del DOGC trae normas nuevas
+—muchas en PDF— más rápido de lo que una pasada con tope de 400 las procesa. **Mientras esa ingesta
+corra, `--recuperar-pdf` hay que volver a lanzarlo cada cierto tiempo**, y cuando termine, una
+última vez. Es idempotente: lo ya recuperado no lo vuelve a tocar.
+
+Vale la pena plantearse encadenarlo al final de `backfill-dogc.sh`, que es donde naturalmente
+pertenece; no se hizo aquí para no tocar un script que estaba corriendo.
+
 **Lo siguiente que hay que lanzar, y no está hecho:** `python -m worker.run --reclasificar`. El
 catálogo de reglas todavía no ha pasado por las recuperadas —hay 45 detecciones y la cola sigue
 con las 26 resueltas de ayer—, así que las detecciones nuevas del DOGC aparecerán al reclasificar.
