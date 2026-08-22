@@ -480,3 +480,47 @@ class TestDiffPublicado:
         cuerpo = client.get(f"/api/alertas/{alerta.id}").json()
 
         assert cuerpo["cambios"] == []
+
+
+def test_el_filtro_usa_el_signo_que_se_ve_y_no_el_de_la_regla(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """El filtro y la pantalla tienen que hablar de lo mismo.
+
+    `clasificacion` (la regla) y `clasificacion_humana` (la persona) son dos columnas distintas a
+    propósito, y la tarjeta enseña la segunda cuando existe. Mientras el filtro miró solo la
+    primera, el resultado era el que se vio usando la web el 2026-08-22: tres alertas cuya regla
+    se abstuvo y a las que una persona puso «avance» no salían en «Avances», y sí salían en «Sin
+    signo» — es decir, la pantalla enseñaba tarjetas que ponen «Avance» bajo el filtro de las que
+    no tienen ninguno.
+
+    Este test siembra exactamente ese caso: una alerta que la regla dejó en `indeterminado` y que
+    una persona marcó como avance, más otra que nadie tocó.
+    """
+    con_persona = _norma_con_deteccion(sesion_db, ident="BOE-A-2021-18287", con_regla=False)
+    sin_persona = _norma_con_deteccion(sesion_db, ident="BOE-A-2023-5366", con_regla=False)
+    sesion_db.add_all(
+        [
+            ColaRevision(deteccion_id=con_persona.id, estado=EstadoRevision.PENDIENTE),
+            ColaRevision(deteccion_id=sin_persona.id, estado=EstadoRevision.PENDIENTE),
+        ]
+    )
+    sesion_db.commit()
+
+    cola_con = sesion_db.scalar(
+        select(ColaRevision).where(ColaRevision.deteccion_id == con_persona.id)
+    )
+    cola_sin = sesion_db.scalar(
+        select(ColaRevision).where(ColaRevision.deteccion_id == sin_persona.id)
+    )
+    assert cola_con is not None and cola_sin is not None
+    servicio.aprobar(sesion_db, cola_con.id, nota="Leído entero.", clasificacion="avance")
+    servicio.aprobar(sesion_db, cola_sin.id, nota="Sin decidir el signo.")
+
+    avances = client.get("/api/alertas", params={"clasificacion": "avance"}).json()
+    sin_signo = client.get("/api/alertas", params={"clasificacion": "indeterminado"}).json()
+
+    # La que decidió una persona sale bajo SU signo...
+    assert [a["norma"]["identificador_oficial"] for a in avances] == ["BOE-A-2021-18287"]
+    # ...y no contamina el cajón de las que no tienen ninguno.
+    assert [a["norma"]["identificador_oficial"] for a in sin_signo] == ["BOE-A-2023-5366"]

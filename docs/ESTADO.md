@@ -3012,6 +3012,25 @@ vuelve el contenedor pero no la ingesta. Hay que relanzarla a mano.
 
 Corpus: **36.496 cuerpos archivados**, de 2014 a 2026.
 
+#### Y un tercer fallo que encontro usar la web, no los tests
+
+**El filtro de Alertas y la pantalla no hablaban de lo mismo.** El filtro preguntaba por
+`deteccion.clasificacion` —el signo de la REGLA— y la tarjeta enseña `clasificacion_humana` cuando
+existe. Como `R-MOD-001` deja las ordenes sanitarias en `indeterminado` y el signo se lo puso una
+persona al aprobarlas, «Avances» devolvia **cero** y «Sin signo» devolvia seis, tres de ellas con
+una tarjeta que pone «Avance». Ahora filtra por `coalesce(clasificacion_humana, clasificacion)`,
+la misma precedencia que ya aplicaba `AlertCard`. Test de regresion que siembra el caso.
+
+Los 679 tests pasaban con el filtro roto porque **ninguno cruzaba las dos columnas**. Junto con el
+`NaN ago 2026`, son dos fallos en una sesion que solo aparecen al usar la web — 13.2, otra vez.
+
+#### El repositorio, al dia en GitHub
+
+`main` y la rama del dia subidos a `github.com/papgar92/faro-cuir` (**publico**) el 2026-08-22,
+tras seis dias sin push. Comprobado antes: `gitleaks` sobre 142 commits **sin filtraciones**,
+`.env` nunca commiteado, ningun fichero con pinta de credencial. La rama va **sin mergear**: eso
+lo decide una persona (13.3).
+
 #### Siguiente, por orden
 
 1. **Que el signo sea difícil de errar en el panel** (~10k). Lo pide el incidente de arriba:
