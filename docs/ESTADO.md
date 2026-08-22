@@ -3110,3 +3110,61 @@ se materializa; en oscuro se separan incluso mejor.
 
 Sin cambios de backend: `MapaPage` ya pedia alertas y cobertura, asi que todo el agregado nacional
 se calcula en cliente con lo que ya tenia.
+
+### 🔭 Referencias visuales investigadas (ILGA, TGEU, HRC, Civio, OWID) — 2026-08-22
+
+Un agente de diseño investigó cómo se presentan ILGA-Europe (Rainbow Map y ficha de país), TGEU,
+el HRC Accountability Tracker, HRW, FELGTBI+, Civio y Our World in Data. **Aplicado hoy solo lo
+barato**; el resto queda aquí con su coste porque es material bueno y no conviene perderlo.
+
+#### Aplicado
+
+- **Emisor y rango en la tarjeta de alerta.** `organo_emisor` ya viajaba en la respuesta y no se
+  pintaba en ningún sitio. Para una herramienta cuyo manifiesto dice que el retroceso llega en «una
+  instrucción que no firma nadie con nombre conocido», el emisor es media noticia: no es lo mismo
+  una ley de un parlamento que una orden de una consejería. Un `null` se dice, no se deja en hueco.
+- **Las tres anclas muertas del pie** (`#repo`, `#metodologia`, `#datos`) apuntan ya al repositorio,
+  a `docs/adr/` y a `/api/alertas`. En un proyecto cuya tesis es «no te fíes, compruébalo», un
+  enlace que no lleva a ningún sitio no es maquetación pendiente: es un agujero en el argumento.
+
+#### Pendiente, por orden de impacto/esfuerzo
+
+1. **El catálogo de reglas, legible** (~media tarde). Hoy la tarjeta imprime `regla R-MOD-001` y
+   **no hay ningún sitio donde leer qué dice esa regla**. Eso contradice literalmente la sección
+   7.6: «una alerta publicada tiene que poder reconstruirla un tercero leyendo la regla y el texto
+   archivado, sin ejecutar nuestro código» — hoy el tercero no tiene la regla. Un `<details>` con
+   el enunciado, más una pantalla de Metodología con el catálogo entero (`lib/reglas.ts` derivado
+   de `pipeline/reglas.py`, citando versión). **Es el que más peso tiene ante el tribunal.**
+2. **Fecha de última lectura por fuente** (~media tarde, necesita campo de backend). «Vigilada, sin
+   alertas» no está fechada, y sin fecha no es una medición sino una promesa. Añadir
+   `ultima_lectura` a `CoberturaCcaa` y pintarla en `RegionDetailPanel` y `CoberturaTotal`, con
+   aviso en `alr` si la fuente lleva días sin entregar. **No simularlo en cliente**: derivar la
+   frescura del documento global afirmaría por Andalucía algo medido en el BOE.
+3. **Bloque «Descargar y citar»** (~1-2 h). Endpoints reales y una cadena de cita con la huella,
+   al estilo de Our World in Data. Reutilizable en Archivo y Ficha.
+4. **Ficha de comunidad enlazable** (~1 día). `RegionDetailPanel` vive en estado de hover y no
+   tiene URL, así que «mándame el enlace de Andalucía» —la acción de compartir número uno de un
+   observatorio— hoy no se puede hacer. Bastaría `?ccaa=AN` sin meter un router.
+
+#### Qué NO copiar, y esto vale tanto como lo anterior
+
+- **El índice compuesto 0-100 % de ILGA.** Un porcentaje sobre 2 fuentes de 45 declara una
+  cobertura que no existe. Las 45 marcas de `CoberturaTotal` ya lo resuelven mejor.
+- **El semáforo aplicado al territorio.** ILGA puede pintar un país entero porque puntúa 75
+  criterios estables; aquí se clasifican **cambios**, no estados. Pintar una comunidad de verde por
+  una alerta de avance diría algo de su marco jurídico que el pipeline no ha medido.
+- **La serie temporal tipo «Country Score Evolution».** Con el volumen de hoy dibujaría la
+  actividad del ingestor y se leería como la de la administración.
+- **El registro de campaña de FELGTBI+** (banners, fotos, arcoíris de fondo) y **el tono editorial
+  del HRC** («Breaking: After Massive Outrage…»), que mezcla hecho y valoración en el titular.
+- **Los descargables «listos para redes»**: una imagen se comparte descontextualizada y sin huella.
+
+#### Paleta y tipografía: no se tocan
+
+El agente las revisó expresamente y concluyó que en dos puntos **son mejores que las referencias**:
+la regla «nunca solo color, siempre glifo + texto» resuelve la accesibilidad del semáforo que ILGA
+no resuelve, y que `indeterminado` se pinte en `alr` y no en `reg` es una distinción que ninguna de
+las referencias hace. Se conservan.
+
+Queda anotado en el propio `AlertCard` por qué el título va en `font-sans` y no en `font-serif`: la
+serif es la voz del proyecto y ese titular no es suya, es la del Estado.

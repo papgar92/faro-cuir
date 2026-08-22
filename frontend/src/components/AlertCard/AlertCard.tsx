@@ -79,9 +79,23 @@ export function AlertCard({ alerta }: AlertCardProps) {
         </span>
       </div>
 
+      {/* El título va en `font-sans` y no en `font-serif` a propósito, y conviene dejarlo escrito
+          porque es de las reglas que se pierden en la siguiente refactorización: la gramática
+          tipográfica del proyecto reserva la serif para SU voz, y este titular no es suyo — es el
+          título oficial de la norma, o sea la voz del Estado. */}
       <h3 className="mt-2.5 text-base font-semibold leading-snug text-ink">
         {alerta.norma.titulo}
       </h3>
+
+      {/* Quién firma y con qué rango. Los dos campos ya viajaban en la respuesta y no se pintaban
+          en ningún sitio, y para una herramienta cuyo manifiesto dice que un retroceso llega en
+          «una instrucción de dos páginas que no firma nadie con nombre conocido», el emisor es
+          media noticia: no es lo mismo una ley de un parlamento que una orden de una consejería.
+          Un campo vacío se dice, no se deja como hueco: `null` aquí significa que el extractor
+          todavía no lo rellena, y callarlo lo haría parecer que la norma no tiene emisor. */}
+      <p className="mt-1 font-mono text-[11px] text-ink-3">
+        {alerta.norma.organo_emisor ?? "emisor sin extraer todavía"}
+      </p>
 
       {alerta.clasificacion_humana && (
         <p className="mt-1.5 text-xs leading-relaxed text-ink-2">
