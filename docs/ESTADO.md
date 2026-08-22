@@ -3055,3 +3055,58 @@ lo decide una persona (13.3).
 3. **Las 172 ilegibles del DOGC por PDF** (~25k + ADR).
 4. **Feed Atom de hallazgos**, si se decide que lo tenga: hoy solo hay lista y pantalla.
 5. **La poda de `CLAUDE.md`**, en 63,5 KB con su límite en ~55. Lo decide una persona.
+
+### ✅ El mapa deja de ser una mancha gris, y lo estatal deja de ser una disculpa — 2026-08-22
+
+Pedido por el humano: «hay que pintar mucho más el mapa» y «las normas estatales, ahí arriba solas,
+no representan si estamos en avance o retroceso». Su idea: un mapita de España. Se saco un agente
+de diseño a explorar y **la descarto con un argumento que se sostiene**, asi que no se hizo.
+
+#### Por que no hay una silueta de España coloreada
+
+Colorear una silueta obliga a resumir todas las alertas estatales en **un** color. Con 4 avances y
+1 retroceso hay que elegir uno, y la regla `GRAVEDAD` que ya existe en `lib/mapa.ts` elegiria
+`retroceso`: la pantalla afirmaria «España: retroceso» teniendo el 80 % de sus alertas en avance.
+Un veredicto nacional que ninguna regla emitio y que nadie aprobo — regla de oro 2 — y encima en el
+pixel mas visible. **Si se quiere la silueta, la version que si vale es en contorno y sin rellenar**,
+como rotulo; queda anotado por si el humano la pide.
+
+#### Lo que si se hizo: una marca por alerta
+
+`PanelEstatal` con **pictograma unitario**: un cuadrado por alerta aprobada, agrupados por signo.
+No es un porcentaje ni una barra apilada ni una media — cada marca es una alerta concreta que una
+persona reviso. Da color real sin agregar nada y escala sin rediseño. Y el copy se invirtio: **el
+dato primero, el metodo despues y mas pequeño**. Antes el 62 % de lo que el sistema ha llegado a
+afirmar se presentaba empezando por por que el mapa no puede pintarlo.
+
+#### La ausencia, como informacion y no como hueco
+
+Las quince comunidades sin vigilar se pintaban todas con la misma trama, y **no son iguales**:
+Andalucia tiene 8 boletines provinciales conocidos sin integrar y La Rioja 1. Ahora hay **tres
+densidades** por deuda de cobertura (`deudaCobertura`), con su leyenda y con la cifra tambien en la
+etiqueta accesible — una informacion que solo existe en el color no existe para quien no lo ve.
+
+Ojo con que variable es esa, porque es la unica que aqui se puede graduar sin mentir: **no habla del
+territorio ni de sus derechos, habla de nosotros**. Un heatmap de «actividad» estaba descartado por
+lo mismo: Catalunya saldria caliente por tener DOGC integrado y Galicia fria por no tenerlo, o sea
+pintando nuestro esfuerzo como si fuera la realidad de la gente.
+
+Y `CoberturaTotal` en el `aside`: 45 marcas, 2 encendidas. Ese numero vivia en un pie, en tamaño de
+nota al margen, y es el que explica la pantalla entera. **Verificado en claro y en oscuro**: el
+riesgo que aviso el agente —que el paso intermedio de la trama fuera indistinguible en oscuro— no
+se materializa; en oscuro se separan incluso mejor.
+
+#### Dos fallos encontrados de paso
+
+1. **El mapa coloreaba con el signo de la REGLA, no con el que se ve.** Catalunya salia como «sin
+   signo» (naranja) mientras su tarjeta ponia «Avance». Es el mismo fallo que el del filtro de
+   Alertas, en la tercera superficie del mismo dato. Ahora hay `signoVisible()` exportada y usada
+   por el mapa; la precedencia queda escrita en un sitio.
+2. **«17 donde aun no hay ninguna fuente integrada»** era aritmeticamente correcto —19 territorios
+   menos Madrid y Catalunya— pero se leia como «ninguna de las 17 comunidades», con la cabecera
+   diciendo «17 CCAA + BOE» justo encima. Catalunya si esta vigilada. Ahora dice **«17 de los 19
+   territorios del mapa»**. Un numero correcto que se lee al reves es un numero mal publicado, y
+   esta pantalla mide precisamente huecos de cobertura.
+
+Sin cambios de backend: `MapaPage` ya pedia alertas y cobertura, asi que todo el agregado nacional
+se calcula en cliente con lo que ya tenia.

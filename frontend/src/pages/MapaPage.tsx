@@ -8,7 +8,9 @@ import { Manifiesto } from "../components/Manifiesto/Manifiesto";
 import { RegionDetailPanel } from "../components/RegionDetailPanel/RegionDetailPanel";
 import { TopAlertsRanking } from "../components/TopAlertsRanking/TopAlertsRanking";
 import { ESTADO_MAPA_META, type EstadoMapa } from "../lib/classification";
-import { alertasEstatales, construirRegiones } from "../lib/mapa";
+import { CoberturaTotal } from "../components/CoberturaTotal/CoberturaTotal";
+import { PanelEstatal } from "../components/PanelEstatal/PanelEstatal";
+import { construirRegiones, resumenEstatal } from "../lib/mapa";
 
 const ESTADOS_LEYENDA = Object.keys(ESTADO_MAPA_META) as EstadoMapa[];
 
@@ -48,7 +50,7 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
     coberturaEstado.fase === "listo" ? coberturaEstado.datos : undefined,
   );
   const activeRegion = activeCode ? (regiones[activeCode] ?? null) : null;
-  const estatales = alertasEstatales(alertasEstado.fase === "listo" ? alertasEstado.datos : []);
+  const estatal = resumenEstatal(alertasEstado.fase === "listo" ? alertasEstado.datos : []);
   // Territorio dibujado en el mapa del que no hay ninguna fila. Hoy son Ceuta y
   // Melilla. Sin esta rama, pulsarlas no hacía absolutamente nada y quedaba como
   // un fallo de la interfaz en vez de como lo que es: un hueco de cobertura.
@@ -86,17 +88,26 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
             ))}
             {/* Ceuta y Melilla se dibujan pero no tienen fuente en docs/fuentes.md.
                 Un gris igual al de "estable" diría que se han mirado y están bien. */}
+            {/* La trama densa dejó de ser una sola: ahora tiene tres pasos por deuda de
+                cobertura, y la leyenda tiene que enseñar los tres o el degradado del mapa no se
+                puede leer. El orden va de menos a más, como se lee. */}
             <span className="flex items-center gap-1.5 text-xs text-ink-2">
-              <span
-                aria-hidden="true"
-                className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
-                style={{
-                  // Misma trama que el patrón SVG del mapa, con los mismos tokens.
-                  backgroundImage:
-                    "repeating-linear-gradient(45deg, var(--color-line-2) 0 1.4px, var(--color-surface-2) 1.4px 5px)",
-                }}
-              />
-              Sin fuente vigilada
+              <span className="flex gap-0.5" aria-hidden="true">
+                {[
+                  { sep: "7px", grosor: "1px" },
+                  { sep: "5px", grosor: "1.4px" },
+                  { sep: "3.4px", grosor: "1.6px" },
+                ].map((paso) => (
+                  <span
+                    key={paso.sep}
+                    className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
+                    style={{
+                      backgroundImage: `repeating-linear-gradient(45deg, var(--color-line-2) 0 ${paso.grosor}, var(--color-surface-2) ${paso.grosor} ${paso.sep})`,
+                    }}
+                  />
+                ))}
+              </span>
+              Sin vigilar — 1-2 · 3-5 · 6+ boletines pendientes
             </span>
             {/* La categoría que evita la mentira más fácil de este mapa: aquí SÍ se mira y no
                 ha salido nada aprobado. No es «estable». */}
@@ -114,37 +125,7 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
             <span className="ml-auto font-mono text-xs text-ink-3">color + símbolo + texto</span>
           </div>
 
-          {/* Lo que el mapa no puede pintar sin mentir: una norma estatal afecta a las
-              diecisiete comunidades. Pintarlas todas diría que hay diecisiete cambios cuando hay
-              uno; pintar una sola sería falso. Va fuera de la geometría, con su recuento. */}
-          <div className="mt-4 rounded border border-line bg-inset p-3">
-            <p className="text-sm leading-relaxed text-ink-2">
-              <strong className="font-semibold text-ink">Ámbito estatal:</strong>{" "}
-              {estatales.length === 0 ? (
-                <>ninguna alerta aprobada todavía. Afectarían a todo el territorio.</>
-              ) : (
-                <>
-                  {estatales.length} alerta{estatales.length === 1 ? "" : "s"} aprobada
-                  {estatales.length === 1 ? "" : "s"} sobre normativa estatal, que{" "}
-                  <strong className="font-semibold text-ink">afecta a las diecisiete
-                  comunidades</strong> y por eso no se pinta en el mapa: colorearlas todas diría
-                  que hay diecisiete cambios cuando hay uno.
-                </>
-              )}
-            </p>
-            {estatales.length > 0 && (
-              <ul className="mt-2 flex list-none flex-col gap-1 p-0">
-                {estatales.slice(0, 3).map((alerta) => (
-                  <li key={alerta.id} className="text-xs leading-snug text-ink-2">
-                    <span className="font-mono text-[11px] text-ink-3">
-                      {alerta.norma.identificador_oficial}
-                    </span>{" "}
-                    {alerta.norma.titulo}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <PanelEstatal resumen={estatal} onVerAlertas={() => onGoTimeline()} />
 
           <MapaCCAA
             regions={regiones}
@@ -193,7 +174,15 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
               </p>
             </div>
           ) : (
-            <TopAlertsRanking regions={regiones} />
+            // En reposo el `aside` enseñaba solo un ranking de 3 filas, que con 3 comunidades no
+            // ordena nada. Debajo va el dato que de verdad explica la pantalla: 2 fuentes de 45.
+            <>
+              <TopAlertsRanking regions={regiones} />
+              <CoberturaTotal
+                cobertura={coberturaEstado.fase === "listo" ? coberturaEstado.datos : undefined}
+                onGoArchivo={onGoArchivo}
+              />
+            </>
           )}
         </aside>
       </div>

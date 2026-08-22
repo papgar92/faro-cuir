@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import type { RegionMapa } from "../../lib/mapa";
+import { deudaCobertura, type RegionMapa } from "../../lib/mapa";
 import { ESTADO_MAPA_META, type ColorClasificacion } from "../../lib/classification";
 import { CCAA_PATHS, INSET_CANARIAS, MAPA_VIEWBOX, type CcaaPath } from "./ccaa-paths";
 
@@ -53,7 +53,12 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
   const etiqueta = (path: CcaaPath) => {
     const region = regions[path.code];
     if (!region || (!region.vigilada && region.alerts === 0)) {
-      return `${path.name}: sin fuente vigilada todavía`;
+      // La deuda va también en el texto: la gradación de la trama es información, y una
+      // información que solo existe en el color no existe para quien no lo ve.
+      const deuda = region ? deudaCobertura(region) : 0;
+      return deuda > 0
+        ? `${path.name}: sin fuente vigilada todavía, ${deuda} boletín${deuda === 1 ? "" : "es"} oficial${deuda === 1 ? "" : "es"} conocido${deuda === 1 ? "" : "s"} sin integrar`
+        : `${path.name}: sin fuente vigilada todavía`;
     }
     if (region.state === null) {
       // La distinción que este mapa no puede perder: aquí SÍ se mira, y no ha salido nada
@@ -80,7 +85,19 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
     // Vigilada y sin conclusión: trama **clara**. Sin fuente: trama densa. Son dos silencios
     // distintos —"todavía no ha salido nada" y "aquí no estamos mirando"— y confundirlos sería
     // tan malo como pintarlos de gris "estable".
-    return region?.vigilada ? "url(#sin-alertas)" : "url(#sin-vigilar)";
+    if (region?.vigilada) return "url(#sin-alertas)";
+    // **Tres densidades y no una.** Las quince comunidades sin vigilar se pintaban todas igual, y
+    // no son iguales: Andalucía tiene 8 boletines provinciales conocidos sin integrar y La Rioja
+    // 1. Esa diferencia está medida desde el ADR 0014 y no se veía, así que el mapa era una
+    // mancha uniforme que solo sabía decir "no".
+    //
+    // Ojo con qué variable es esta, porque es la única que aquí se puede graduar sin mentir: **no
+    // habla del territorio ni de sus derechos, habla de nosotros**. La trama más densa es donde
+    // más se nos escapa. Cualquier degradado sobre el estado del territorio estaría prohibido.
+    const deuda = region ? deudaCobertura(region) : 0;
+    if (deuda >= 6) return "url(#sin-vigilar-3)";
+    if (deuda >= 3) return "url(#sin-vigilar-2)";
+    return "url(#sin-vigilar-1)";
   };
 
   /**
@@ -172,8 +189,23 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
         className="block w-full rounded border border-line bg-inset"
       >
         <defs>
+          {/* Las tres densidades de "sin vigilar", por deuda de cobertura. Mismo par de tokens
+              en las tres —solo cambian separación y grosor— para que se lean como una sola
+              categoría con intensidad, y no como tres categorías distintas. Verificado en claro
+              y en oscuro: en oscuro el contraste de `line-2` sobre `surface-2` es menor, así que
+              los tres pasos se separan más de lo que harían falta en claro. */}
           <pattern
-            id="sin-vigilar"
+            id="sin-vigilar-1"
+            patternUnits="userSpaceOnUse"
+            width={7}
+            height={7}
+            patternTransform="rotate(45)"
+          >
+            <rect width={7} height={7} fill="var(--color-surface-2)" />
+            <line x1={0} y1={0} x2={0} y2={7} stroke="var(--color-line-2)" strokeWidth={1} />
+          </pattern>
+          <pattern
+            id="sin-vigilar-2"
             patternUnits="userSpaceOnUse"
             width={5}
             height={5}
@@ -181,6 +213,16 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
           >
             <rect width={5} height={5} fill="var(--color-surface-2)" />
             <line x1={0} y1={0} x2={0} y2={5} stroke="var(--color-line-2)" strokeWidth={1.4} />
+          </pattern>
+          <pattern
+            id="sin-vigilar-3"
+            patternUnits="userSpaceOnUse"
+            width={3.4}
+            height={3.4}
+            patternTransform="rotate(45)"
+          >
+            <rect width={3.4} height={3.4} fill="var(--color-surface-2)" />
+            <line x1={0} y1={0} x2={0} y2={3.4} stroke="var(--color-line-2)" strokeWidth={1.6} />
           </pattern>
           {/* Vigilada sin alertas: misma trama, más separada y más tenue. Se lee como "aquí hay
               alguien mirando y todavía no hay nada que contar", no como un color de estado. */}

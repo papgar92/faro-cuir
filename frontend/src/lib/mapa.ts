@@ -68,6 +68,22 @@ const ESTADO_POR_CLASIFICACION: Record<AlertaApi["clasificacion"], EstadoMapa> =
 /** Orden de gravedad: si una comunidad tiene varias alertas, manda la peor. */
 const GRAVEDAD: EstadoMapa[] = ["estable", "avance", "alerta", "retroceso"];
 
+/**
+ * El signo **que se le enseña a quien lee**: el que fijó una persona si lo fijó, y si no el que
+ * derivó la regla.
+ *
+ * Es la misma precedencia que aplican `AlertCard` y el filtro de `GET /api/alertas`, y está aquí
+ * porque el mapa la tenía mal: pintaba con `clasificacion` a secas. Con Catalunya —cuya regla se
+ * abstuvo (`indeterminado`) y a la que una persona puso «avance»— el mapa la teñía de «sin
+ * signo» mientras su tarjeta ponía «Avance». Dos superficies del mismo dato diciendo cosas
+ * distintas. Encontrado el 2026-08-22, el mismo dia y por el mismo motivo que en el filtro.
+ *
+ * Si algún día cambia la precedencia, tiene que cambiar en los tres sitios.
+ */
+export function signoVisible(alerta: AlertaApi): AlertaApi["clasificacion"] {
+  return alerta.clasificacion_humana ?? alerta.clasificacion;
+}
+
 export function construirRegiones(
   alertas: AlertaApi[] | undefined,
   cobertura: CoberturaApi | undefined,
@@ -128,7 +144,7 @@ export function construirRegiones(
       });
 
       region.alerts += 1;
-      const estado = ESTADO_POR_CLASIFICACION[alerta.clasificacion];
+      const estado = ESTADO_POR_CLASIFICACION[signoVisible(alerta)];
       if (region.state === null || GRAVEDAD.indexOf(estado) > GRAVEDAD.indexOf(region.state)) {
         region.state = estado;
       }
@@ -167,4 +183,48 @@ export function regionesConAlertas(regiones: Record<string, RegionMapa>): Region
   return Object.values(regiones)
     .filter((region) => region.alerts > 0)
     .sort((a, b) => b.alerts - a.alerts || a.name.localeCompare(b.name, "es"));
+}
+
+/**
+ * Cuántas alertas estatales hay **de cada signo**. Un recuento, nunca un estado agregado.
+ *
+ * La diferencia no es de matiz y es la razón de que esta función devuelva un objeto y no un
+ * `EstadoMapa`. Resumir 4 avances y 1 retroceso en un solo valor obligaría a elegir uno, y la
+ * regla de `GRAVEDAD` de aquí arriba elegiría `retroceso`: la pantalla afirmaría «España:
+ * retroceso» teniendo el 80 % de sus alertas en avance. Eso es un veredicto que ninguna regla
+ * emitió y que nadie aprobó — regla de oro 2 — y encima en el sitio más visible de la interfaz.
+ *
+ * Por eso la banda estatal pinta **una marca por alerta** y no una silueta de España coloreada:
+ * a esta escala la unidad es legible, y es lo más honesto que se puede dibujar.
+ */
+export interface ResumenEstatal {
+  total: number;
+  /** Recuento por signo visible, en el orden en que se pinta. */
+  porSigno: Array<{ signo: AlertaApi["clasificacion"]; alertas: AlertaApi[] }>;
+}
+
+const ORDEN_SIGNO: AlertaApi["clasificacion"][] = ["retroceso", "avance", "neutro", "indeterminado"];
+
+export function resumenEstatal(alertas: AlertaApi[] | undefined): ResumenEstatal {
+  const estatales = alertasEstatales(alertas);
+  const porSigno = ORDEN_SIGNO.map((signo) => ({
+    signo,
+    alertas: estatales.filter((alerta) => signoVisible(alerta) === signo),
+  })).filter((grupo) => grupo.alertas.length > 0);
+  return { total: estatales.length, porSigno };
+}
+
+/**
+ * Cuántos boletines oficiales de esta comunidad se conocen y **no** se están vigilando.
+ *
+ * Es lo que permite que la trama del mapa deje de ser una mancha uniforme: hoy las quince
+ * comunidades sin vigilar se pintan igual, y no son iguales — Andalucía tiene 8 boletines
+ * provinciales conocidos sin integrar y La Rioja 1. Esa diferencia está medida desde el ADR 0014
+ * y no se veía.
+ *
+ * Ojo con lo que este número NO dice: no habla del territorio ni de sus derechos, habla **de
+ * nosotros**. Es la única variable sobre la que este mapa tiene derecho a hacer un degradado.
+ */
+export function deudaCobertura(region: RegionMapa): number {
+  return Math.max(0, region.fuentesConocidas - region.fuentesVigiladas);
 }
