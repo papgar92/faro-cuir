@@ -3531,3 +3531,80 @@ Que la cola no crezca **no significa que no haya retrocesos ahí fuera**. Signif
 catálogo no los ve. Es exactamente el falso negativo de 7.1: invisible, sin métrica que lo delate,
 y el fallo total del sistema. Que se haya hecho visible al medir a escala es justamente el valor de
 haber ingerido el corpus.
+
+### 🔭 Los puntos ciegos del prefiltro, por el `jurista-lgtbi` — 2026-08-23
+
+Encargo de **diseño del filtro, no de etiquetado** (13.4 se lo prohíbe: si pone las etiquetas del
+examen que ayuda a diseñar, el sistema se mide contra sí mismo). La pregunta fue la que nadie había
+hecho: no qué encuentra el filtro, sino **qué es estructuralmente incapaz de ver** — el falso
+negativo de 7.1, que no aparece en ninguna métrica.
+
+#### La asimetría, que es el hallazgo central
+
+> **El filtro ve mejor el retroceso parcial —el que todavía nombra lo que recorta— que el
+> completo, que lo borra. Cuanto más limpio es el trabajo del redactor, más invisible es.**
+
+El eje léxico detecta **presencia** de vocabulario, y un retroceso consumado produce por definición
+un documento donde ese vocabulario **ya no está**. Explica lo medido esta misma mañana: 66.660
+normas y cero trabajo nuevo para el gate.
+
+#### La distinción que faltaba: filtro vs canal
+
+- **Punto ciego de filtro**: está archivado y el filtro no lo levanta. Se arregla con vocabulario o
+  reglas.
+- **Punto ciego de canal**: no llega nunca al archivo. **Ningún ajuste del vocabulario lo arregla.**
+
+Y el mecanismo más silencioso de todos **no tiene señal textual ninguna**: no convocar la subvención
+de este año, no renovar el convenio, dejar caducar el plan. No hay acto, no hay norma, no hay diff.
+Es el más frecuente en el nivel local — el que el ADR 0014 dice que justifica el proyecto. Detectarlo
+exigiría un **vigilante de periodicidad** sobre el archivo, que es otro servicio y no un prefiltro.
+
+#### Diez mecanismos, ordenados por invisibilidad
+
+| | mecanismo | tipo | ¿señal textual? |
+|---|---|---|---|
+| M-1 | No convocar / no renovar / dejar caducar | canal | **ninguna** |
+| M-2 | Partida presupuestaria a cero o programa que desaparece | filtro | solo si el programa conserva el nombre |
+| M-3 | Bases de subvención: requisito que excluye sin nombrar | filtro + canal (BOP) | **por ausencia** |
+| M-4 | Criterio de acceso por **sexo registral** | filtro | **sí, y buena** |
+| M-5 | Supresión de órgano por decreto de estructura | filtro | parcial, depende del nombre |
+| M-6 | Instrucciones y protocolos que no se publican | canal | el vocabulario funciona; el documento no llega |
+| M-7 | Currículo: contenido que desaparece de un listado | filtro | por ausencia |
+| M-8 | Deslegalización (`reglamentariamente se determinará`) | filtro | sí, **pero para 7.6, no para el léxico** |
+| M-9 | `deberá` → `podrá` | clasificador | tratable con el diff del ADR 0018 |
+| M-10 | Conciertos, convenios y pliegos | canal | fuera de alcance (sección 8) |
+
+**M-8 no se propone para el eje léxico y el motivo importa**: «se faculta a», «reglamentariamente
+se determinará» aparecen en casi toda norma con rango de ley. Como término suelto serían el nuevo
+«igualdad de trato». Su sitio es el catálogo de 7.6, exigidas **pegadas a la evidencia que nombra la
+norma vigilada**, que es el criterio del ADR 0023. Vino con regla candidata esbozada
+(`R-DES-001-remision-reglamentaria`, sentido `indeterminado`).
+
+#### El problema de formato que hay que resolver ANTES de etiquetar en masa
+
+M-2, M-3 y M-7 se caracterizan **por ausencia**: solo existen comparando con el documento anterior
+de la serie. El esquema del gold set es un JSON por documento suelto, así que **un caso de ausencia
+no es representable** — hoy el gold set no puede contener ni un caso del tipo de retroceso que este
+informe señala como el más silencioso.
+
+Hay que decidir antes de la tanda grande: o admite **casos-par** (documento N y N-1), o se acepta
+por escrito que esos mecanismos quedan fuera de la medición. Las dos son legítimas; lo que no vale
+es descubrirlo con 150 casos ya etiquetados.
+
+#### Tres criterios de composición del gold set
+
+- **Tasa base**: pasa el 0,90 %. Parte de los negativos debe salir de **muestreo aleatorio** y no de
+  selección — «los negativos elegidos a mano miden lo que quien elige ya sospechaba».
+- **Por fuente**: 21 BOE, 8 DOGC, **0 BOP**. Sin un documento provincial no se mide el nivel que
+  justifica el proyecto.
+- **Por rango**: si son todo leyes, se mide el filtro sobre lo que sale en prensa.
+
+#### Lo que el informe NO dice, y lo dice él mismo
+
+Que ninguno de esos mecanismos sea un retroceso: son formas jurídicas con usos legítimos. Lo que
+afirma es dónde el filtro **no podría distinguirlo** — una afirmación sobre el sistema, no sobre las
+normas.
+
+Y no propone implementar nada sin medirlo: cada término y cada norma nueva tienen la misma prueba
+pendiente, **contar sobre los 66.660 cuerpos ya archivados**, que no cuesta ni una petición de red.
+Es lo que se está haciendo.
