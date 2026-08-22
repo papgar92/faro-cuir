@@ -3437,3 +3437,46 @@ pertenece; no se hizo aquí para no tocar un script que estaba corriendo.
 catálogo de reglas todavía no ha pasado por las recuperadas —hay 45 detecciones y la cola sigue
 con las 26 resueltas de ayer—, así que las detecciones nuevas del DOGC aparecerán al reclasificar.
 No se lanzó aquí para no cruzarlo con los tres procesos de fondo que ya estaban corriendo.
+
+### 📊 El prefiltro medido a escala real: reduce el coste del LLM 111 veces — 2026-08-23
+
+Con 436 normas cualquier porcentaje era ruido y estaba dicho así en el ADR 0011. Con **66.660
+normas con cuerpo archivado**, el embudo ya se puede medir:
+
+| | |
+|---|---|
+| Normas con texto íntegro archivado | **66.660** |
+| Pasan a la cola del LLM | **600 (0,90 %)** |
+| Ilegibles | 89 (0,13 %) |
+
+**Traducido a lo que cuesta**, que es donde el número significa algo. A 133,9 s por extracción
+(medido en el ADR 0011, en esta máquina):
+
+- Sin prefiltro: 66.660 × 133,9 s = **2.479 horas = 103 días** de CPU.
+- Con prefiltro: 600 × 133,9 s = **22,3 horas**.
+- **Factor de reducción: 111×.**
+
+Ese es el número que justifica el prefiltro entero y que hasta hoy no se podía calcular. Y explica
+por qué el ADR 0011 movió el prefiltro de ser «la puerta de la red» a ser «la puerta del LLM»: la
+red cuesta 4,3 MB por día de BOE, el LLM cuesta 103 días.
+
+**Cuidado con leerlo como recall.** Esto mide cuánto **filtra**, no cuánto **acierta**. Que pase el
+0,9 % no dice nada sobre si lo que se queda fuera debía quedarse fuera; eso solo lo puede decir el
+gold set, que sigue en 32 casos. No publicar este número junto a una afirmación de cobertura.
+
+#### El eje referencial se gana su sitio, con nombre y apellidos
+
+**2 de las 164 relevantes entraron sin un solo término del vocabulario**, o sea solo por el eje
+referencial: una resolución de la **Mutualidad General Judicial** y otra de la **Dirección General
+de Trabajo**, las dos modificando una norma vigilada sin nombrar nada del ámbito.
+
+Es literalmente el caso que el ADR 0012 describía para justificar ese eje: «una instrucción que
+elimina un derecho no dice *identidad de género*, dice *se modifica el epígrafe 4.3 del anexo II*».
+Dos de 164 parece poco hasta que se recuerda que son dos normas que el diccionario **no habría
+visto jamás**.
+
+#### El trabajo del PDF, medido por su efecto
+
+El DOGC aporta ahora **30 relevantes y 52 sospechas**. Antes de recuperar los PDF tenía **3**. El
+lector de PDF no arregló una estadística de cobertura: multiplicó por diez la señal aprovechable de
+esa fuente.
