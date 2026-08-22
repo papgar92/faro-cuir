@@ -34,3 +34,62 @@ export const PANTALLAS_CON_MOCK: ReadonlySet<Screen> = new Set<Screen>();
  * pintar.
  */
 export const PANTALLAS_CON_SESION: ReadonlySet<Screen> = new Set<Screen>(["revision"]);
+
+/**
+ * La pantalla y la comunidad, en la barra de direcciones.
+ *
+ * ## Por qué hacía falta
+ *
+ * Hasta ahora **ninguna pantalla tenía URL**: todo el estado vivía en `useState`, así que
+ * `localhost:5174` llevaba siempre al mapa y no había forma de enlazar nada. Para un observatorio
+ * eso no es un detalle de comodidad — «mándame el enlace de Andalucía» o «mira esta alerta» es la
+ * acción de compartir principal, y es la que convierte una consulta en una cita. Las
+ * organizaciones de referencia (ILGA con `/country/spain/`) lo tienen resuelto desde siempre.
+ *
+ * ## Por qué no hay router
+ *
+ * Porque no hace falta: son seis pantallas y un parámetro. `URLSearchParams` más
+ * `history.replaceState` lo resuelven en veinte líneas, sin dependencia nueva y sin servidor que
+ * tenga que saber de rutas. Meter `react-router` para esto sería añadir una capa que hay que
+ * auditar (sección 3: nada de dependencias que no ganen su sitio).
+ *
+ * `replaceState` y no `pushState`: la selección de comunidad cambia al pasar el ratón, y empujar
+ * una entrada de historial por cada hover dejaría el botón «atrás» inservible.
+ */
+export interface EstadoUrl {
+  screen: Screen;
+  ccaa?: string;
+}
+
+const PANTALLAS: ReadonlySet<string> = new Set<string>([
+  "mapa",
+  "alertas",
+  "hallazgos",
+  "archivo",
+  "ficha",
+  "revision",
+]);
+
+/** Lee la URL al arrancar. Cualquier valor que no reconozca cae al mapa, sin fallar. */
+export function leerUrl(busqueda: string): EstadoUrl {
+  const params = new URLSearchParams(busqueda);
+  const pantalla = params.get("pantalla") ?? "";
+  const ccaa = params.get("ccaa") ?? undefined;
+  return {
+    screen: PANTALLAS.has(pantalla) ? (pantalla as Screen) : "mapa",
+    // El código de comunidad se valida en destino contra la geometría del mapa, no aquí: este
+    // módulo no sabe qué territorios existen y no debe empezar a saberlo.
+    ccaa: ccaa || undefined,
+  };
+}
+
+/** Escribe la URL sin tocar el historial. */
+export function escribirUrl(estado: EstadoUrl): void {
+  const params = new URLSearchParams();
+  // El mapa es la pantalla por defecto, así que no se escribe: `?pantalla=mapa` en la barra de
+  // direcciones es ruido que no dice nada.
+  if (estado.screen !== "mapa") params.set("pantalla", estado.screen);
+  if (estado.ccaa) params.set("ccaa", estado.ccaa);
+  const cadena = params.toString();
+  window.history.replaceState(null, "", cadena ? `?${cadena}` : window.location.pathname);
+}

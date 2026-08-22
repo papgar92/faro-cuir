@@ -55,6 +55,11 @@ services:
       # SOLO LECTURA: el pipeline la consulta, nunca la escribe. Un fichero de configuracion
       # que el proceso puede reescribir deja de ser configuracion versionada.
       - ./config:/config:ro
+      # El frontend, SOLO LECTURA y solo para un test: `test_catalogo_publicado.py` comprueba que
+      # los enunciados de reglas que publica la web son los del catalogo que clasifica (7.6). Sin
+      # este montaje ese test se saltaba en local y solo corria en CI, o sea que el desfase se
+      # descubria con el commit hecho. Ningun codigo de produccion lee de aqui.
+      - ./frontend:/frontend:ro
     ports:
       - "127.0.0.1:8000:8000"
     # `--no-access-log`: el log de acceso de uvicorn escribe la IP del cliente en CADA peticion,

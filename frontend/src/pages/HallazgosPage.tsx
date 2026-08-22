@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { type HallazgoApi, listarHallazgos } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
+import { DatosYCita } from "../components/DatosYCita/DatosYCita";
 import { HallazgoCard } from "../components/HallazgoCard/HallazgoCard";
 
 /**
@@ -121,6 +122,18 @@ export function HallazgosPage() {
                 <HallazgoCard key={hallazgo.id} hallazgo={hallazgo} />
               ))}
             </div>
+            {/* Sin `atom`: los hallazgos todavía no tienen feed propio, y ofrecer uno que no
+                existe sería el mismo fallo que las anclas muertas del pie. */}
+            <DatosYCita
+              json="/api/hallazgos"
+              ejemplo={
+                estado.datos[0] && {
+                  identificador: estado.datos[0].norma.identificador_oficial,
+                  sha256: estado.datos[0].texto_archivado?.sha256 ?? null,
+                  fecha: estado.datos[0].fecha_publicacion,
+                }
+              }
+            />
           </>
         ))}
     </main>

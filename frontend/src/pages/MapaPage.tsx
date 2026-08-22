@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { listarAlertas, obtenerCobertura } from "../api/client";
 import { useRecurso } from "../api/useRecurso";
 import { ClassificationBadge } from "../components/ClassificationBadge/ClassificationBadge";
@@ -11,12 +11,15 @@ import { ESTADO_MAPA_META, type EstadoMapa } from "../lib/classification";
 import { CoberturaTotal } from "../components/CoberturaTotal/CoberturaTotal";
 import { PanelEstatal } from "../components/PanelEstatal/PanelEstatal";
 import { construirRegiones, resumenEstatal } from "../lib/mapa";
+import { escribirUrl } from "../lib/navigation";
 
 const ESTADOS_LEYENDA = Object.keys(ESTADO_MAPA_META) as EstadoMapa[];
 
 interface MapaPageProps {
   onGoArchivo: () => void;
   onGoTimeline: (comunidad?: string) => void;
+  /** Comunidad que venía en la URL (`?ccaa=CT`). Se usa como selección inicial. */
+  ccaaInicial?: string;
 }
 
 /**
@@ -33,10 +36,18 @@ interface MapaPageProps {
  * tranquilidad. Por eso hay tres categorías y dos de ellas no son un color, sino trama: una para
  * «vigilada, sin alertas aprobadas» y otra para «sin fuente vigilada». Ver `lib/mapa.ts`.
  */
-export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
+export function MapaPage({ onGoArchivo, onGoTimeline, ccaaInicial }: MapaPageProps) {
   const [hover, setHover] = useState<string | null>(null);
-  const [pinned, setPinned] = useState<string | null>(null);
+  const [pinned, setPinned] = useState<string | null>(ccaaInicial ?? null);
   const activeCode = hover ?? pinned;
+
+  // La comunidad FIJADA va a la URL; la del ratón no. Es la distinción que hace que el enlace
+  // sirva para algo: `?ccaa=CT` significa «alguien eligió Catalunya», no «el cursor pasó por
+  // encima». Escribir el hover llenaría la barra de direcciones de ruido y, con `replaceState`,
+  // dejaría la última comunidad rozada como si fuera la elegida.
+  useEffect(() => {
+    escribirUrl({ screen: "mapa", ccaa: pinned ?? undefined });
+  }, [pinned]);
   // Las dos peticiones que sostienen el mapa. Van juntas y a la vez: la cobertura dice dónde se
   // mira y las alertas qué ha salido, y ninguna de las dos por sí sola permite pintar sin mentir.
   const coberturaEstado = useRecurso((signal) => obtenerCobertura(signal), []);

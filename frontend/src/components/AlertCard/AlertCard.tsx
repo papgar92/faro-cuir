@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { obtenerAlerta, type AlertaApi, type CambioPreceptoApi } from "../../api/client";
 import { COLOR_CLASSES, type ClassificationMeta } from "../../lib/classification";
 import { formatearFecha, formatearSelloTiempo } from "../../lib/formato";
+import { reglaPublicada } from "../../lib/reglas";
 import { nombreTerritorio } from "../../lib/territorio";
 import { CambiosPrecepto } from "../CambiosPrecepto/CambiosPrecepto";
 import { ClassificationBadge } from "../ClassificationBadge/ClassificationBadge";
@@ -44,6 +45,7 @@ export function AlertCard({ alerta }: AlertCardProps) {
   const meta = META[alerta.clasificacion_humana ?? alerta.clasificacion];
   const colors = COLOR_CLASSES[meta.color];
   const territorios = alerta.normas_vigiladas.map((n) => nombreTerritorio(n.ambito));
+  const regla = reglaPublicada(alerta.regla_aplicada);
 
   // El diff se pide **al abrirlo**, no al pintar la lista: el listado no trae las redacciones
   // (serían varios megas por página) y la mayoría de quien lee una lista no abre ninguna.
@@ -184,6 +186,38 @@ export function AlertCard({ alerta }: AlertCardProps) {
           ))}
           .
         </p>
+      )}
+
+      {/*
+        Qué dice la regla que produjo esta alerta. Existe porque `CLAUDE.md` 7.6 exige que «una
+        alerta publicada tiene que poder reconstruirla un tercero leyendo la regla y el texto
+        archivado, sin ejecutar nuestro código», y hasta hoy ese tercero tenía el texto y los
+        offsets pero NO tenía la regla: la tarjeta imprimía `R-MOD-001` y no había dónde leerlo.
+
+        Va en un `<details>` cerrado y después de la evidencia, no antes: quien lee tiene que
+        toparse primero con la cita literal de la norma y solo después con nuestro criterio. Es el
+        mismo orden que el ADR 0025 impone al informe de apoyo, y por el mismo motivo.
+      */}
+      {regla && (
+        <details className="mt-3 rounded border border-line-2 bg-inset px-3 py-2">
+          <summary className="cursor-pointer font-mono text-[11px] text-ink-2 hover:text-ink">
+            qué dice la regla {regla.id}
+          </summary>
+          <dl className="mt-2 space-y-2 text-xs leading-relaxed text-ink-2">
+            <div>
+              <dt className="font-semibold text-ink">Se dispara cuando</dt>
+              <dd className="m-0">{regla.enunciado}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-ink">Evidencia que exige</dt>
+              <dd className="m-0">{regla.evidencia}</dd>
+            </div>
+            <div>
+              <dt className="font-semibold text-ink">Qué signo emite</dt>
+              <dd className="m-0">{regla.signo}</dd>
+            </div>
+          </dl>
+        </details>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[11px] text-ink-3">

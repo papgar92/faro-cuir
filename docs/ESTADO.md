@@ -3168,3 +3168,103 @@ las referencias hace. Se conservan.
 
 Queda anotado en el propio `AlertCard` por qué el título va en `font-sans` y no en `font-serif`: la
 serif es la voz del proyecto y ese titular no es suya, es la del Estado.
+
+### ✅ El catálogo de reglas se puede leer, y la cobertura dice hasta cuándo llega — 2026-08-22 (tarde)
+
+Dos de las cuatro propuestas de diseño que quedaban, y la segunda ha destapado un hueco real.
+
+#### El catálogo de reglas, publicado (7.6 deja de estar incumplida)
+
+`CLAUDE.md` 7.6 exige que «una alerta publicada tiene que poder reconstruirla un tercero leyendo la
+regla y el texto archivado, **sin ejecutar nuestro código**». Hasta hoy ese tercero tenía el texto,
+los offsets y la huella — y **no tenía la regla**: la tarjeta imprimía `R-MOD-001` y no había dónde
+leer qué dice. La exigencia estaba escrita y no se cumplía.
+
+`frontend/src/lib/reglas.ts` publica las cinco reglas **en orden de evaluación** —que es
+información y no presentación: el catálogo devuelve el primer veredicto que encaja, así que
+R-SUP-001 tapa a R-MOD-001 en una norma que hace las dos cosas— con su enunciado, la evidencia que
+exige y **qué signo emite**. Ese último campo es obligatorio en las cinco porque tres se abstienen:
+sin decirlo, un `indeterminado` se lee como «no supo» cuando lo que pasa es que la regla **decidió
+no afirmar**, y esa diferencia es medio proyecto.
+
+Se pinta en un `<details>` cerrado y **después de la evidencia**, nunca antes: quien lee tiene que
+toparse primero con la cita literal de la norma y solo después con nuestro criterio. Mismo orden y
+mismo motivo que el informe de apoyo del ADR 0025.
+
+**Lo que hace fiable al glosario es su test.** `test_catalogo_publicado.py` comprueba que la
+versión publicada es `VERSION_REGLAS` y que están todas las reglas y ninguna de más. Un glosario
+que se queda atrás es peor que no tenerlo, porque explica mal con aire de autoridad. Verificado que
+el control **falla de verdad**: con la versión desfasada a mano, el test se pone rojo.
+
+Detalle de montaje: el contenedor de backend no veía el frontend, así que el test se saltaba en
+local y solo corría en CI — un control que se descubre roto con el commit ya hecho. Se monta
+`./frontend:/frontend:ro` solo para eso; ningún código de producción lee de ahí.
+
+#### La cobertura dice hasta cuándo llega, y lo primero que ha dicho es incómodo
+
+`CoberturaCcaa.ultima_publicacion`: la fecha del boletín **más reciente** archivado de cada
+comunidad. Es la fecha de publicación y no el sello de nuestra ingesta, a propósito — el sello dice
+cuándo corrió el worker, que puede ser esta mañana aunque el último boletín sea de hace un año.
+
+**Y al existir ha destapado esto:**
+
+| fuente | sumarios | cobertura real |
+|---|---|---|
+| BOE | 211 | 2014-11-06 → **2026-08-21** (ayer) |
+| DOGC | 142 | 2024-01-02 → **2024-12-31** |
+
+El DOGC se ingirió como una **tanda histórica de 2024 y nunca se puso al día**. Llevamos veinte
+meses sin leer nada de Catalunya, y el mapa la pintaba como «vigilada» todo este tiempo — que se
+lee como «esto lo estamos mirando». Es exactamente la diferencia entre promesa y medición que
+motivaba el campo, encontrada en nuestra propia casa a los cinco minutos de publicarlo.
+
+La interfaz ya lo dice, con umbral de 30 días y en color de aviso (no de retroceso: que no hayamos
+leído no dice nada del territorio, dice algo de nosotros).
+
+**Consecuencia para el plan: poner al día el DOGC vale más que integrar una fuente nueva.** Una
+fuente vigilada y desactualizada es peor que una no vigilada, porque la interfaz promete algo que
+no está pasando. Va por delante de Andalucía o Galicia en la lista.
+
+### ✅ Las cinco propuestas de diseño, cerradas — 2026-08-22 (tarde, cont.)
+
+#### Datos y cita, en la propia vista
+
+`DatosYCita` al pie de Alertas y de Hallazgos, con los endpoints **reales** y una cadena de cita
+que **lleva el `sha256` dentro**. No es adorno: citar «Faro Cuir, alerta 12» no sirve de nada
+dentro de cinco años, pero con la huella cualquiera puede comprobar que el documento citado es el
+mismo aunque para entonces la administración lo haya retirado de su web — que es literalmente el
+daño que este proyecto existe para documentar (6.5).
+
+En Hallazgos **no se ofrece Atom**, porque los hallazgos todavía no tienen feed. Anunciar un
+endpoint que no existe sería el mismo fallo que las tres anclas muertas del pie.
+
+#### Todo tiene URL, que era un agujero más grande que el que señalaba el agente
+
+El agente pedía que la ficha de comunidad fuera enlazable. Al mirarlo, resultó que **ninguna
+pantalla tenía URL**: todo el estado vivía en `useState`, así que la raíz llevaba siempre al mapa
+y no había forma de enlazar nada. Para un observatorio eso no es comodidad — «mándame el enlace de
+Andalucía» o «mira esta alerta» es la acción de compartir principal, y es la que convierte una
+consulta en una cita.
+
+`?pantalla=hallazgos` y `?ccaa=CT`, con `URLSearchParams` y `replaceState`. **Sin router**: son
+seis pantallas y un parámetro, y meter `react-router` para esto sería una capa más que auditar
+(sección 3). Dos decisiones que no son obvias:
+
+- **Se escribe la comunidad FIJADA, no la del ratón.** `?ccaa=CT` tiene que significar «alguien
+  eligió Catalunya», no «el cursor pasó por encima».
+- **`replaceState` y no `pushState`**, por lo mismo: empujar una entrada de historial por cada
+  hover deja el botón «atrás» inservible.
+
+Verificado en el navegador: `?pantalla=hallazgos` aterriza en Hallazgos y `?ccaa=CT` abre la ficha
+de Catalunya.
+
+#### Preparado y NO lanzado: la puesta al día del DOGC
+
+`backend/backfill-dogc.sh`, reanudable como el del BOE pero **hacia adelante**: lo que falta ahí no
+es historia, es actualidad. Queda sin lanzar a la espera de que lo decida el humano, porque es
+tráfico saliente sostenido contra un tercero durante horas.
+
+Y va escrito en el propio script lo que **no** arregla: se espera que buena parte de lo que entre
+quede `ilegible`, porque el DOGC publica mucho solo en PDF y el pipeline aún no lo lee (172 de 264
+en la tanda de 2024, el 65 %). Ponerlo al día resuelve «llevamos veinte meses sin mirar»; no
+resuelve «de lo que miramos, dos tercios no se pueden analizar». Eso es el lector de PDF.

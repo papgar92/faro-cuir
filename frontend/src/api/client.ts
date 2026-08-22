@@ -201,6 +201,15 @@ export interface CoberturaCcaaApi {
   conocidas: number;
   vigiladas: number;
   /**
+   * Fecha del boletín **más reciente** archivado de esta comunidad. `null` si no hay ninguno.
+   *
+   * Es lo que convierte «vigilada, sin alertas» de promesa en medición. Y lo primero que
+   * encontró al existir: el DOGC se ingirió como una tanda de 2024 y su boletín más nuevo es del
+   * **31 de diciembre de 2024**, mientras el mapa pintaba Catalunya como vigilada. «Aquí se
+   * mira» y «aquí se miró hace veinte meses» son cosas distintas y se pintaban igual.
+   */
+  ultima_publicacion: string | null;
+  /**
    * Normas ingeridas de esta comunidad, y cuántas de ellas el pipeline **no puede leer**
    * (ADR 0020). Es la diferencia entre estar suscrito a un boletín y estarlo leyendo:
    * `vigiladas` cuenta fuentes activas, y una fuente activa puede entregar documentos

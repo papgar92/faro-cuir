@@ -11,6 +11,7 @@ un proyecto de vigilancia tiene la obligación de hacer verificable sobre sí mi
 
 from __future__ import annotations
 
+import datetime
 from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends
@@ -60,6 +61,29 @@ def _legibilidad(session: Session) -> dict[str | None, tuple[int, int]]:
         .group_by(Fuente.ccaa_codigo)
     ).all()
     return {codigo: (normas, ilegibles) for codigo, normas, ilegibles in filas}
+
+
+def _ultima_publicacion(session: Session) -> dict[str | None, datetime.date]:
+    """La fecha del boletín más reciente archivado de cada comunidad.
+
+    Es lo que convierte «vigilada, sin alertas» de promesa en medición. La trama del mapa dice
+    que ahí se mira; sin fecha no dice desde cuándo, y «lo leímos ayer y no había nada» se pinta
+    igual que «lo leímos en marzo y desde entonces nadie ha vuelto».
+
+    Se agrega en SQL por lo mismo que `_legibilidad`, y se toma de **sumarios**: son los
+    boletines, y contar cuerpos o consolidados daría la fecha de un texto que puede ser de hace
+    años (una norma de 2014 se descarga hoy, ADR 0015).
+
+    La clave `None` es el BOE, que no pertenece a ninguna comunidad.
+    """
+    filas = session.execute(
+        select(Fuente.ccaa_codigo, func.max(Documento.fecha_publicacion))
+        .select_from(Documento)
+        .join(Fuente, Fuente.id == Documento.fuente_id)
+        .where(Documento.tipo == TipoDocumento.SUMARIO)
+        .group_by(Fuente.ccaa_codigo)
+    ).all()
+    return {codigo: fecha for codigo, fecha in filas if fecha is not None}
 
 
 @router.get("/cobertura", response_model=Cobertura)
@@ -126,6 +150,13 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
             continue
         entrada_ccaa.normas += normas
         entrada_ccaa.ilegibles += ilegibles
+
+    for codigo, fecha in _ultima_publicacion(session).items():
+        if codigo is None:
+            continue
+        entrada_fecha = por_ccaa.get(codigo)
+        if entrada_fecha is not None:
+            entrada_fecha.ultima_publicacion = fecha
 
     for entrada in por_ccaa.values():
         entrada.niveles.sort(key=lambda nivel: nivel.ambito)

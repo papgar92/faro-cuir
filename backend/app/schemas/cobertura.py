@@ -12,6 +12,8 @@ permitiría leer "8 fuentes" como si fueran ocho fuentes vigiladas.
 
 from __future__ import annotations
 
+import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -37,6 +39,19 @@ class CoberturaCcaa(BaseModel):
     niveles: list[CoberturaNivel]
     conocidas: int
     vigiladas: int
+    # --- Hasta cuándo llega lo que sabemos de aquí --------------------------------------------
+    # La fecha del boletín MÁS RECIENTE archivado de esta comunidad. `None` = no hay ninguno.
+    #
+    # Sin este campo, «vigilada, sin alertas aprobadas» no es una medición: es una promesa. Dice
+    # que aquí se mira, y no dice desde cuándo — así que un lector no puede distinguir «lo miramos
+    # ayer y no había nada» de «lo miramos en marzo y desde entonces nadie ha vuelto». Las dos
+    # cosas se pintan hoy con la misma trama y significan cosas muy distintas.
+    #
+    # Es la fecha de PUBLICACIÓN del boletín y no el sello de nuestra ingesta, a propósito: el
+    # sello dice cuándo corrió el worker, que puede ser esta mañana aunque el último boletín que
+    # tengamos sea de hace un mes. Lo que necesita saber quien lee es hasta dónde llega el
+    # archivo, no cuándo trabajamos nosotros.
+    ultima_publicacion: datetime.date | None = None
     # --- Cobertura real, no declarada (ADR 0020) ------------------------------------------
     # `vigiladas` cuenta **fuentes activas**, y una fuente activa puede estar entregando
     # documentos que el pipeline no consigue leer. Pasó con el DOGC: 172 de sus 264 normas

@@ -1,5 +1,6 @@
 import { formatearFecha, formatearSelloTiempo } from "../../lib/formato";
 import { nombreTerritorio } from "../../lib/territorio";
+import { reglaPublicada } from "../../lib/reglas";
 import type { HallazgoApi } from "../../api/client";
 
 /**
@@ -39,6 +40,7 @@ interface HallazgoCardProps {
 
 export function HallazgoCard({ hallazgo }: HallazgoCardProps) {
   const { informe, norma } = hallazgo;
+  const regla = reglaPublicada(hallazgo.regla_aplicada);
   const territorios = hallazgo.normas_vigiladas
     .map((n) => nombreTerritorio(n.ambito))
     .filter((t) => t !== "");
@@ -167,6 +169,31 @@ export function HallazgoCard({ hallazgo }: HallazgoCardProps) {
             {informe.refutacion}
           </p>
         </section>
+
+        {/* Qué dice la regla que lo detectó. Aquí importa incluso más que en una alerta: un
+            hallazgo no lo ha revisado nadie, así que lo único que lo sostiene es que se pueda
+            comprobar entero — y eso incluye el criterio, no solo el texto (7.6). */}
+        {regla && (
+          <details className="mt-3 rounded border border-line-2 bg-bg px-3 py-2">
+            <summary className="cursor-pointer font-mono text-[11px] text-ink-2 hover:text-ink">
+              qué dice la regla {regla.id}
+            </summary>
+            <dl className="mt-2 space-y-2 text-xs leading-relaxed text-ink-2">
+              <div>
+                <dt className="font-semibold text-ink">Se dispara cuando</dt>
+                <dd className="m-0">{regla.enunciado}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-ink">Evidencia que exige</dt>
+                <dd className="m-0">{regla.evidencia}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-ink">Qué signo emite</dt>
+                <dd className="m-0">{regla.signo}</dd>
+              </div>
+            </dl>
+          </details>
+        )}
 
         {/* La huella del archivo: es la mitad verificable del hallazgo y por eso se publica
             entera, igual que en una alerta (6.5). */}
