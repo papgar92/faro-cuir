@@ -31,7 +31,7 @@ from app.security.xml_safe import XmlSafeError
 from app.services import clasificacion as servicio_clasificacion
 from app.services import extraccion as servicio_extraccion
 from app.services import informes as servicio_informes
-from app.services import ingesta, texto_integro, versionado
+from app.services import ingesta, recuperacion_pdf, texto_integro, versionado
 from app.services import prefiltro as servicio_prefiltro
 from app.services import revision as servicio_revision
 
@@ -137,6 +137,16 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--recuperar-pdf",
+        action="store_true",
+        help=(
+            "No ingiere nada: reintenta por PDF las normas marcadas `ilegible` (ADR 0026). El "
+            "DOGC publica muchas solo en PDF y su endpoint XML devuelve la pagina de error del "
+            "portal. Sale a la red. NO sustituye el documento anterior: archiva el PDF aparte, "
+            "con su propia huella, y reapunta la norma."
+        ),
+    )
+    parser.add_argument(
         "--reclasificar",
         action="store_true",
         help=(
@@ -155,6 +165,7 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         or args.reclasificar
         or args.versionar
         or args.extraer
+        or args.recuperar_pdf
         or args.importar_informes is not None
     )
     if not mantenimiento and args.fuente is None:
@@ -356,6 +367,28 @@ def main(argv: list[str] | None = None) -> int:
             )
             resumen = servicio_prefiltro.aplicar(session, almacen_root=settings.almacen_root)
         _registrar_fase2(resumen_fase2)
+        _registrar_embudo(resumen, reaplicado=True)
+        return 0
+
+    if args.recuperar_pdf:
+        # Recupera y reevalua en la misma pasada, por lo mismo que `--fase2`: dejar cuerpos
+        # archivados que nadie ha mirado es la ventana que este worker se cuida de no abrir.
+        with SessionLocal() as session:
+            resumen_pdf = recuperacion_pdf.recuperar(
+                session,
+                almacen_root=settings.almacen_root,
+                pausa=settings.fase2_pausa_segundos,
+                limite=settings.fase2_max_por_ejecucion,
+            )
+            resumen = servicio_prefiltro.aplicar(session, almacen_root=settings.almacen_root)
+        logger.info(
+            "Recuperacion por PDF (ADR 0026): %d intentadas -> %d recuperadas, %d SIN CAPA DE "
+            "TEXTO (serian el caso de un OCR), %d fallidas.",
+            resumen_pdf.intentadas,
+            resumen_pdf.recuperadas,
+            resumen_pdf.sin_texto,
+            resumen_pdf.fallidas,
+        )
         _registrar_embudo(resumen, reaplicado=True)
         return 0
 

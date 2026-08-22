@@ -18,6 +18,13 @@ dependencies = [
     # Parseo de XML no confiable (CLAUDE.md 6.1). Obligatorio por diseño: el XML de las
     # fuentes nunca pasa por xml.etree ni por lxml sin endurecer.
     "defusedxml>=0.7",
+    # Extraccion de la capa de texto de PDF no confiable (CLAUDE.md 6.1). Elegida entre
+    # pdfminer.six y PyMuPDF por tres motivos que importan aqui: es **Python puro**, asi que no
+    # mete binarios del sistema en la imagen ni en la auditoria; es **MIT**, mientras PyMuPDF es
+    # AGPL y arrastraria una decision de licencia que este proyecto no necesita tomar; y su
+    # superficie es pequena, que es lo que se pide de algo que va a comerse entrada hostil.
+    # NUNCA se usa directamente: la puerta es security/pdf_safe.py, igual que xml_safe con XML.
+    "pypdf>=5.1",
 ]
 
 [project.optional-dependencies]

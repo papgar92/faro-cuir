@@ -29,7 +29,8 @@ from app.pipeline.citas import extraer_referencias_citadas
 from app.pipeline.referencias import ReferenciaAnterior, extraer_referencias_anteriores
 from app.pipeline.texto import texto_plano
 from app.pipeline.watchlist import Watchlist
-from app.security import xml_safe
+from app.security import pdf_safe, xml_safe
+from app.security.pdf_safe import PdfSafeError
 from app.security.hashing import UnsafeStoragePath
 from app.security.xml_safe import XmlSafeError
 from app.services.archivo import leer
@@ -103,8 +104,44 @@ def leer_cuerpo(
         return None
     try:
         contenido = leer(norma.documento_texto.ruta_almacen, almacen_root=almacen_root)
+    except (OSError, UnsafeStoragePath) as exc:
+        logger.error(
+            "No se puede leer del almacén el cuerpo de %s: %s: %s",
+            norma.identificador_oficial,
+            type(exc).__name__,
+            exc,
+        )
+        raise CuerpoIlegible(norma.identificador_oficial) from exc
+
+    # **El formato se decide por el contenido, no por la extensión ni por la fuente.** Un PDF
+    # archivado con nombre `.xml` sigue siendo un PDF, y confiar en el nombre de un fichero que
+    # viene de fuera es exactamente el error que 6.3 prohíbe para las rutas.
+    #
+    # Que esta rama exista es el ADR 0026: el DOGC publica muchas normas solo en PDF, y hasta
+    # ahora sus cuerpos se marcaban `ilegible` porque `xml_safe` no podía con ellos. La capa de
+    # texto está ahí —medido: 795 KB de PDF dan 8.295 caracteres limpios— así que lo que faltaba
+    # no era OCR, era mirar.
+    if contenido[:5] == b"%PDF-":
+        try:
+            texto_pdf = pdf_safe.extraer_texto(contenido)
+        except PdfSafeError as exc:
+            logger.error(
+                "CONTROL DE SEGURIDAD al leer el PDF de %s: %s: %s",
+                norma.identificador_oficial,
+                type(exc).__name__,
+                exc,
+            )
+            raise CuerpoIlegible(norma.identificador_oficial) from exc
+        # **Sin referencias del metadato, y eso no es un descuido.** Un PDF no trae el bloque
+        # `<analisis>` del BOE, así que el eje referencial aquí solo puede alimentarse de las
+        # citas del propio texto (ADR 0022) — que es justo lo que ese ADR existía para cubrir en
+        # las fuentes que no publican metadatos.
+        citadas_pdf = extraer_referencias_citadas(texto_pdf, lista) if lista is not None else ()
+        return Cuerpo(texto=texto_pdf, referencias=citadas_pdf)
+
+    try:
         raiz = xml_safe.parse(contenido)
-    except (XmlSafeError, UnsafeStoragePath) as exc:
+    except XmlSafeError as exc:
         logger.error(
             "CONTROL DE SEGURIDAD al leer el cuerpo archivado de %s: %s: %s",
             norma.identificador_oficial,
@@ -112,14 +149,9 @@ def leer_cuerpo(
             exc,
         )
         raise CuerpoIlegible(norma.identificador_oficial) from exc
-    except OSError as exc:
-        logger.error(
-            "Falta en el almacén el cuerpo de %s (%s): %s",
-            norma.identificador_oficial,
-            norma.documento_texto.ruta_almacen,
-            exc,
-        )
-        raise CuerpoIlegible(norma.identificador_oficial) from exc
+    # Aquí ya NO se captura `OSError`: la lectura del disco se movió arriba, antes de decidir el
+    # formato, y `xml_safe.parse` trabaja sobre bytes que ya están en memoria. Dejar el `except`
+    # habría sido código muerto que además insinúa que este bloque toca el disco, y no lo toca.
     texto = texto_plano(raiz)
     # Primero lo que declara la fuente y después lo que dice el texto. Las dos listas se
     # **concatenan sin deduplicar**: una norma puede salir en las dos, y eso no estorba porque

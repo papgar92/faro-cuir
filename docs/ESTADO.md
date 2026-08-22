@@ -3268,3 +3268,107 @@ Y va escrito en el propio script lo que **no** arregla: se espera que buena part
 quede `ilegible`, porque el DOGC publica mucho solo en PDF y el pipeline aún no lo lee (172 de 264
 en la tanda de 2024, el 65 %). Ponerlo al día resuelve «llevamos veinte meses sin mirar»; no
 resuelve «de lo que miramos, dos tercios no se pueden analizar». Eso es el lector de PDF.
+
+### ✅ Las ilegibles del DOGC se recuperan por PDF, y no hizo falta OCR (ADR 0026) — 2026-08-22
+
+El hueco que llevaba abierto desde el ADR 0020 —172 normas del DOGC, el 65 % de esa fuente, con su
+cuerpo archivado y **sin que el pipeline pudiera leerlo**— se cierra. Al empezar eran ya 235,
+porque la puesta al día de la fuente las multiplicaba.
+
+#### Lo que faltaba no era OCR, y se comprobó antes de decidir
+
+El humano pidió levantar la prohibición de OCR de la sección 8. Antes de tocar la regla se midió un
+PDF real del DOGC: **59 referencias de fuente, 18 bloques de texto, cero imágenes**. Es un PDF
+digital con capa de texto, y extraerla da **8.295 caracteres limpios de un fichero de 795 KB**,
+empezando por «DISPOSICIONES GENERALES / DEPARTAMENTO DE LA PRESIDENCIA / ORDEN PRE/292/2023…».
+
+La prohibición se levantó igualmente —es decisión suya— pero escrita como regla razonada: el OCR es
+**el último recurso y no el primero**, y antes de escribir una línea hay que demostrar con un
+documento real que su PDF no tiene capa de texto. Lo que la sección 8 protege no es la técnica, es
+el plazo.
+
+#### `security/pdf_safe.py`, hermano de `xml_safe`
+
+Puerta única —ningún módulo importa `pypdf`, con test que lo comprueba— y **tres topes porque son
+tres ataques distintos**: bytes (lo que no se lee no hace daño), páginas (300 KB que declaran cien
+mil) y caracteres de salida (bomba de expansión, el equivalente de las entidades del XML). Al
+pasarse cualquiera, excepción y **ni un carácter devuelto**: medio documento archivado como entero
+haría que el prefiltro dijera «aquí no hay nada» sobre un texto que nadie ha visto completo.
+
+`RecursionError` capturada explícitamente: un PDF con referencias circulares la provoca y sin eso
+se lleva al worker por delante.
+
+`SinCapaDeTexto` es un tipo aparte de `MalformedPdf`, y esa distinción **es la cifra que decidirá
+si el OCR llega a hacer falta**: «no se puede leer» y «se lee y no tiene letras» son cosas
+distintas, y solo la segunda lo justificaría. Se publica en el log aunque valga cero. Hoy vale
+**cero**.
+
+#### Cómo se recupera, sin tocar el archivo
+
+`worker.run --recuperar-pdf`. **No sustituye nada**: archiva el PDF como documento nuevo con su
+huella y su sello, sufijo `#pdf`, y reapunta la norma. Lo que se descargó aquel día —aunque fuera
+la página de error del portal— sigue estando, porque es un hecho sobre la fuente y merece
+conservarse (6.5).
+
+Y `cuerpo.leer_cuerpo` decide el formato **por los cinco primeros bytes**, nunca por la extensión
+ni por la fuente: un PDF archivado con nombre `.xml` sigue siendo un PDF, y fiarse del nombre de un
+fichero externo es el mismo error que 6.3 prohíbe para las rutas.
+
+#### Resultado en caliente
+
+Primera prueba: **3 intentadas → 3 recuperadas, 0 sin capa de texto, 0 fallidas**, y el prefiltro
+las evaluó acto seguido sobre el texto real. La pasada completa está corriendo: las ilegibles bajan
+de 235 a 212 y siguen.
+
+Los `DtdForbidden` que aparecen en el log **no son un fallo**: son las ilegibles todavía sin
+recuperar, cuyo cuerpo sigue siendo la página de error HTML. `xml_safe` las rechaza como debe.
+
+#### Lo que esto no arregla
+
+Las normas cuyo PDF sea de verdad un escaneo. Hoy son cero. Si algún día no lo son, el número
+estará en el log y el OCR tendrá con qué justificarse en su propio ADR — que es exactamente la
+diferencia entre decidir con datos y decidir por intuición.
+
+### ⇨ CÓMO RETOMAR ESTO — escrito el 2026-08-22 al cierre
+
+**Hay tres procesos de fondo corriendo dentro del contenedor.** Ninguno se relanza solo si el
+contenedor se recrea (se lanzan con `exec -d`, que no es el comando del contenedor). Si al volver
+los ves parados, esto los revive y todos saltan en segundos lo ya hecho:
+
+```bash
+docker compose exec -d worker sh //app/backfill.sh          # BOE hacia atras (quedan ~4 bloques)
+docker compose exec -d worker sh //app/backfill-dogc.sh     # DOGC hacia adelante, hasta hoy
+docker compose exec -d worker sh -c "FASE2_MAX_POR_EJECUCION=400 python -m worker.run --recuperar-pdf > //app/data/recuperacion-pdf.log 2>&1"
+```
+
+**Comprobar que siguen vivos**, que es lo primero que hay que mirar:
+
+```bash
+docker compose exec -T worker sh -c 'for p in /proc/[0-9]*; do [ -r $p/cmdline ] || continue; tr " " " " < $p/cmdline | grep -E "worker.run|backfill" ; done'
+```
+
+#### Lo que va a pasar solo, y no es un fallo
+
+- **Las ilegibles siguen bajando** (235 → 96 al cierre). Cada una recuperada vuelve al prefiltro y
+  se evalúa **sobre su texto real por primera vez**, así que van a aparecer detecciones nuevas y
+  la cola de revisión va a crecer. Eso es el sistema funcionando, y quien las revise es una
+  persona.
+- **Catalunya seguirá con el aviso de «desactualizada»** hasta que el backfill del DOGC alcance el
+  presente. El umbral son 30 días y va en color de aviso. Que el aviso desaparezca solo es
+  exactamente lo que tiene que hacer un indicador honesto.
+
+#### Lo que queda, por orden de valor
+
+1. **Revisar la cola** cuando las recuperaciones terminen de poblarla. Es trabajo humano y es el
+   cuello de botella del proyecto, no el código.
+2. **Que el signo sea difícil de errar en el panel** (~10k). Dos incidentes en dos días sobre el
+   mismo campo: signos invertidos el 21 y signos sin poner el 22. Separar los radios
+   Avance/Retroceso, enseñar el identificador de la norma junto al selector, y **avisar al aprobar
+   cuando la regla se abstiene y no se ha fijado signo** — que es justo donde el sistema depende de
+   que la persona complete lo que la regla no puede.
+3. **Gold set de 32 a 60-80 casos** (~20k). Ahora hay 55.000 normas de corpus contra las que medir,
+   y con el DOGC legible por fin hay material de esa fuente que antes no se podía etiquetar.
+4. **La poda de `CLAUDE.md`**, que ha vuelto a crecer con los ADR 0026 y la regla nueva de PDF.
+   Sigue por encima del límite de ~55 KB y **lo decide una persona**.
+5. **Fuentes nuevas**, con el aviso de siempre: la sección 8 las capa en 5 y vamos por 2. Y con la
+   lección del DOGC delante — una fuente vigilada y desactualizada es peor que una no vigilada.

@@ -272,8 +272,12 @@ ataque principal. Trátalo así.
 - **Bombas XML / billion laughs:** límites de profundidad de anidamiento y de expansión de
   entidades. Test con payload.
 - **Zip bombs:** si algún día se descomprime algo, límite de ratio y de tamaño total.
-- **PDF:** extracción de texto solo. **Nada de OCR** (fuera de alcance, sección 8). Límite de
-  tamaño y de páginas.
+- **PDF:** extracción de la capa de texto. **El OCR deja de estar prohibido** (decisión del
+  humano, 2026-08-22) pero sigue siendo **el último recurso, nunca el primero**: se intenta la
+  capa de texto y solo si el PDF no la tiene se plantea OCR, con su propio ADR. Medido antes de
+  cambiar la regla: un PDF del DOGC trae 59 referencias de fuente, 18 bloques de texto y **cero
+  imágenes**, así que para esta fuente el OCR no hace falta. Límite de tamaño y de páginas,
+  siempre: un PDF es entrada hostil como cualquier otra.
 
 ### 6.2 SSRF en la ingesta
 El worker sigue URLs que vienen de los sumarios. Si no se validan, se convierte en tu proxy a la
@@ -728,7 +732,11 @@ del recurso más caro del proyecto, que es el tiempo humano de anotación.
 
 Si te encuentras haciendo cualquiera de estas, para:
 
-- **OCR** de PDFs escaneados. Agujero negro. Esas fuentes se documentan como hoja de ruta.
+- ~~**OCR** de PDFs escaneados~~ — **el humano levantó la prohibición el 2026-08-22.** Sigue
+  siendo caro y sigue sin hacer falta para nada de lo que hay hoy en el corpus (la capa de texto
+  del DOGC existe y se lee), así que **antes de escribir una línea de OCR hay que demostrar con
+  un documento real que su PDF no tiene capa de texto**, y llevarlo a un ADR. Lo que la sección 8
+  protege no es la técnica, es el plazo: el 10 de septiembre no se mueve.
 - **Monitorización de prensa o redes sociales.** No.
 - **Publicación totalmente automática** sin gate humano. No.
 - **Almacenar el veredicto del LLM como si fuera la clasificación.** La clasificación se deriva
@@ -772,7 +780,11 @@ Si te encuentras haciendo cualquiera de estas, para:
   vigilada** (escrito e implementado el 2026-08-20) y **0024 la segunda puerta del gate humano**
   (escrito e implementado el 2026-08-20) y **0025 el informe de apoyo y el hallazgo histórico**
   (escrito el 2026-08-20, implementado a medias: falta la interfaz). Con el 0013 escrito **ya no
-  queda ningún número reservado**: el siguiente libre es el **0026**.
+  queda ningún número reservado**. Y **0026 el PDF como segunda vía del cuerpo archivado**
+  (escrito e implementado el 2026-08-22): el DOGC publica muchas normas solo en PDF, así que
+  `security/pdf_safe.py` es ahora la puerta única para ese formato — con tres topes, sin ejecutar
+  nada y distinguiendo «no se puede leer» de «no tiene letras», que es la cifra que decidirá algún
+  día si el OCR hace falta. El siguiente libre es el **0027**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).
