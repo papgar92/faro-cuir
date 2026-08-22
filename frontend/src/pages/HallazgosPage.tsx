@@ -122,10 +122,14 @@ export function HallazgosPage() {
                 <HallazgoCard key={hallazgo.id} hallazgo={hallazgo} />
               ))}
             </div>
-            {/* Sin `atom`: los hallazgos todavía no tienen feed propio, y ofrecer uno que no
-                existe sería el mismo fallo que las anclas muertas del pie. */}
+            {/* Feed propio desde el 2026-08-22, y **separado del de alertas a propósito**: quien
+                se suscribe a las alertas recibe cosas que una persona revisó; quien se suscribe
+                aquí recibe cambios que nadie ha mirado. Mezclarlos dejaría esa diferencia en manos
+                de que el lector se fije en una etiqueta, y en un agregador las etiquetas se
+                pierden. Por eso el aviso va en el título de cada entrada. */}
             <DatosYCita
               json="/api/hallazgos"
+              atom="/api/hallazgos.xml"
               ejemplo={
                 estado.datos[0] && {
                   identificador: estado.datos[0].norma.identificador_oficial,

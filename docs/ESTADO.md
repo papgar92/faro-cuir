@@ -3372,3 +3372,59 @@ docker compose exec -T worker sh -c 'for p in /proc/[0-9]*; do [ -r $p/cmdline ]
    Sigue por encima del límite de ~55 KB y **lo decide una persona**.
 5. **Fuentes nuevas**, con el aviso de siempre: la sección 8 las capa en 5 y vamos por 2. Y con la
    lección del DOGC delante — una fuente vigilada y desactualizada es peor que una no vigilada.
+
+### ✅ El panel deja de facilitar el error, y los hallazgos tienen feed — 2026-08-22 (cierre)
+
+#### El selector de signo, rehecho contra dos incidentes reales
+
+No es una mejora estética: es la causa de los dos fallos de esta semana. El 21 se aprobaron cuatro
+ítems en once minutos y **dos salieron con el signo invertido** —la orden de 2014 que excluyó a
+lesbianas y personas trans de la RHA publicada como «avance», la de 2019 que crea el cribado de
+cérvix como «retroceso»—. El 22 aparecieron otros dos **sin signo** siendo avances, la Ley 4/2023
+entre ellos.
+
+Las dos causas estaban en ese cuadro y hay una corrección para cada una:
+
+1. **El identificador de la norma va DENTRO del selector.** Los cuatro títulos de aquella noche
+   eran casi idénticos («Orden …, por la que se modifican los anexos … del RD 1030/2006…»): el de
+   2014 y el de 2021 se distinguen por cuatro caracteres. Ahora se ve de qué norma se está
+   eligiendo el signo sin levantar la vista.
+2. **«Avance» y «Retroceso» dejan de ser dos radios pegados** a 12 px. Son botones separados con
+   su color, su glifo y su texto — el criterio de `ClassificationBadge`: nunca solo color.
+3. **Aviso cuando la regla se abstiene y no se ha fijado signo.** Solo en ese caso, que es donde el
+   sistema depende de que la persona complete lo que la regla no puede sostener.
+
+Sigue siendo **opcional** a propósito: obligar empujaría a inventarse un signo, y «sin signo» es
+una respuesta legítima y a veces la única honesta.
+
+**No verificado visualmente**: el panel está tras autenticación y la sesión no tenía la
+credencial. Typecheck y CI en verde, pero conviene mirarlo con los ojos al abrirlo.
+
+#### Feed Atom de hallazgos, separado del de alertas
+
+`GET /api/hallazgos.xml`. **Feed aparte y no un parámetro**, porque afirman cosas distintas: quien
+se suscribe a las alertas recibe lo que una persona revisó; quien se suscribe aquí recibe cambios
+que **nadie ha mirado**.
+
+Y el aviso va **en el título de cada entrada** (`SIN REVISAR · …`), no en una categoría. Un feed se
+lee en un agregador: colores, categorías y etiquetas se pierden por el camino, y lo único que
+sobrevive a cualquier lector es el título. Hay un test que lo fija y comprueba el título, no la
+categoría — la categoría es un extra, el título es el control.
+
+El contenido de cada entrada lleva las dos cosas que hacen publicable un hallazgo (ADR 0025,
+decisión 4): el resumen y **quién lo ha documentado ya**. Sin la segunda esto sería la opinión de
+un modelo publicada en un canal.
+
+#### La recuperación por PDF, terminada
+
+**De 235 ilegibles a 9.** El 96 % del hueco que llevaba abierto desde el ADR 0020, cerrado, y con
+`sin_texto = 0`: ni un solo PDF del corpus necesitaba OCR.
+
+**Y el efecto sobre la vigilancia real, que es lo que importaba:** el DOGC pasa de tener dos
+tercios ciegos a **3 relevantes y 19 sospechas** evaluadas sobre su texto de verdad. Antes esas
+normas estaban descargadas, selladas y sin que nadie pudiera leerlas.
+
+**Lo siguiente que hay que lanzar, y no está hecho:** `python -m worker.run --reclasificar`. El
+catálogo de reglas todavía no ha pasado por las recuperadas —hay 45 detecciones y la cola sigue
+con las 26 resueltas de ayer—, así que las detecciones nuevas del DOGC aparecerán al reclasificar.
+No se lanzó aquí para no cruzarlo con los tres procesos de fondo que ya estaban corriendo.

@@ -30,8 +30,8 @@ from app.pipeline.referencias import ReferenciaAnterior, extraer_referencias_ant
 from app.pipeline.texto import texto_plano
 from app.pipeline.watchlist import Watchlist
 from app.security import pdf_safe, xml_safe
-from app.security.pdf_safe import PdfSafeError
 from app.security.hashing import UnsafeStoragePath
+from app.security.pdf_safe import PdfSafeError
 from app.security.xml_safe import XmlSafeError
 from app.services.archivo import leer
 

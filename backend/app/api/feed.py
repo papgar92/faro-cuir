@@ -36,10 +36,11 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models.deteccion import Alerta
+from app.models.deteccion import Alerta, InformeRevision
 from app.models.documento import Documento
 from app.schemas.alerta import AlertaPublica
 from app.services import alertas as servicio
+from app.services import hallazgos as servicio_hallazgos
 
 router = APIRouter(prefix="/api", tags=["feed"])
 
@@ -206,5 +207,80 @@ def feed_atom(request: Request, session: Session = Depends(get_session)) -> Resp
 
     # `encoding="unicode"` devuelve el árbol sin declaración XML y la ponemos nosotros: es la
     # forma de controlar exactamente qué sale por delante sin recortar cadenas.
+    cuerpo = '<?xml version="1.0" encoding="utf-8"?>\n' + tostring(feed, encoding="unicode")
+    return Response(content=cuerpo.encode("utf-8"), media_type=TIPO_CONTENIDO)
+
+
+@router.get(
+    "/hallazgos.xml",
+    response_class=Response,
+    responses={200: {"content": {TIPO_CONTENIDO: {}}}},
+)
+def feed_hallazgos(request: Request, session: Session = Depends(get_session)) -> Response:
+    """Feed Atom de los hallazgos históricos. ADR 0025.
+
+    **Feed aparte del de alertas, y esto no es organización: es lo que el feed afirma.** Quien se
+    suscribe a `/api/alertas.xml` recibe cosas que una persona revisó y decidió publicar. Quien se
+    suscribe aquí recibe cambios que el archivo prueba y que **nadie de este proyecto ha mirado**.
+    Mezclarlos en un canal haría que la diferencia dependiera de que el lector se fije en una
+    etiqueta, y un feed se lee en un agregador donde las etiquetas se pierden.
+
+    Por eso el aviso va **en el título de cada entrada**, no en una categoría: el título es lo
+    único que sobrevive a cualquier lector, por descuidado que sea.
+    """
+    filas = session.execute(
+        servicio_hallazgos.consulta()
+        .order_by(Documento.fecha_publicacion.desc(), InformeRevision.id.desc())
+        .limit(MAXIMO_ENTRADAS)
+    ).all()
+    hallazgos = [
+        servicio_hallazgos.a_publico(informe, deteccion, norma)
+        for informe, _cola, deteccion, norma in filas
+    ]
+
+    feed = Element("feed", {"xmlns": ATOM, "xml:lang": "es"})
+    SubElement(feed, "id").text = f"tag:{DOMINIO_TAG}:hallazgos"
+    SubElement(feed, "title").text = "Faro Cuir · hallazgos del archivo (SIN revisar)"
+    SubElement(feed, "subtitle").text = (
+        "Cambios normativos que estaban en el archivo sin que nadie los hubiera mirado uno a uno. "
+        "NO los ha revisado ninguna persona de este proyecto — a diferencia de las alertas. Se "
+        "publican porque cada uno viene con el documento oficial archivado, con su huella, y con "
+        "el enlace a la organización que ya lo había documentado."
+    )
+    SubElement(feed, "updated").text = (
+        max(h.generado_en for h in hallazgos).isoformat()
+        if hallazgos
+        else datetime.datetime.now(datetime.UTC).isoformat()
+    )
+    autor = SubElement(feed, "author")
+    SubElement(autor, "name").text = "Faro Cuir"
+    SubElement(feed, "link", {"rel": "self", "type": TIPO_CONTENIDO, "href": str(request.url)})
+
+    for hallazgo in hallazgos:
+        entrada = SubElement(feed, "entry")
+        SubElement(entrada, "id").text = f"tag:{DOMINIO_TAG}:hallazgo/{hallazgo.id}"
+        # El aviso, en el titulo. Ver el docstring: es lo unico que sobrevive a cualquier lector.
+        SubElement(entrada, "title").text = f"SIN REVISAR · {hallazgo.norma.titulo}"
+        SubElement(entrada, "updated").text = hallazgo.generado_en.isoformat()
+        SubElement(entrada, "published").text = hallazgo.generado_en.isoformat()
+        if hallazgo.norma.url_texto:
+            SubElement(
+                entrada,
+                "link",
+                {"rel": "alternate", "type": "text/html", "href": hallazgo.norma.url_texto},
+            )
+        # El contenido lleva las dos cosas que hacen publicable un hallazgo (ADR 0025, decision 4):
+        # el resumen y QUIEN LO HA DOCUMENTADO YA. Sin la segunda, esto seria la opinion de un
+        # modelo publicada en un canal, que es exactamente lo que la regla de oro 2 prohibe.
+        corroboran = " · ".join(c.organizacion for c in hallazgo.informe.corroboraciones)
+        partes = [
+            hallazgo.informe.resumen,
+            f"Lo ha documentado ya: {corroboran}." if corroboran else "",
+            f"Qué lo desmontaría: {hallazgo.informe.refutacion}",
+            f"Preparado por {hallazgo.informe.generado_por}. No lo ha revisado ninguna persona.",
+        ]
+        SubElement(entrada, "content", {"type": "text"}).text = "\n\n".join(p for p in partes if p)
+        SubElement(entrada, "category", {"term": "sin-revisar", "label": "Sin revisión humana"})
+
     cuerpo = '<?xml version="1.0" encoding="utf-8"?>\n' + tostring(feed, encoding="unicode")
     return Response(content=cuerpo.encode("utf-8"), media_type=TIPO_CONTENIDO)

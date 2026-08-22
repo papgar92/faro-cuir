@@ -401,11 +401,42 @@ function Tarjeta({ item, onResuelto }: TarjetaProps) {
         )}
       </div>
 
+      {/*
+        EL SELECTOR DE SIGNO, REHECHO EL 2026-08-22 POR DOS INCIDENTES REALES.
+
+        El 21 se aprobaron cuatro ítems en once minutos y **dos quedaron con el signo invertido**:
+        la orden de 2014 que excluyó a lesbianas y personas trans de la reproducción asistida salió
+        publicada como «avance», y la de 2019 que crea el cribado de cérvix como «retroceso». El 22
+        aparecieron otros dos **sin signo** siendo avances, la Ley 4/2023 entre ellos.
+
+        Las dos causas estaban en este cuadro, y las tres correcciones van contra ellas:
+
+        1. **Los títulos son casi idénticos.** «Orden …, por la que se modifican los anexos … del
+           Real Decreto 1030/2006…» — el 2014 y el 2021 se distinguen por cuatro caracteres. Ahora
+           el identificador de la norma va DENTRO del cuadro, para que quien elige el signo vea de
+           qué norma lo está eligiendo sin subir la vista.
+        2. **«Avance» y «Retroceso» eran dos radios pegados** con 12 px y etiqueta de 12 px. Ahora
+           son botones separados, con su color, su glifo y su texto — el mismo criterio de
+           `ClassificationBadge`: nunca solo color.
+        3. **Cuando la regla se abstiene, el signo es lo único que habrá**, y dejarlo en blanco era
+           tan fácil como no mirar. Ahora se avisa en ese caso concreto, que es donde el sistema
+           depende de que la persona complete lo que la regla no puede sostener.
+
+        Sigue siendo OPCIONAL a propósito: obligar a fijar signo empujaría a inventarse uno, y
+        «sin signo» es una respuesta legítima y a veces la única honesta.
+      */}
       <fieldset className="mt-4 rounded border border-line-2 bg-inset p-3">
         <legend className="px-1 text-xs font-medium text-ink">
           Signo de la alerta (opcional)
         </legend>
-        <p className="text-xs leading-relaxed text-ink-2">
+
+        {/* De qué norma estamos fijando el signo. Es la corrección (1). */}
+        <p className="font-mono text-[11px] text-ink-3">
+          {item.norma.identificador_oficial} · {item.norma.titulo.slice(0, 80)}
+          {item.norma.titulo.length > 80 ? "…" : ""}
+        </p>
+
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-2">
           La regla dice{" "}
           <strong className="font-semibold text-ink">{item.clasificacion}</strong>. Si se abstuvo
           —derogar una ley es lo que hace tanto quien la desmonta como quien la sustituye por otra
@@ -413,23 +444,43 @@ function Tarjeta({ item, onResuelto }: TarjetaProps) {
           <strong className="font-semibold text-ink">No sobrescribe lo que dijo la regla</strong>:
           se publica aparte, atribuido a la revisión humana.
         </p>
-        <div className="mt-2 flex flex-wrap gap-3">
+
+        {/* Corrección (3): el aviso solo aparece donde importa — regla abstenida y sin signo. */}
+        {item.clasificacion === "indeterminado" && signo === "" && (
+          <p className="mt-2 rounded border border-alr bg-alr-soft p-2 text-xs leading-relaxed text-ink-2">
+            <strong className="font-semibold text-ink">La regla no ha fijado signo.</strong> Si
+            apruebas así, esta alerta se publicará como «sin signo». Es una respuesta válida —a
+            veces la única honesta— pero conviene que sea una decisión y no un descuido.
+          </p>
+        )}
+
+        {/* Corrección (2): botones separados, con color, glifo y texto. */}
+        <div className="mt-2.5 flex flex-wrap gap-2">
           {[
-            { valor: "", etiqueta: "No cambiarlo" },
-            { valor: "avance", etiqueta: "Avance" },
-            { valor: "retroceso", etiqueta: "Retroceso" },
-            { valor: "neutro", etiqueta: "Neutro" },
+            { valor: "", etiqueta: "No cambiarlo", glifo: "—", clases: "border-line-2 text-ink-2" },
+            { valor: "avance", etiqueta: "Avance", glifo: "▲", clases: "border-adv text-adv" },
+            {
+              valor: "retroceso",
+              etiqueta: "Retroceso",
+              glifo: "▼",
+              clases: "border-reg text-reg",
+            },
+            { valor: "neutro", etiqueta: "Neutro", glifo: "●", clases: "border-neu text-neu" },
           ].map((opcion) => (
-            <label key={opcion.valor} className="flex items-center gap-1.5 text-xs text-ink">
-              <input
-                type="radio"
-                name={`signo-${item.id}`}
-                value={opcion.valor}
-                checked={signo === opcion.valor}
-                onChange={() => setSigno(opcion.valor)}
-              />
+            <button
+              key={opcion.valor}
+              type="button"
+              onClick={() => setSigno(opcion.valor)}
+              aria-pressed={signo === opcion.valor}
+              className={`inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-semibold ${
+                signo === opcion.valor
+                  ? `${opcion.clases} bg-surface ring-2 ring-ink`
+                  : `${opcion.clases} bg-surface opacity-60 hover:opacity-100`
+              }`}
+            >
+              <span aria-hidden="true">{opcion.glifo}</span>
               {opcion.etiqueta}
-            </label>
+            </button>
           ))}
         </div>
       </fieldset>
