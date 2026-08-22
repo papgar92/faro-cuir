@@ -3024,6 +3024,22 @@ la misma precedencia que ya aplicaba `AlertCard`. Test de regresion que siembra 
 Los 679 tests pasaban con el filtro roto porque **ninguno cruzaba las dos columnas**. Junto con el
 `NaN ago 2026`, son dos fallos en una sesion que solo aparecen al usar la web — 13.2, otra vez.
 
+#### Las ocho alertas, ya con signo
+
+Se fijo el signo humano de la **Ley 4/2023** y de la **Ley 19/2020**, que se aprobaron sin el y
+salian como «sin signo». La primera es literalmente el caso que justifica que exista
+`clasificacion_humana` —esta escrito en el docstring de `aprobar` desde que se implemento el
+gate—: `R-DER-001` se abstiene a proposito porque derogar es lo que hace tanto quien desmonta una
+ley como quien la sustituye por otra mejor, y solo leyendo el texto se sabe cual de las dos.
+
+Queda **5 avances y 3 retrocesos, ninguna sin signo**, y el corpus publicado cuenta una historia
+coherente: la exclusion de 2014 y su reparacion en 2021, el retroceso madrileño de 2023, y la Ley
+4/2023 como avance. Script `fijar_signos_20260822b.sql`, con el mismo criterio que su hermano: no
+reabre la cola, no re-emite alertas, no toca `deteccion.clasificacion`.
+
+**Lo que esto vuelve a señalar** es la tarea 1 de abajo: el signo es opcional y facil de dejar en
+blanco, ademas de facil de errar. Dos incidentes en dos dias sobre lo mismo.
+
 #### El repositorio, al dia en GitHub
 
 `main` y la rama del dia subidos a `github.com/papgar92/faro-cuir` (**publico**) el 2026-08-22,
