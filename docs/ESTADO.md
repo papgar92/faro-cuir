@@ -3785,3 +3785,98 @@ dicho que mire.
 correr, así que están calculadas con `VERSION_VOCABULARIO = 2026.08.20`. El eje referencial
 depende de la watchlist y no del vocabulario, y `VERSION_WATCHLIST` no ha subido, así que el 22 no
 debería moverse — pero conviene reconfirmarlo cuando el barrido termine, no darlo por hecho.
+
+### 🔭 La watchlist, ampliada por el `jurista-lgtbi` — y por qué NO se aplica entera — 2026-08-23
+
+Encargo lanzado tras el hallazgo del techo de 22. 29 llamadas, 18 candidatas verificadas. El
+informe trae **un aviso que invierte parte del encargo**, y es lo primero que hay que leer.
+
+#### ⚠️ El aviso: R-SUP-001 asume que la watchlist son normas PROTECTORAS
+
+Está escrito en el docstring de `clasificar` (`pipeline/reglas.py`) y **verificado ahí palabra
+por palabra** antes de darlo por bueno:
+
+> «la watchlist es un catálogo de normas **protectoras**, así que suprimir preceptos de una de
+> ellas es presuntamente quitar protección»
+
+Ese supuesto se sostiene con 24 leyes LGTBI/trans. **Se rompe en cuanto entran normas-vehículo**
+—LOE, Ley 16/2003 del SNS, Reglamento Penitenciario, Ley 20/2011 del Registro Civil— donde el
+derecho del colectivo vive en dos o tres preceptos y el resto es materia ajena. Suprimir el
+artículo 33 de la Ley 16/2003 (formación sanitaria especializada) no es un retroceso LGTBI, y
+R-SUP-001 lo llamaría **`retroceso` con signo afirmado y severidad 4**.
+
+**Es el mismo error del ADR 0023 un nivel más arriba.** Allí la supresión y la norma vigilada
+coexistían en el mismo documento sin tener que ver; aquí coexistirían dentro de la propia norma
+vigilada. Y el precio es el mismo que ya se pagó: alertas de retroceso sobre materias ajenas
+desgastan el gate humano, que es el control central del proyecto.
+
+`NormaVigilada` (`pipeline/watchlist.py`) tiene cuatro campos y **ninguno distingue protectora de
+vehículo** — comprobado. Añadir esa distinción es un cambio de esquema pequeño pero real.
+
+#### Las 18 candidatas, verificadas dos veces
+
+El jurista las verificó contra boe.es; después se comprobaron **con nuestro propio código**
+(`scripts/verificar_identificadores.py`, por `url_guard` + `xml_safe`): **18 de 18 con el título
+oficial exacto que él dio**. Su verificación era sólida, incluidos dos identificadores que él
+mismo cazó como falsos antes de entregarlos (`BOE-A-2007-13022` es la LO 8/2007 de financiación
+de partidos, no la Ley 19/2007 del deporte).
+
+**Las tres protectoras** (no rompen el supuesto de R-SUP-001, aplicables sin tocar código):
+
+| identificador | norma |
+|---|---|
+| `BOE-A-2022-11589` | Ley 15/2022 integral para la igualdad de trato y la no discriminación |
+| `BOE-A-2023-13287` | Instrucción de 26/05/2023 de la DGSJFP sobre rectificación registral |
+| `BOE-A-2018-14610` | Instrucción de 23/10/2018 sobre cambio de nombre de personas trans |
+
+La Instrucción de 2023 es la que mejor encaja con la sección 1 de `CLAUDE.md`: **rango
+instrucción, estatal, y consta vigente sin modificaciones**. Una instrucción se cambia con otra
+instrucción, sin parlamento, sin prensa y un martes de agosto. Es el retroceso silencioso de rango
+bajo, y por una vez dentro del alcance que ya se ingiere.
+
+**Las quince norma-vehículo** quedan a la espera de la decisión de arriba. La más rentable por
+frecuencia es la Ley 16/2003 del SNS (~24 modificaciones, última actualización 31/07/2026): es de
+la que cuelga el RD 1030/2006 ya vigilado, y define **quién decide qué entra y sale de la cartera
+común** — retirar una prestación sin tocar ninguna ley de derechos empieza por ahí.
+
+#### Un hallazgo propio: puede que vigilemos el matrimonio igualitario de forma nominal
+
+`BOE-A-2005-11364` (Ley 13/2005) es **la única de las 24 vigentes que falla**: 404 en la base
+consolidada. No prueba que el identificador sea falso —no todo el BOE se consolida— pero encaja
+con la hipótesis 6 del informe: esa ley **se agotó al modificar el Código Civil**. Hoy el derecho
+vive en el art. 44 CC, así que una reforma futura del matrimonio modificaría el CC y el
+`<analisis>` declararía afectado al CC, que no está en la lista.
+
+Si se confirma, la entrada figura en la watchlist y **no puede disparar nunca**. Conviene revisar
+las 24 con ese criterio: cuáles son normas vivas y cuáles leyes-instrumento ya consumidas. Es
+barato y no sale a la red — se mira qué identificador declara el `<analisis>` en el corpus.
+
+#### Otra limitación medida, que afecta al DOGC
+
+`citas.py:_FORMA_LARGA` solo reconoce títulos que empiezan por `ley | ley orgánica | ley foral |
+real decreto | decreto` con número y fecha. Las entradas de rango **instrucción** y **orden**, y
+el Reglamento del Registro Civil de 1958 (sin número/año), **no encajan**: seguirán disparando por
+el `<analisis>` del BOE, pero son invisibles para el eje de citas y por tanto para el DOGC. No es
+motivo para excluirlas; sí para no afirmar una cobertura que no existe. El comentario de
+`citas.py` que dice «el título ya empieza por esa forma en las 21 entradas» **dejará de ser cierto
+en cuanto entre la primera instrucción**, y hay que actualizarlo entonces.
+
+#### Descartes razonados, que valen tanto como la lista
+
+- **Estatuto de los Trabajadores** y **Código Penal**: tentadores (art. 4.2.c ET, arts. 22.4 y 510
+  CP) y descartados por **frecuencia excesiva en el sentido malo**. Se modifican varias veces al
+  año por cualquier reforma, y cada una entraría en la cola del LLM (133,9 s) y llegaría al gate
+  sin una línea sobre el colectivo. Es el modo de fallo que vació de sentido a R-SUP-002.
+- **Orden SSI/2065/2014**: descartada por duplicación — es modificadora de los anexos del RD
+  1030/2006, que ya se vigila. No aporta un caso nuevo, repite el que ya se detecta.
+
+#### ⇨ Decisión pendiente, y es de una persona
+
+O **(a)** entran solo las tres protectoras, hoy, sin tocar código; o **(b)** entran las dieciocho
+junto con un campo de especificidad en `NormaVigilada` y el ajuste de R-SUP-001 para que no afirme
+signo sobre normas-vehículo. **Aplicar las dieciocho sin ese ajuste es la opción que no está
+sobre la mesa**: sube el recall y sube a la vez el número de alertas de retroceso afirmado sobre
+materias sin relación con el colectivo.
+
+Al aplicar cualquiera de las dos: subir `version` en el JSON, recontar la línea `_cobertura` —que
+hoy solo habla del bloque autonómico— y relanzar `--reprefiltrar`.
