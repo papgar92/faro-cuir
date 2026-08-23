@@ -110,6 +110,50 @@ def _pendientes(documento_id: int | None, forzar: bool):  # type: ignore[no-unty
     return consulta.order_by(Norma.id)
 
 
+# Cuántas normas se confirman de una vez. No es un parámetro de rendimiento del motor: es el
+# techo de trabajo que se pierde si esto se interrumpe. 500 son ~30 s de barrido.
+LOTE = 500
+
+
+def _por_lotes(session: Session, consulta, tam: int | None = None):  # type: ignore[no-untyped-def]
+    """Recorre la consulta confirmando cada `tam` normas, en vez de todo al final.
+
+    **Esto era un solo `commit()` al final del barrido, y con 436 normas estaba bien.** Con
+    69.388 dejó de estarlo por dos motivos que se ven a escala y no antes: media hora de trabajo
+    se perdía entera si alguien cortaba el proceso —no había confirmación parcial que rescatar—
+    y desde fuera no había forma de saber si avanzaba o estaba colgado, porque la base de datos
+    no cambiaba hasta el final. Un barrido que no se puede observar y no se puede reanudar es
+    indistinguible de uno atascado.
+
+    **Se pagina por `id` y no re-consultando el primer lote, y esa diferencia es la que evita un
+    bucle infinito.** Una norma `ilegible` deja `prefiltro_version_texto` a NULL a propósito (ADR
+    0020) para que la siguiente pasada vuelva a intentarla, así que **nunca deja de cumplir la
+    condición de `_pendientes`**: pedir repetidamente "las primeras que falten" devolvería las
+    mismas 102 para siempre. Avanzar por `id` recorre cada norma una vez y deja el reintento
+    donde el ADR 0020 lo quiere, en la pasada siguiente.
+    """
+    # `LOTE` se lee aquí y no como valor por defecto del parámetro: así un test puede bajarlo
+    # sin pasar el argumento por toda la cadena de llamadas.
+    tam = LOTE if tam is None else tam
+    ultimo_id = 0
+    while True:
+        lote = list(session.scalars(consulta.where(Norma.id > ultimo_id).limit(tam)))
+        if not lote:
+            return
+        # Antes del commit: después, los objetos están expirados y leer `.id` volvería a la
+        # base de datos.
+        ultimo_id = lote[-1].id
+        yield from lote
+        session.commit()
+        # **Sin `expunge_all()` aquí, y no por descuido.** Desvincularlos acotaría la memoria de
+        # forma explícita, pero rompe a cualquier llamador que conserve una referencia a una
+        # norma —`--fase2` encadena `descargar()` y esto en la misma sesión— y lo hace con un
+        # `InvalidRequestError` a distancia. No hace falta: lo que ocupaba 295 MB era
+        # materializar las 69.388 de golpe, y la identity map guarda referencias débiles, así
+        # que cada lote se libera solo al soltarlo la vuelta siguiente.
+        logger.info("prefiltro: lote confirmado, hasta norma id=%s", ultimo_id)
+
+
 def aplicar(
     session: Session,
     *,
@@ -133,8 +177,9 @@ def aplicar(
     # silencio el único eje que detecta la instrucción que no se nombra.
     lista = watchlist.watchlist()
 
-    normas = list(session.scalars(_pendientes(documento_id, forzar)))
-    for norma in normas:
+    evaluadas = 0
+    for norma in _por_lotes(session, _pendientes(documento_id, forzar)):
+        evaluadas += 1
         # Aquí entra la fase 2 (tarea 0.c, ADR 0011 y 0015). `texto_integro=None` significa
         # que el cuerpo todavía no está archivado, y `evaluar` ya sabe que sobre el título no
         # se descarta nunca (7.1): como mucho queda `pendiente`.
@@ -201,10 +246,12 @@ def aplicar(
         if resultado.entra_en_la_cola and resultado.solo_por_contexto:
             solo_contexto += 1
 
+    # Cierra el último lote, que `_por_lotes` no llega a confirmar si el bucle termina o se
+    # rompe a mitad. Repetirlo sobre una sesión ya limpia no cuesta nada.
     session.commit()
 
     return ResumenPrefiltro(
-        evaluadas=len(normas),
+        evaluadas=evaluadas,
         relevantes=relevantes,
         sospechas=sospechas,
         descartadas=descartadas,
