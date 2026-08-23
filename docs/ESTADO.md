@@ -3713,3 +3713,75 @@ pero sí rompía `ruff` en la puerta de CI, que es como se descubrió.
 Arreglado de raíz en vez de por memoria: `.gitignore` ignora `backend/**/_sondeo_*.py`, y la
 convención es que cualquier script de usar y tirar lleve ese prefijo. Acordarse de borrar no es un
 control; ignorarlo por patrón sí.
+
+### 📏 R-DES-001 (deslegalización) medida y **NO implementada** — 2026-08-23
+
+Segunda aplicación del método que salvó lo de `gay`: medir el candidato antes de escribirlo. Aquí
+el candidato era una **regla del catálogo**, no un término, y el resultado también es negativo —
+con una diferencia que importa: esta vez la población medida es un **censo**, no una muestra.
+
+`scripts/medir_deslegalizacion.py`, sin una sola petición de red.
+
+| | remisión pegada a un precepto | + toca norma vigilada | + el catálogo calla (**NUEVA**) |
+|---|---|---|---|
+| **Censo dirigido** (52 normas) | 11 | 3 | **0** |
+| Muestra aleatoria (1.493 disposiciones) | 9 (0,6 %) | 0 | 0 |
+
+#### Las dos cosas que dice, y son distintas
+
+1. **El riesgo que avisó el jurista no se materializa.** Predijo que «reglamentariamente se
+   determinará» y «se faculta a» aparecerían «en casi toda norma con rango de ley», o sea que
+   serían el nuevo «igualdad de trato». Medido: **0,6 % de las disposiciones**. Lo que lo evita
+   ya estaba en la casa — exigir la construcción **en la misma cláusula que un precepto**
+   (`_clausulas_con`, criterio del ADR 0023). El control del ADR 0023 resuelve el ruido de M-8
+   sin que haya que inventar nada.
+2. **Y aun así la regla no aporta: `NUEVA = 0`.** Las 3 normas con remisión *y* norma vigilada
+   **ya producen veredicto hoy**, por R-MOD-001. R-DES-001 no llevaría ni un caso nuevo al gate
+   humano; reetiquetaría tres que ya están.
+
+Por eso **no se implementa**. El patrón queda en el script, que es donde vive una hipótesis
+medida y descartada, y no en `pipeline/reglas.py`, que es donde viven las que producen veredictos.
+
+#### El error de denominador, otra vez, y esta vez cazado a tiempo
+
+La primera versión del script muestreaba 800 al azar y daba **0** en la columna que decide.
+Parecía una respuesta. No lo era: solo **22 normas de 69.388** tocan la watchlist, así que en 800
+al azar la esperanza de encontrar una es **0,25**. El cero medía el tamaño de la muestra.
+
+Es el tercer episodio del mismo error en este repositorio (el umbral de la fase 2 en el ADR 0011,
+el 61 % de anuncios en `medir_terminos_candidatos`). Ya no es mala suerte: **es el modo de fallo
+característico de medir cosas raras en un corpus grande**, y la contramedida que funciona es
+declarar qué población contesta a qué pregunta antes de contar. El script ahora mide dos y lo
+dice en la cabecera: el censo dirigido contesta si la regla **aporta**, la muestra aleatoria si
+hace **ruido**. Ninguna de las dos contesta lo de la otra.
+
+#### ⚠️ El hallazgo de verdad: el cuello de botella NO son las reglas, es la watchlist
+
+La entrada del 2026-08-23 concluyó «el cuello de botella ya no son los datos: son las reglas».
+**Hay que afinarlo, porque lleva a trabajar en el sitio equivocado.** Los números:
+
+| | |
+|---|---|
+| Normas en `config/watchlist.json` | **24** |
+| Normas del corpus que la tocan (con verbo modificativo) | **22** |
+| De esas, las que ya producen veredicto | **17** |
+
+Toda regla que exija «toca una norma vigilada» —y las cuatro que llegan al gate lo exigen, porque
+el ADR 0017 lo exige para entrar en la cola— **tiene un techo de 22 casos en 69.388 normas**. De
+esos 22, 17 ya están cogidos. Escribir la quinta, la sexta y la séptima familia de reglas se
+reparte un margen de **5 normas**.
+
+Dicho de otro modo: **el catálogo no está ciego, está mirando por una rendija de 24 normas.**
+Ampliar el catálogo no puede producir lo que la watchlist no deja entrar.
+
+**Lo que esto reordena en el plan:** antes de la siguiente familia de reglas, **ampliar la
+watchlist** — que es conocimiento de dominio (`jurista-lgtbi`, 13.4) y no ingeniería. Las 24 de
+hoy son estatales y de cabecera; faltan las leyes trans autonómicas una a una, los decretos de
+estructura de las consejerías con competencia, los currículos, y la normativa sanitaria de cada
+servicio autonómico de salud. Es la misma lección que M-4: el filtro no ve lo que no le hemos
+dicho que mire.
+
+**Salvedad de método:** las cifras de eje referencial se leyeron con `--reprefiltrar` a medio
+correr, así que están calculadas con `VERSION_VOCABULARIO = 2026.08.20`. El eje referencial
+depende de la watchlist y no del vocabulario, y `VERSION_WATCHLIST` no ha subido, así que el 22 no
+debería moverse — pero conviene reconfirmarlo cuando el barrido termine, no darlo por hecho.
