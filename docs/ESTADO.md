@@ -3968,3 +3968,66 @@ y decirlo con estos números vale más que una cifra de recall alta sobre lo que
 predijo: en este corpus no había casi nada que rescatar. Los 3 son de `gays`, el único término
 añadido con apariciones distintas de cero. **Confirma la predicción y cierra el círculo**, que era
 la condición que la entrada de esta mañana puso para dar la medición por buena.
+
+### ✅ Tanda 1 de la watchlist aplicada: 24 → 27, y el matrimonio deja de mentir — 2026-08-23
+
+Aplicada la opción que los datos sostienen sin ambigüedad. `VERSION_WATCHLIST = 2026.08.23`.
+
+#### Lo que entra: las tres protectoras
+
+`Ley 15/2022` de igualdad de trato, y las dos **Instrucciones de la DGSJFP** (rectificación
+registral 2023, cambio de nombre 2018). Son las únicas tres de las 18 candidatas que **no rompen
+el supuesto de R-SUP-001**, así que entran sin tocar código.
+
+La Instrucción de 2023 es la entrada que mejor encaja con la sección 1 de `CLAUDE.md`: **rango
+instrucción y estatal**. Fija cómo se tramita en la práctica la rectificación registral —
+comparecencias, plazos, menores de 12 a 16, personas intersex — y una instrucción se cambia con
+otra instrucción, sin parlamento, sin prensa y un martes de agosto.
+
+**Corrección de algo que dije mal al reportar.** Presenté el «las tres protectoras rinden 0 en el
+corpus» como argumento en contra. Es un mal argumento y contradice la distinción de tres causas
+escrita una entrada más arriba: **un cero en una norma viva no es un fallo, es el sistema
+esperando** — igual que las 14 leyes autonómicas que tampoco se han tocado este año.
+
+#### La Ley 13/2005 se queda, pero su nota deja de prometer cobertura
+
+Confirmado que su vigilancia es **nominal** (404 en consolidada + 0 apariciones frente al Código
+Civil que sí aparece). Se mantiene por el rastro histórico, como la Ley 14/2012 de Euskadi, y su
+`nota` lo dice ahora con todas las letras: **no cuenta como cobertura del matrimonio igualitario**.
+Cubrirlo de verdad exige vigilar el Código Civil, con el problema de ruido del Estatuto de los
+Trabajadores — o sea, otra vez el supuesto de R-SUP-001.
+
+#### El test de citabilidad separó dos cosas que confundía
+
+Al aplicar la tanda saltó `test_todas_las_normas_vigiladas_se_pueden_citar`, **exactamente donde
+el jurista avisó** (su sección 1.2). Su premisa —toda norma vigilada tiene forma de cita— solo se
+podía sostener mientras la watchlist fueron 24 leyes y reales decretos. Una **instrucción no tiene
+número `N/AAAA`** y no se cita así en ninguna redacción posible: no hay título que arreglar.
+
+Ahora `citas.cita_esperable()` distingue:
+
+- **Título mal escrito** (lleva número y aun así no encaja) → **sigue rojo**, que es donde tiene
+  que doler. Es el fallo mudo original.
+- **Rango no numerado** (instrucción, orden, el Reglamento del Registro Civil de 1958) → se
+  **declara y se cuenta**, mismo criterio que el estado `ilegible` (ADR 0020). Esas entradas
+  disparan por el `<analisis>` del BOE, pero son **invisibles para el eje de citas** y por tanto
+  para el DOGC.
+
+El corte va por el número y **no por una lista de tipos**: «Decreto de 14 de noviembre de 1958»
+empieza por un tipo normalmente numerado y no lleva número, y una lista lo daría por mal escrito
+teniendo el título oficial exacto.
+
+Validado saboteando —un título con número que no empieza por el tipo pone rojos los dos tests— y
+de paso se sustituyó el comentario de `forma_larga` que afirmaba «el título ya empieza por esa
+forma en las 21 entradas»: **una invariante que hay que recontar a mano cada vez que alguien toca
+un JSON no es una invariante, es una nota que caduca sin avisar**. Ahora la comprueba un test.
+
+694 tests en verde.
+
+#### ⇨ Tanda 2, pendiente y con su bloqueo escrito en el propio fichero
+
+Las **15 norma-vehículo** quedan anotadas en `_pendientes_de_verificar` con identificador ya
+verificado, el motivo de que no entren, **y lo que rinden medido: 5 casos en un año de corpus**.
+Antes de aplicarlas hace falta el campo de especificidad en `NormaVigilada` y que R-SUP-001 no
+afirme signo sobre ellas. Lleva ADR, tests y subir `VERSION_REGLAS`; el dato de rendimiento está
+ahí para decidir si merece una sesión.
