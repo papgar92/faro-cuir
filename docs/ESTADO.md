@@ -1759,3 +1759,36 @@ mueven algo. **La predicción es que no** (rinden 0 en el censo), y confirmarlo 
   otra norma.
 - `scripts/medir_normas_mas_modificadas.py` — deja un índice en `data/normas-modificadas.json`, así
   que «¿cuánto aportaría esta candidata?» es un lookup y no un censo.
+
+### ✅ El círculo de la tanda 1, cerrado: las tres protectoras no mueven nada (y era la predicción) — 2026-08-23
+
+`--reprefiltrar` con `VERSION_WATCHLIST = 2026.08.23` terminó sobre las **69.446** normas.
+
+| | antes (24 normas) | después (27) |
+|---|---|---|
+| Eje referencial dispara en | **22** | **22** |
+| relevante | 166 | 166 |
+| sospecha | 455 | 456 |
+
+**Cero movimiento, y es exactamente lo que el censo predijo**: las tres protectoras rinden 0 en
+este corpus. Confirmarlo cierra el círculo, igual que se hizo con los seis términos del
+vocabulario esa misma mañana.
+
+**Y no es un argumento para quitarlas** (la distinción de las tres causas): un cero en una norma
+viva es el sistema esperando. La Instrucción de 2023 rinde 0 porque **nadie la ha modificado
+todavía**, que es precisamente la situación en la que quieres tenerla vigilada.
+
+#### ⚠️ Lo que sí se movió, y hacia el lado malo: las ilegibles de 102 a 143
+
+El worker lo avisa él solo, que para eso se hizo así (ADR 0020):
+
+> «135 normas tienen su texto archivado y el pipeline NO PUEDE LEERLO: no hay vigilancia sobre
+> ellas, por mucho que su fuente figure como activa.»
+
+**No es una regresión, es el efecto conocido del backfill del DOGC**, ya descrito el 2026-08-22:
+la ingesta trae normas nuevas —muchas solo en PDF— más rápido de lo que una pasada con tope las
+procesa. Se ha relanzado `--recuperar-pdf` (log en `data/recuperacion-pdf.log`); lo que quede
+ilegible **después** de esa pasada sí es un hueco de verdad.
+
+Recordatorio que no se negocia: cualquier cifra de cobertura del DOGC va acompañada de cuántas de
+sus normas son ilegibles, o afirma una vigilancia que no existe.
