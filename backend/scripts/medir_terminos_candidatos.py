@@ -56,7 +56,7 @@ CONTROLES = {
 }
 
 CANDIDATOS = {
-    "gays": "el plural que usan los títulos de las leyes de la propia watchlist; `gais` no lo pilla",
+    "gays": "plural que usan los títulos de las leyes vigiladas; `gais` no lo encuentra",
     "gay": "OJO: el jurista avisó del falso positivo «ley de Gay-Lussac» en temarios de física",
     "sexo registral": "M-4 · criterio de acceso definido por el registro",
     "sexo al nacer": "M-4",

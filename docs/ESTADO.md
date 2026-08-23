@@ -3629,3 +3629,87 @@ normas.
 Y no propone implementar nada sin medirlo: cada término y cada norma nueva tienen la misma prueba
 pendiente, **contar sobre los 66.660 cuerpos ya archivados**, que no cuesta ni una petición de red.
 Es lo que se está haciendo.
+
+### 📏 Medidos los términos candidatos del jurista: no aportan **en este corpus** — 2026-08-23
+
+Sobre **1.500 disposiciones descartadas** tomadas al azar (`scripts/medir_terminos_candidatos.py`,
+sin una sola petición de red). El instrumento va **validado con controles**, y esto no es celo: las
+dos primeras mediciones estaban mal y llevaban a la conclusión contraria.
+
+| término | apariciones | rescataría |
+|---|---|---|
+| `articulo` (CONTROL) | 981 | — |
+| `resolucion` (CONTROL) | 1.262 | — |
+| `identidad de genero` (CONTROL) | **0** | — |
+| `gay` | 2 | 2 |
+| todos los demás candidatos | **0** | 0 |
+
+**El tercer control merece una lectura**: `identidad de genero` da 0 y **eso es lo correcto**. Es un
+término DIRECTO, así que ningún documento que lo contenga puede estar entre las descartadas. Es una
+comprobación de coherencia del propio prefiltro, gratis.
+
+#### Qué se concluye, y qué NO
+
+**No se concluye que los términos sobren.** Se concluye que **en este corpus no aparecen**, que es
+otra cosa. `sexo registral`, `sexo al nacer` o `alumnado trans` viven en normativa deportiva,
+penitenciaria, de registro civil y educativa autonómica — tipos documentales de los que este corpus
+(BOE + DOGC) tiene poco. Su frecuencia cero mide la composición del corpus tanto como el término.
+
+**Coste medido de añadirlos: cero falsos positivos** en 1.500 disposiciones. Ese es el argumento
+para añadirlos igualmente: no ensucian nada y cubren mecanismos que hoy nadie ve (M-4 del informe de
+puntos ciegos). Lo que no se puede es **afirmar que mejoran el recall**, porque no hay con qué
+demostrarlo.
+
+#### Las dos mediciones malas, y por qué se cuentan
+
+La primera dio **cero en todo** y estuvo a punto de cerrarse como «los términos del jurista no
+aportan». Habría sido falso por dos motivos simultáneos:
+
+1. **Sin controles positivos**, una tabla de ceros no distingue «no aportan» de «el script está
+   roto». Ahora el script **se niega a dar resultados si los controles fallan**: avisa y sale con
+   código 1. Un instrumento que no sabe decir cuándo está roto no sirve para medir.
+2. **Muestreaba el corpus entero**, con un 61 % de anuncios donde un término jurídico no puede
+   aparecer jamás. Dilución, no ausencia. Es el mismo error de denominador que el ADR 0011 evita.
+
+#### Lo que se añadió al vocabulario, y lo que no (`VERSION_VOCABULARIO = 2026.08.23`)
+
+| término | decisión | evidencia |
+|---|---|---|
+| `gays` | **añadido** | 0 apariciones espurias; es la forma que usan los títulos de las leyes vigiladas y `gais` no la encuentra |
+| `gay` | **NO añadido** | 2 de 2 coincidencias son **apellidos de personas**: «M. Eugenia Gay Rosell» y «Daniel Araujo Gay». 100 % de falsos positivos |
+| `sexo registral`, `sexo inscrito`, `sexo al nacer`, `sexo de nacimiento`, `sexo asignado al nacer`, `mencion registral relativa al sexo` | **añadidos** como DIRECTO | 0 falsos positivos en 1.500; cubren M-4 |
+
+El caso de `gay` es el que mejor justifica haber medido: el jurista avisó del falso positivo
+«Gay-Lussac» en temarios de física, y el real resultó ser **más común todavía** — un apellido
+español corriente. Sin medir se habría añadido por buen criterio y habría metido ruido de firmas y
+tribunales de oposición.
+
+Los seis términos de M-4 resuelven además, sin tocarlas, el problema de `categoria femenina` y
+`competicion femenina`: son CONTEXTO con razón —cualquier convocatoria deportiva las lleva— y desde
+el ADR 0021 no disparan solas, así que un reglamento que restringiera por sexo registral **no
+entraba en la cola**. Ahora entra por el término que decide, no por el que describe la materia.
+
+103 tests en verde incluido el gold set: ningún caso etiquetado cambia de estado.
+
+#### ⚠️ Pendiente y necesario: `--reprefiltrar`
+
+Subir `VERSION_VOCABULARIO` marca como obsoletas **todas** las evaluaciones anteriores, que es
+justo el mecanismo que existe para esto. Hasta que se lance `python -m worker.run --reprefiltrar`,
+las 67.733 normas siguen evaluadas con el vocabulario viejo y los seis términos nuevos **no están
+haciendo nada**.
+
+No se lanzó en el momento porque había dos ingestas compitiendo por CPU. Es lo primero que hay que
+hacer cuando terminen, y conviene mirar el embudo antes y después: si el número de `relevante` no
+se mueve, es que en este corpus efectivamente no había nada que rescatar — que es lo que la
+medición predice, y comprobarlo cierra el círculo.
+
+#### Nota de higiene: tres sondeos se colaron en el repositorio, uno llegó a commitearse
+
+El compose monta `./backend:/app`, así que un `docker compose cp` a `/app` **deja el fichero dentro
+del repositorio**. Pasó tres veces (`probe.py`, `dbg.py`, `ver_gay.py`) y `medir_terminos.py` llegó
+a entrar en el commit `355470f` por un `git add -A`. No rompía nada en producción —nadie lo importa—
+pero sí rompía `ruff` en la puerta de CI, que es como se descubrió.
+
+Arreglado de raíz en vez de por memoria: `.gitignore` ignora `backend/**/_sondeo_*.py`, y la
+convención es que cualquier script de usar y tirar lleve ese prefijo. Acordarse de borrar no es un
+control; ignorarlo por patrón sí.
