@@ -4031,3 +4031,60 @@ verificado, el motivo de que no entren, **y lo que rinden medido: 5 casos en un 
 Antes de aplicarlas hace falta el campo de especificidad en `NormaVigilada` y que R-SUP-001 no
 afirme signo sobre ellas. Lleva ADR, tests y subir `VERSION_REGLAS`; el dato de rendimiento está
 ahí para decidir si merece una sesión.
+
+### ⇨ CÓMO RETOMAR ESTO — cierre del 2026-08-23
+
+**Todo está commiteado en `task/26-informes-con-corroboraciones`. Nada a medias salvo procesos de
+fondo que se completan solos.**
+
+#### Procesos vivos al cerrar
+
+```bash
+# Comprobar que siguen vivos (lo primero que hay que mirar):
+docker compose exec -T worker sh -c 'for p in /proc/[0-9]*; do [ -r $p/cmdline ] || continue; tr "\0" " " < $p/cmdline | grep -E "worker.run|backfill"; done'
+```
+
+- **`--reprefiltrar` con la watchlist de 27** (log en `data/reprefiltrar-watchlist.log`). Iba por
+  5.000 de 69.407 y **ahora confirma por lotes de 500**, así que se puede cortar sin perder nada y
+  se ve avanzar. Si al volver no está, relanzarlo: es idempotente.
+- **Los dos backfills** (BOE hacia atrás, DOGC hacia adelante). Se relanzan con los comandos de la
+  entrada del 2026-08-22.
+
+Cuando termine el reprefiltrado, mirar el embudo: es lo que dirá si las tres protectoras nuevas
+mueven algo. **La predicción es que no** (rinden 0 en el censo), y confirmarlo cierra el círculo.
+
+#### Lo que se hizo hoy, en una línea cada cosa
+
+1. **El barrido del prefiltro confirma por lotes** y no se pierde entero al cortarlo. La
+   paginación va por `id` y no por «las que falten», porque lo segundo no termina nunca con
+   normas `ilegible` (ADR 0020). Validado saboteando el diseño.
+2. **`R-DES-001` medida y NO implementada**: 0 casos nuevos sobre un censo.
+3. **La watchlist pasa de 24 a 27** con las tres protectoras verificadas contra el BOE.
+4. **La Ley 13/2005 estaba vigilada de forma nominal** — 404 en consolidada y 0 apariciones — y su
+   nota ya no promete cobertura del matrimonio igualitario.
+5. **ADR 0027**: el límite del eje referencial, medido. Ampliar la watchlist rinde 5 casos/año, así
+   que **no es la palanca**; el sistema ve el retroceso que deja rastro referencial y los
+   silenciosos no lo dejan por definición.
+6. **`CLAUDE.md` podado de 64 KB a 56 KB** sin perder una sola regla.
+
+#### Lo siguiente, por valor
+
+1. **Podar `ESTADO.md`** (este fichero, 3.900+ líneas). Hay permiso del humano dado el 2026-08-23
+   y **no se llegó a empezar**. Lo que se resume sin perder nada son las entradas cerradas del 9
+   al 17 de agosto; lo que no se toca es el plan V1, esta sección y las entradas del 20 en
+   adelante.
+2. **Tanda 2 de la watchlist** (~20k): campo de especificidad en `NormaVigilada` y que R-SUP-001
+   no afirme signo sobre norma-vehículo. Todo lo que hace falta saber está en
+   `_pendientes_de_verificar` del propio `config/watchlist.json`, identificadores ya verificados
+   incluidos. **Con su rendimiento medido delante: 5 casos al año.** Decidir si merece la sesión.
+3. **Formato de casos-par del gold set** (~15k). Bloqueante antes de etiquetar en masa: M-2, M-3 y
+   M-7 son retrocesos **por ausencia** y un JSON por documento suelto no los representa. Decidir
+   si el esquema admite pares o se acepta por escrito que quedan fuera de la medición.
+
+#### Dos instrumentos nuevos que conviene no olvidar
+
+- `scripts/verificar_identificadores.py` — trae el título oficial de cada norma vigilada. **Correr
+  tras tocar `watchlist.json`**: es lo único que caza un identificador bien formado que apunta a
+  otra norma.
+- `scripts/medir_normas_mas_modificadas.py` — deja un índice en `data/normas-modificadas.json`, así
+  que «¿cuánto aportaría esta candidata?» es un lookup y no un censo.
