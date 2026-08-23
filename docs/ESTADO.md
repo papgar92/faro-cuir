@@ -3880,3 +3880,91 @@ materias sin relación con el colectivo.
 
 Al aplicar cualquiera de las dos: subir `version` en el JSON, recontar la línea `_cobertura` —que
 hoy solo habla del bloque autonómico— y relanzar `--reprefiltrar`.
+
+### 📊 Censo de lo que el corpus modifica: 9 de las 24 vigiladas, y el matrimonio confirmado — 2026-08-23
+
+`scripts/medir_normas_mas_modificadas.py` sobre el **censo** de 27.016 disposiciones (sin red).
+Deja un índice reutilizable en `data/normas-modificadas.json`, para que la pregunta «¿cuánto
+aportaría esta candidata?» no vuelva a costar un censo.
+
+| | |
+|---|---|
+| Disposiciones leídas | 27.016 |
+| Que modifican o derogan algo | 1.900 (7,0 %) |
+| Normas distintas tocadas | 2.597 |
+| **De ellas, en la watchlist** | **9 de las 24** |
+
+#### Las 9 vivas y las 15 que nunca aparecen — con la distinción que NO hay que saltarse
+
+**Vivas** (encabezadas por el RD 1030/2006 de cartera común, tocado **13** veces — es el que
+produce casi todas las detecciones de R-MOD-001): las tres estatales que quedan, y seis leyes
+autonómicas (CT, VC ×2, NC, MD ×2).
+
+**Nunca tocadas: 15.** Y aquí hay **tres causas distintas que sería un error grave mezclar**:
+
+1. **Agotamiento — la entrada no puede disparar nunca.** Solo la Ley 13/2005 (ver abajo).
+2. **Nadie la ha modificado en el año que cubre el corpus.** Las 14 leyes autonómicas LGTBI. **No
+   es un fallo: es el sistema esperando**, que es exactamente para lo que existe la watchlist. Un
+   cero aquí no dice nada malo de la entrada.
+3. **El canal no las alcanza**, y esto ya estaba escrito en `_limitacion_que_hay_que_tener_presente`
+   del propio fichero: un **decreto u orden autonómico** que modifique la ley de su comunidad **no
+   llega al BOE**. Las leyes autonómicas solo se detectan si las toca otra ley. El vaciado por vía
+   reglamentaria autonómica sigue siendo invisible, y no lo arregla ninguna watchlist.
+
+#### ✅ Confirmado: la Ley 13/2005 es vigilancia nominal
+
+Dos evidencias independientes, y la pregunta era justo esta:
+
+- **404 en la base consolidada del BOE** — la única de las 24 que falla (`verificar_identificadores`).
+- **0 apariciones en el `<analisis>` de 27.016 disposiciones**, mientras el **Código Civil sí
+  aparece** (`BOE-A-1889-4763`, 1 vez).
+
+Encaja con el agotamiento: la Ley 13/2005 se consumió al modificar el CC, hoy el derecho vive en
+el art. 44 CC y una reforma futura declararía afectado al CC. **La entrada figura en la lista y no
+puede disparar.** Añadir el Código Civil la cubriría, con el mismo problema de ruido que el
+Estatuto de los Trabajadores — o sea, otra vez el supuesto de R-SUP-001.
+
+Cautela honesta: una sola aparición del CC es evidencia débil por sí sola; lo que sostiene la
+conclusión es el 404 sumado al cero.
+
+#### ⚠️ Y esto corrige lo que yo mismo escribí esta mañana
+
+Escribí, dos entradas más arriba, que «el cuello de botella no son las reglas, es la watchlist».
+**También era incompleto.** Medido el aporte de las 18 candidatas sobre este corpus:
+
+| candidata | veces tocada en 27.016 disposiciones |
+|---|---|
+| Ley 20/2011 Registro Civil, Ley 16/2003 SNS, Ley 41/2002 paciente, RD 243/2022 Bachillerato, Ley 19/2007 deporte | **1 cada una** |
+| **Las tres protectoras** (Ley 15/2022, Instrucción 2023, Instrucción 2018) | **0** |
+| Las diez restantes | **0** |
+
+**Total: 5 casos en un año de corpus.** El techo pasaría de 22 a ~27. Sigue siendo una rendija.
+
+No contradice al jurista —él midió frecuencia histórica en el consolidado, que para la Ley 16/2003
+son ~24 modificaciones en 23 años, o sea ~1/año, justo lo medido— sino que **la pone en escala**:
+lo que él llamó «la candidata más rentable» rinde un caso al año.
+
+**La conclusión que queda en pie, y es la buena para el TFM:** el sistema encuentra poco no porque
+le falten reglas ni porque le falte watchlist, sino porque **el retroceso que este diseño sabe ver
+—el que deja rastro referencial en el `<analisis>`— es raro**. Los mecanismos que el informe de
+puntos ciegos ordenó por invisibilidad (M-1 no convocar, M-3 bases de subvención, M-7 currículo
+por ausencia) **no dejan ese rastro por definición**, y son los frecuentes. Eso no es un fallo de
+implementación que se arregle añadiendo entradas a un JSON: es el límite del enfoque, está medido,
+y decirlo con estos números vale más que una cifra de recall alta sobre lo que sí se ve.
+
+#### ✅ El círculo del vocabulario, cerrado
+
+`--reprefiltrar` terminó: las **69.388** normas reevaluadas con `VERSION_VOCABULARIO = 2026.08.23`.
+
+| estado | con 2026.08.20 | con 2026.08.23 |
+|---|---|---|
+| descartada | 68.630 | 68.627 |
+| sospecha | 452 | **455** |
+| relevante | 166 | **166** |
+| ilegible | 102 | 102 |
+| pendiente | 38 | 38 |
+
+**`relevante` no se movió y `sospecha` subió 3**, que es lo que la medición de los términos
+predijo: en este corpus no había casi nada que rescatar. Los 3 son de `gays`, el único término
+añadido con apariciones distintas de cero. **Confirma la predicción y cierra el círculo**, que era
+la condición que la entrada de esta mañana puso para dar la medición por buena.
