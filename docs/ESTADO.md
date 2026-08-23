@@ -179,452 +179,45 @@ después de V1.
 - **Verificación por HTTP contra la base real, no solo tests**: sin sesión → 401 **y 0 filas en
   `alerta`**, porque el 401 no basta si la fila se escribió igual.
 
-### ✅ La regla de oro 9, volumen de verdad, y la segunda fuente — 2026-08-16/17
+### 📚 Del 16 al 19 de agosto: la segunda fuente y lo que enseñó — condensado el 2026-08-23
 
-Tres trabajos encadenados, y el detonante fue una pregunta del humano: *«¿el BOE publica las
-resoluciones de las comunidades?»*.
+> Resumido a sus hallazgos el 2026-08-23; el desarrollo está en los commits y en los ADR 0019 a
+> 0022. **Es el tramo donde el proyecto pasó de una fuente a dos y descubrió, midiendo, casi todo
+> lo que hoy sabe sobre sus propios límites.**
 
-#### 1. Trazabilidad por offsets (ADR 0013), la última regla de oro que se incumplía
-
-`pipeline/anclaje.py`: cada texto que la extracción afirma haber leído se localiza en el texto
-archivado y se guarda con su rango; **lo que no ancla descarta la extracción entera**. Dos
-diferencias respecto a como 7.5 estaba escrita, ambas razonadas en el ADR: **los offsets los
-calcula el sistema, no se le piden al modelo** —un 3B contando caracteres añade un modo de fallo
-y no quita ninguno, porque habría que buscar el texto igualmente— y **no hay una segunda
-normalización**: se ancla sobre el mismo texto que usan las reglas, porque dos derivaciones del
-mismo documento son dos sistemas de coordenadas y la evidencia deja de poder contrastarse.
-
-Lo que se guarda es el **recorte del archivo**, no la cadena del modelo. La única licencia al
-comparar es colapsar espacios; una paráfrasis no ancla. Al actualizar los tests del extractor se
-vio el control funcionando: las extracciones falsas de las fixtures **dejaron de persistirse**
-porque citaban texto que no estaba en el documento de prueba.
-
-#### 2. Volumen: `--hasta` y `--sin-extraccion`
-
-Con 3 días ingeridos la pantalla se veía vacía. El cuello de botella de un backfill no es la red
-(10 s por día) sino el LLM (133,9 s por norma), así que el worker gana un modo de backfill que
-salta la extracción; lo que se salta **no se pierde**, porque la cola del extractor es una
-consulta y una pasada normal lo recoge. **De 652 normas a 2.968**, un mes de BOE. Siete tests de
-la línea de órdenes, que no tenía ninguno.
-
-#### 3. El DOGC, segunda fuente y primera autonómica (ADR 0019)
-
-**La respuesta a la pregunta del humano es no, y está medida**: de órganos autonómicos llegan al
-BOE **31 ítems de 1.193**, todos anuncios y correcciones. Las leyes autonómicas sí se republican
-—de ahí que la watchlist funcionara—, pero ni un decreto, ni una orden, ni una instrucción. Y de
-lo municipal, solo convocatorias y licitaciones. O sea que el sistema estaba ciego exactamente
-donde la sección 1 dice que mira.
-
-Se verificaron **cinco fuentes descargando sus endpoints**, no leyendo documentación: el BOP de
-Cáceres resultó ser metadatos sin texto ni enlace; el HTML del BOJA **declara por escrito que
-suprime contenido** (choca con 7.1); el XML por disposición del BOCM devuelve 500. El DOGC fue el
-único que cumplió los cuatro requisitos: sumario JSON por fecha, texto íntegro en XML, sin clave,
-diario. **31.094 disposiciones desde 1977, de ellas 20.889 órdenes y 9.061 decretos** — el rango
-bajo que motivaba todo esto.
-
-**Tres cosas que costaron el rato y que ninguna documentación anunciaba:**
-
-1. **El DOGC mete todo el articulado dentro de un atributo XML**, escapado como HTML, dentro de
-   un Akoma Ntoso por lo demás de manual. `itertext()` devolvía cadena vacía: un derivador
-   escrito contra el estándar habría archivado cientos de normas vacías, el prefiltro las habría
-   descartado todas y **nada habría fallado visiblemente**. Tiene test con XML real.
-2. **`portaldogc.gencat.cat` solo negocia TLS 1.2 con `AES256-SHA`**, que OpenSSL 3 rechaza. El
-   síntoma engañaba: `curl` funcionaba y Python no, porque `curl` en Windows usa el TLS del
-   sistema. Se aisló probando handshakes uno a uno. `url_guard` gana un **perfil heredado por
-   host**: se relaja el cifrado solo ahí, **no** la verificación del certificado, y no para el
-   BOE.
-3. **Se ingiere la versión castellana**, no la oficial catalana, porque el vocabulario del
-   prefiltro es castellano y sobre el catalán quedaría apagado en silencio. Las citas de las
-   alertas saldrán de una traducción oficial, y eso está escrito donde toca.
-
-**Verificado de punta a punta**: 4 disposiciones del 19-12-2024 ingeridas, archivadas,
-descargadas y prefiltradas (3 sospechas, 1 descartada). La cobertura por CCAA lo refleja sola:
-**Catalunya pasa a «autonómico: 1 de 1 vigilada»**. Migración de semilla a mano, 13 CHECK
-intactas. **535 tests en verde.**
-
-#### Siguiente, por orden
-
-1. **Terminar el backfill del DOGC** (un año en marcha) y **medir el prefiltro sobre la
-   traducción**: es la primera fuente cuyo texto no es castellano original y nadie sabe todavía
-   si el eje léxico se comporta igual. Ninguna cifra de esto se publica sin casos del DOGC en el
-   gold set.
-2. **La capa provincial**: el BOPB (Barcelona) tiene RSS diario e histórico por fecha
-   verificados; falta confirmar si sus PDF son nativos o escaneados, porque el OCR está fuera de
-   alcance (sección 8).
-3. **Los dos hallazgos abiertos de la auditoría** de seguridad: hambre de la cola de versionado y
-   reintento eterno de fallos duros.
-
----
-
-### ⚠️ Primera medición del extractor a escala, y no es buena — 2026-08-18
-
-Se lanzó `--extraer` sobre las 121 normas en cola. **Se detuvo tras 11 normas y ~19 horas**, y lo
-que dejó es más valioso que las filas que no escribió:
-
-| dato | valor |
-|---|---|
-| normas intentadas | 11 |
-| respuestas del modelo | 6 |
-| **timeouts de Ollama (180 s)** | **4 de 11** |
-| **descartadas por no anclar al archivo (regla de oro 9, ADR 0013)** | **3 de 6 respuestas** |
-| filas nuevas | **0** |
-
-**Tres hallazgos, en orden de gravedad:**
-
-1. **El commit estaba fuera del bucle.** Cero filas con tres extracciones válidas: 19 horas de
-   CPU que se habrían perdido enteras al cerrar la terminal. Arreglado —un commit por norma, como
-   ya hacían la fase 2 y el versionado— y el motivo es el mismo: aquí cada iteración cuesta
-   133,9 s y perder una hora por una interrupción es inaceptable.
-2. **La mitad de lo que el modelo devuelve no ancla.** 3 de 6 respuestas afirmaban un
-   `texto_anterior` que no está en el documento archivado. **El control del ADR 0013 funciona y
-   por eso duele**: sin él, esas tres citas inventadas estarían hoy en la base de datos
-   pareciendo evidencia. Es la primera cifra real de alucinación del sistema y hay que decirla
-   entera: **con 6 respuestas no se puede afirmar un porcentaje**, solo que el fenómeno es
-   frecuente y no anecdótico.
-3. **El 36 % de las llamadas expira.** Cuatro timeouts de 180 s con documentos recortados a 4.000
-   caracteres. La causa inmediata es la máquina —Ollama compitiendo con la suite de tests, que
-   pasó de 50 s a 20 minutos—, pero el fondo es el que ya avisaba 6.9.7: un modelo de 3B en CPU
-   no da para procesar un corpus, solo para demostrar el camino.
-
-**Consecuencia para V1, dicha sin adornos:** el extractor **no es viable a escala en esta
-máquina**, y el proyecto no depende de él para clasificar —el catálogo de reglas lee el texto
-archivado (ADR 0016)—. Lo honesto es documentarlo como límite medido, no como algo pendiente de
-terminar: la etapa existe, está verificada de punta a punta sobre casos concretos, y su coste real
-la deja fuera del uso masivo hasta que haya GPU o un modelo distinto. Cualquier cambio de modelo
-buscando calidad sigue prohibido sin gold set (sección 8).
-
----
-
-### ⚠️→✅ 12 normas del DOGC son invisibles para el pipeline — 2026-08-18
-
-> **La cifra estaba corta y el diagnóstico incompleto: son 172, y no son XML con un DOCTYPE
-> de más sino páginas de error. Cerrado el 2026-08-19 con el ADR 0020 — ver la entrada
-> siguiente. Se conserva porque el razonamiento que llevó a la decisión 2 sigue siendo el
-> bueno, y porque enseña lo que costó no medir antes de escribir la cifra.**
-
-Apareció buscando candidatos para el gold set, no buscándolo: al leer los 263 cuerpos catalanes
-archivados, **12 fallan con `DtdForbidden`** — el documento declara un DOCTYPE y `xml_safe` lo
-rechaza, que es exactamente lo que 6.1 le manda hacer (es la vía de entrada de XXE y de las
-bombas de entidades).
-
-**El control está bien; el problema es lo que pasa después.** Esas 12 normas están archivadas con
-su huella, pero el prefiltro no puede leerlas, el catálogo de reglas tampoco, y se quedan en
-`pendiente` para siempre sin que ninguna cifra del embudo las señale: el resumen del worker las
-cuenta como `ilegibles` en la pasada en que ocurre y nadie las vuelve a mirar. **Es el falso
-negativo invisible de la sección 1, esta vez causado por un control de seguridad propio.**
-
-Lo que **no** se va a hacer: relajar `xml_safe`. Un DOCTYPE en un documento de una fuente externa
-es justo lo que el proyecto decidió no procesar.
-
-Lo que hay que decidir (y aún no está decidido, por eso queda escrito y no implementado):
-
-1. **Reintentar pidiendo otro formato de la misma norma.** El DOGC publica cada disposición
-   también en HTML y PDF; si el XML de esas 12 trae DOCTYPE, quizá el otro camino no.
-2. **Marcarlas con un estado propio** —`ilegible`— en vez de dejarlas en `pendiente`, para que
-   aparezcan en el embudo y en la interfaz como lo que son: normas que el sistema no puede
-   vigilar. Hoy se confunden con «esperando su texto íntegro».
-
-La segunda es obligatoria haga lo que haga la primera: **una norma que no se puede analizar tiene
-que verse**, o el sistema afirma una cobertura que no tiene.
-
-
----
-
-### ✅ El hueco del DOGC, medido y visible: el estado `ilegible` (ADR 0020) — 2026-08-19
-
-El encargo era: drenar la fase 2 para separar lo que faltaba por descargar de lo que de verdad no
-se puede leer, y luego darle estado propio. Lo primero cambió lo segundo.
-
-#### 1. La fase 2 estaba drenada, así que el hueco no era de descarga
-
-`--fase2` dejó la cola de descarga en **0** (había **1** norma pendiente en toda la tabla, no
-172). Las 172 que seguían en `pendiente` **ya tenían su cuerpo archivado**: lo que fallaba era
-leerlo. Sin ese paso previo, el trabajo se habría hecho sobre un diagnóstico falso.
-
-#### 2. No son 12, son 172 — y no son un DOCTYPE de más, son la página de error del portal
-
-| | |
-|---|---|
-| normas del DOGC ingeridas | 264 |
-| cuerpos archivados que **no se pueden parsear** | **172 (65 %)** |
-| de esas, contenido real | la **página de error** del Portal Jurídic, 12 KB, **HTTP 200** |
-| huellas distintas entre las 172 | 172 — no es un fichero repetido, cada respuesta trae su ruido |
-| cobertura real de la segunda fuente | **92 de 264 (35 %)** |
-
-La estimación de 12 salió de una lectura parcial. La cifra buena salió de contar las 264 con el
-mismo código que usa el pipeline. **Cualquier medición del DOGC —gold set incluido— es sobre el
-35 %, y así hay que publicarla.**
-
-Lo comprobado sobre `DOGC-24291044` (ORDEN ESP/214/2024), pidiendo formato por formato:
-
-- `.../spa/xml` → página de error, HTTP 200. `.../cat/xml` → **la misma página de error**.
-- `.../spa/html` → 77 KB de contenedor JavaScript: **cero apariciones** de «Artículo» o «Anexo».
-- `.../spa/pdf` → **PDF nativo de 883 KB, con el texto dentro.**
-
-O sea que la opción 1 que quedó escrita ayer —reintentar en otro formato— **no funciona por HTML**
-y solo es viable por **PDF**, que es extracción de texto (permitida por 6.1; no hace falta OCR
-porque el PDF es nativo). No se ha implementado: es otra etapa y otro ADR.
-
-Y una cosa que el conjunto de datos abiertos no dice y ahora está en `docs/fuentes.md`: **anuncia
-un `url_es_format_xml` para las 264**. La fuente promete un formato que sirve en el 35 % de los
-casos, y lo niega con un 200.
-
-#### 3. El estado `ilegible`, que es lo que se pedía y era obligatorio pasara lo que pasara
-
-ADR 0020, migración `b8d2e40a71c5` escrita a mano. Lo que lo hace posible es una distinción de
-tipos, no un valor nuevo: **`leer_cuerpo` levanta `CuerpoIlegible`** cuando hay cuerpo y no se
-puede leer, y reserva `None` para «todavía no hay cuerpo». Antes las dos cosas eran el mismo
-`None`, y por eso el prefiltro degradaba a fase 1 y la norma acababa en `pendiente`.
-
-Cuatro decisiones que conviene no volver a discutir sin leer el ADR:
-
-- **`ilegible` gana a cualquier señal del título.** Un `relevante` sacado del título metería la
-  norma en la cola del extractor, que lee el cuerpo del almacén: un fallo por pasada, para
-  siempre, y una cola que promete trabajo que nadie puede hacer.
-- **Se reintenta en cada pasada** (`prefiltro_version_texto` a NULL a propósito). Es lo único que
-  recupera la norma sola si su cuerpo pasa a ser legible. Tiene test: el estado sale solo.
-- **Se conservan los términos del título**, que son la pista para priorizar la recuperación.
-- **No se toca `xml_safe`.** Y hay que decir lo contrario de lo que parece: el control es **lo
-  único** que impidió que 172 páginas de error entraran como normas. Sin él, el prefiltro las
-  habría descartado por falta de vocabulario y **nada habría fallado visiblemente**. Es el mismo
-  modo de fallo que el articulado dentro de un atributo (ADR 0019), y la segunda vez que esta
-  fuente lo produce.
-
-#### Verificado, no solo con tests
-
-- **552 tests en verde** (12 nuevos), `ruff` y `mypy` limpios, `tsc -b --noEmit` limpio.
-- Migración aplicada contra Postgres real: **14 CHECK**, `estadoprefiltro` sustituida y no
-  duplicada, `origenclasificacion` intacta.
-- `--reprefiltrar` sobre datos reales: **172 evaluadas → 172 ilegibles, 0 pendientes**. Estado
-  final del DOGC: 41 sospecha, 51 descartada, **172 ilegible, 0 pendiente**.
-- `GET /api/documentos/3499` devuelve `"prefiltro_estado":"ilegible"`.
-- En el navegador (Archivo, DOGC-S-2024-12-31): la insignia **⊘ NO SE PUEDE LEER** en color de
-  alerta —no de descarte, no de retroceso— y el contador **«0 de 2 entran en la cola · ⊘ 2 SIN
-  PODER LEER»** fuera de la frase del embudo, para que no se lea como una categoría de descarte.
-- La fixture del test es la página de error **real**, recortada, no un XML inventado con un
-  DOCTYPE: lo que hay que poder reconocer es el caso que se cuela en el archivo.
-
-#### 4. La cobertura pública deja de aparentar lo que no es
-
-Lo encontró el `revisor-seguridad` sobre este mismo diff, y es el hallazgo que más valor tuvo:
-la regla que yo acababa de escribir en 7.2 —«cualquier cifra de cobertura va acompañada de
-cuántas de sus normas son ilegibles»— **la incumplía `GET /api/cobertura`**, que es literalmente
-la única ruta que existe para declarar los huecos del proyecto (ADR 0014). El embudo del worker y
-la pantalla de Archivo contaban el hueco; la API pública, no.
-
-`/api/cobertura` gana `normas` e `ilegibles` por comunidad y en el total, siempre las dos juntas
-(`ilegibles` a solas no dice si son 172 de 264 o de 20.000), agregadas en SQL como el resto del
-endpoint. En el panel de Catalunya se ve así: «Autonómico **1 de 1**» —cierto, la fuente está
-activa— y debajo, en ámbar, «**172 de 264 normas** están descargadas y archivadas, pero su texto
-llegó en un formato que el sistema no puede leer». Las dos cosas son verdad y hacen falta las
-dos. Cuatro tests nuevos lo fijan.
-
-Los otros tres hallazgos de la auditoría fueron BAJA y se resolvieron así: **una línea de
-WARNING** por pasada cuando hay ilegibles (no un código de salida distinto de cero: el cron
-quedaría en rojo permanente mientras el hueco siga abierto, y un rojo que siempre está rojo no
-avisa de nada) y el **`downgrade` de la migración cuenta y anuncia** cuántas filas pierden la
-distinción antes de tocarlas. Queda abierto y anotado: `services/cuerpo.py` escribe **una línea
-ERROR por norma ilegible y por pasada** —172 idénticas— y esa repetición puede enterrar la única
-traza que diría que un control de seguridad saltó de verdad.
-
-#### Lo que este trabajo NO hace, dicho para que no se dé por hecho
-
-- **El color del mapa se sigue calculando con `vigiladas`**, no con la parte legible. Hoy no
-  engaña porque el 35 % legible del DOGC sí se analiza, pero una comunidad con fuente activa y
-  todo su contenido ilegible se pintaría igual que una vigilada de verdad.
-- No recupera ni una de las 172. Para eso hace falta la etapa de PDF.
-
-#### Siguiente, por orden
-
-1. **Gold set con casos del DOGC (~20k).** Sigue siendo lo único que hace evaluable la parte de
-   IA, y con el 22 encima. Ahora se puede etiquetar sabiendo cuáles son etiquetables: **solo las
-   92 legibles**, y el caso ilegible merece uno o dos casos propios para que el gold set mida
-   también que el pipeline los reconoce.
-2. **Recuperar las 172 por PDF (~25k, y su ADR).** Extracción de texto de PDF nativo, sin OCR.
-   Sube la cobertura del DOGC del 35 % al ~100 % si funciona.
-3. **`docs/CLAUDE.md` está en 62 KB, por encima del límite de ~55 KB que él mismo fija.** Ya
-   estaba en 60 KB antes de este trabajo. Es coste fijo de cada subagente; toca una poda.
-
-
----
-
-### ✅ El gold set mide el DOGC, y lo primero que ha medido es un falso positivo — 2026-08-19
-
-Ocho casos nuevos del DOGC, etiquetados leyendo el texto archivado uno a uno. **El corpus pasa de
-14 a 22 casos.** Lo importante no es el número: es que la primera tanda de la segunda fuente ha
-encontrado tres cosas que ninguna cifra agregada habría enseñado.
-
-#### 1. El falso positivo, y el cambio de calibración que ha traído (ADR 0021)
-
-`DOGC-24310119` es un **currículo de arte floral** de 105.101 caracteres. Su única coincidencia
-con el vocabulario es «plan de igualdad», dentro del módulo de formación y orientación laboral:
-*«Fases para la elaboración de un plan de igualdad en la empresa»*. El prefiltro lo mandaba a la
-cola del LLM. Es el equivalente en el DOGC de la oposición que cita la Ley 4/2023 en el temario,
-que 7.3 ya avisaba para el BOE **desde el 2026-08-07 sin que nadie pudiera aplicarlo**, porque
-hacía falta un caso concreto y una medición.
-
-Medido sobre la cola real (`scripts/medir_ruido_lexico.py`, queda en el repo):
-
-| | antes | después |
+| fecha | trabajo | ADR |
 |---|---|---|
-| normas en la cola del extractor | **140** | **40** |
-| de ellas, solo por términos de contexto | **100 (71 %)** | **0** |
-| longitud mediana de esas 100 | 54.099 caracteres (máx. 2.035.373) | — |
-| responsables | «igualdad de trato» (51), «plan de igualdad» (24), «no discriminación» (20), «registro civil» (18) | — |
+| 08-16/17 | Regla de oro 9 (offsets), volumen de verdad y el **DOGC como segunda fuente** | 0013, 0019 |
+| 08-18 | Primera medición del extractor a escala, **y no fue buena** | — |
+| 08-18/19 | 172 normas del DOGC eran invisibles: nace el estado `ilegible` | 0020 |
+| 08-19 | El gold set mide el DOGC, y lo primero que mide es **un falso positivo propio** | 0021 |
+| 08-19 | El eje referencial existe fuera del BOE, **y su aportación medida es cero** | 0022 |
 
-**La decisión (ADR 0021): sobre el texto íntegro, el eje léxico exige al menos un término
-DIRECTO.** Sobre el título no cambia nada —quince palabras, la presencia sí significa algo— y el
-umbral de conteo sigue sin decidir ningún descarte. `VERSION_VOCABULARIO` sube a `2026.08.19`
-aunque no se haya tocado ni un término, porque la versión cubre el eje entero.
+#### Los hallazgos que siguen valiendo
 
-**Lo que se pierde, contado y no adjetivado**: de las 13 detecciones con regla, 3 venían de
-normas sin ningún término directo y **las 3 eran R-SUP-002**, la regla que el gate humano
-descartó 10 de 10 veces y que por eso ya no se encola (ADR 0017). Las tres alertas publicadas
-siguen sobre normas `relevante`, con 22, 31 y 7 términos directos: ninguna se ve afectada. Los 22
-casos del gold set siguen coincidiendo con su etiqueta —antes fallaba uno— así que el recall
-medido no baja.
-
-Quedan 3 detecciones colgando de normas que ahora son `descartada`. No se retiran solas, por la
-misma política de siempre (una detección es rastro de auditoría), y son justo las 3 de R-SUP-002.
-
-#### 2. El eje referencial no existe en el DOGC, y está medido
-
-`DOGC-24261095` deroga artículos del Decreto 134/2022, que es el de estructura del **Departamento
-de Igualdad y Feminismos** — donde viven las competencias LGTBI en Catalunya. Es exactamente el
-tipo de norma que el eje referencial existe para atrapar. No la atrapa:
-
-| | BOE | DOGC |
-|---|---|---|
-| cuerpos legibles | 2.968 | 92 |
-| **con referencias que el eje puede leer** | **211 (7,1 %)** | **0** |
-
-El DOGC sí trae `<references>` en su Akoma Ntoso, pero **sus `activeRef` apuntan al propio
-documento** con `showAs="Modificado"`/`"Derogado"` —son ciclo de vida, no «a quién afecta»— y los
-`passiveRef` son normas *posteriores*. Comprobado en cuatro documentos distintos, uno de ellos
-titulado literalmente «de modificación del Decreto 358/2004»: la norma afectada **no aparece en
-ningún metadato, solo en el texto**.
-
-Consecuencia dicha entera: **en la segunda fuente el sistema vigila con un solo eje**, y es el
-léxico, que es justo el que 7.3 describe como incapaz de ver «se modifica el epígrafe 4.3 del
-anexo II». Hay un camino y no es caro —la watchlist habla en identificadores del BOE
-(`BOE-A-2014-11990`) y el DOGC cita «Ley 11/2014, de 10 de octubre», así que haría falta que cada
-entrada de la watchlist llevara sus **formas de cita** y cruzarlas contra el texto— pero es
-trabajo con su propio ADR, no un parche.
-
-#### 3. Dos cosas menores que aparecieron al etiquetar
-
-- **`organo_emisor` del DOGC es literalmente «DOGC»**: el conjunto de datos abiertos no publica
-  el departamento que emite. Como 7.3 mete el órgano emisor en el texto examinado «porque a veces
-  es ahí donde está la señal», en esta fuente esa vía aporta cero. No es arreglable desde el
-  conjunto de datos actual.
-- **El DOGC empotra fórmulas de lenguaje inclusivo y de desagregación estadística en casi todos
-  sus decretos de estructura.** Eso es lo que dispara el eje léxico en `DOGC-24317111` (Política
-  Lingüística) o `DOGC-24136006` (régimen lingüístico educativo). Se han etiquetado `sospecha` y
-  no `descartada` a conciencia: la cláusula «los datos se desagregarán por sexo e identidad de
-  género (mujer/hombre/persona no binaria)» **es un precepto**, y quitarle «persona no binaria»
-  sería un retroceso real sin titulares. La línea entre esto y el currículo de arte floral es la
-  que separa fórmula-con-precepto de fórmula-sin-ninguno, y está escrita en las notas de los
-  casos.
-
-#### Verificado
-
-- **588 tests en verde** (32 nuevos desde ayer), `ruff` y `mypy` limpios.
-- Gold set: **22 de 22 casos coinciden con su etiqueta**, y los 8 del DOGC coinciden también con
-  lo que tiene la base de datos real tras `--reprefiltrar`.
-- `--reprefiltrar` sobre 3.232 normas: 3 relevantes, 37 sospechas, 3.020 descartadas, 172
-  ilegibles, **0 que pasen solo por términos de contexto**.
-
-#### Siguiente, por orden
-
-1. **Más casos del gold set, y los que faltan son de un tipo concreto** (~20k). El corpus tiene
-   22 de los 60-80 del plan. Y el hueco no es de cantidad: **falta el caso que evalúa el eje
-   referencial de verdad** —una norma de título anodino que modifique algo de la watchlist sin
-   nombrar al colectivo— porque los tres casos donde hoy dispara los detecta también el léxico.
-   Sin él, la aportación única del eje referencial medida sigue siendo cero.
-2. **El eje referencial por citas textuales (~25k + ADR).** Es lo que lo haría funcionar en el
-   DOGC y en cualquier fuente que no sea el BOE. La watchlist necesita formas de cita; el cruce
-   se hace contra el texto, validando formato antes y sin construir ninguna URL con ello (6.10).
-3. **Recuperar las 172 ilegibles del DOGC por PDF (~25k + ADR).** Sin esto, cualquier medición de
-   esa fuente es sobre el 35 % de su contenido.
-
-
----
-
-### ✅ El eje referencial existe fuera del BOE (ADR 0022), y su aportación medida es cero — 2026-08-19
-
-Continuación directa de lo anterior. El gold set había dejado señalado que el eje 2 no funciona en
-el DOGC; esto lo arregla, y **el resultado honesto es menos vistoso de lo que parecía**.
-
-#### Lo que se ha construido
-
-`pipeline/citas.py` produce `ReferenciaAnterior` —**el mismo tipo** que el bloque `<analisis>` del
-BOE— a partir de las citas dentro del texto: «Se suprime el apartado 2 del artículo 8 de la Ley
-2/2016, de 29 de marzo». Se fusionan en `leer_cuerpo`, así que **ninguna etapa se entera**: el
-prefiltro, el versionado y las reglas siguen preguntando lo mismo a la misma estructura.
-
-Cuatro reglas, y ninguna es una intuición:
-
-- **Solo forma larga, número y fecha.** La corta produjo **4 coincidencias de 4 falsas** sobre el
-  DOGC: «Ley 2/2021» caza la catalana de medidas fiscales en vez de la canaria vigilada, y «Ley
-  4/2023» caza dentro de «**Decreto ley** 4/2023». De ahí el `(?<!decreto )` del patrón, que sin
-  la medición nadie habría escrito. Cada trampa tiene su test.
-- **El verbo se busca 200 caracteres hacia atrás**, que es donde lo pone el texto dispositivo.
-- **Sin verbo, `CITA`**, que no dispara nada. Mencionar una ley no es tocarla.
+- **El estado `ilegible` y sus tres reglas** (hoy en 7.2 de `CLAUDE.md`): gana a cualquier señal
+  del título, se reintenta en cada pasada dejando `prefiltro_version_texto` a NULL, y se conservan
+  los términos del título como pista para el rescate a mano.
+- **`xml_safe` no se relajó, y hay que decirlo al revés de como parece:** ese control fue **lo
+  único** que impidió que 172 páginas de error entraran en el pipeline como si fueran normas. El
+  prefiltro las habría descartado por falta de vocabulario y nada habría fallado visiblemente.
+- **Las citas: solo forma larga, número y fecha.** La corta produjo **4 coincidencias falsas de 4**
+  sobre el DOGC. El verbo se busca 200 caracteres hacia atrás; sin verbo es `CITA` y no dispara.
+  Mencionar una ley no es tocarla.
+- **El DOGC no publica emisor:** su `organo_emisor` es literalmente «DOGC». Y empotra fórmulas de
+  lenguaje inclusivo y de desagregación estadística en casi todos sus documentos — de ahí vino el
+  falso positivo que el gold set cazó, y de ahí salió el ADR 0021.
 - **La watchlist se pasa por parámetro, no se carga dentro de `leer_cuerpo`.** Lo delató el propio
-  diseño: cargarla ahí mete estado global en una función de lectura y deja fuera de juego a los
-  tests que la sustituyen.
+  código al escribir el eje.
+- **El color del mapa se calcula con `vigiladas`, no con la parte legible.** Anotado entonces como
+  deuda consciente.
 
-#### Lo que aporta, medido y sin maquillar
+#### Cuatro casos de gold set elegidos por su vector, no por su claridad
 
-Reevaluado el corpus entero (3.232 normas): el eje referencial dispara en **3 normas, las mismas 3
-que ya disparaba con el `<analisis>`**. **Su aportación única es cero**, y presentar ese 3 como
-resultado de este trabajo sería apuntarse el de otro.
-
-Lo que sí queda demostrado son dos cosas:
-
-1. **Encuentra la modificación leyendo solo el texto.** Sobre `BOE-A-2024-10767` —la reforma
-   madrileña de 2023— saca `BOE-A-2016-6728` con verbo `SUPRIME` sin tocar el metadato. Lo delató
-   un test del versionado que se puso rojo al conectarlo: neutralizar el `<analisis>` ya **no
-   basta** para neutralizar una referencia, porque ahora hay dos fuentes.
-2. **Cero falsos positivos sobre 3.060 cuerpos**, que es lo que hay que exigirle a un módulo que
-   busca citas de leyes en texto libre.
-
-Y lo que cubre no ha ocurrido todavía en este corpus: un decreto autonómico que modifique la ley
-trans de su comunidad. Hasta hoy eso era **invisible por construcción** en el DOGC.
-
-#### Estado del corpus tras las dos calibraciones del día
-
-| | |
-|---|---|
-| normas | 3.232 |
-| en la cola del extractor | **40** (3 relevantes + 37 sospechas), desde 140 |
-| descartadas | 3.020 |
-| ilegibles (ADR 0020) | 172 |
-| que pasan solo por términos de contexto | **0** |
-| ejes | `lexico` 38, `lexico+referencial` 3 |
-
-**607 tests en verde** (19 nuevos), `ruff`, `mypy` y `tsc` limpios.
-
-#### Siguiente, por orden
-
-1. **Más casos del gold set (~20k), y sigue faltando el mismo**: una norma de título anodino que
-   modifique algo de la watchlist sin nombrar al colectivo. Ahora hay **dos** caminos por los que
-   podría entrar —metadato y cita— y ninguno está evaluado con un caso propio.
-2. **Recuperar las 172 ilegibles del DOGC por PDF (~25k + ADR).** Es el único formato con texto.
-3. **La poda de `docs/CLAUDE.md` está empezada, no terminada** (~10k para cerrarla). De 63,4 KB a
-   **62,2 KB**, con el límite que el propio fichero fija en ~55 KB. Lo hecho han sido tres
-   movimientos seguros, sin perder una línea: el script del driver salió a `run_agent.sh` —donde
-   la sección 4 decía que estaba, y donde no puede desincronizarse de una segunda copia—, el
-   backlog de producto de la sección 12 se movió aquí, y el changelog de 7.5 se comprimió a sus
-   reglas dejando el porqué en el ADR 0013.
-
-   Lo que queda son **reescrituras de prosa normativa, no movimientos**, y ahí el riesgo de
-   perder un matiz que este proyecto valora es real. Los candidatos, por tamaño: §7.3 (5,7 KB),
-   §5 modelo de dominio (3,6 KB), §6.9 Ollama (3,3 KB), §7.2 (3,0 KB). **Que lo decida una
-   persona**: la parte mecánica ya está hecha.
-
-
----
+`BOE-A-2024-10765` (Ley de Presupuestos de Madrid, el vehículo clásico del cambio que no se
+anuncia), `BOE-A-2024-24104` (bases de subvención, el vector que el análisis jurídico señala como
+más silencioso), `BOE-A-2024-23757` (cualificaciones profesionales, el documento más grande del
+corpus) y `BOE-A-2024-23937` (convenio SEGISS, **puesto a propósito por ser el más discutible**).
 
 ### 📋 Backlog de producto, traído desde CLAUDE.md — 2026-08-19
 
@@ -669,105 +262,18 @@ commit `0a0a32d`.
 
 ---
 
-### ✅ Cuatro casos más del gold set, del BOE — 2026-08-19 (cierre de sesión)
+### 📚 Cierre del 19/20 de agosto: el caso que faltaba — condensado el 2026-08-23
 
-El corpus pasa a **26 casos**. Los cuatro son del BOE y cada uno mide algo que el corpus no
-medía:
+Los cuatro casos nuevos del gold set están descritos en la entrada resumida de arriba. Lo que
+cierra este tramo es **el caso que el gold set llevaba pidiendo desde el 9 de agosto y que no
+aparecía ingiriendo días seguidos**: se encontró **preguntándole al BOE** quién había modificado
+cada norma vigilada (`scripts/quien_modifica.py`), en vez de esperar a que cayera. De ahí salieron
+la Ley Foral de Presupuestos de Navarra 2022 y la ley de medidas fiscales valenciana de 2021, las
+dos modificando leyes trans autonómicas.
 
-- **`BOE-A-2024-10765`, Ley de Presupuestos de Madrid.** El vehículo clásico del cambio que no
-  sale en los periódicos. 327.937 caracteres, **una** coincidencia directa («educación afectivo
-  sexual») en una frase programática de salud. Verificado buscando además «trans*», «identidad de
-  género», «LGTB», «diversidad sexual», «Ley 2/2016» y «Ley 3/2016»: **cero apariciones**. O sea
-  que la ley de presupuestos **no toca** la ley trans madrileña, aunque sea del mismo mes y la
-  misma legislatura que la Ley 17/2023 que sí la recorta. Es el caso que impide dar por hecha una
-  relación que no existe.
-- **`BOE-A-2024-24104`, bases de subvención.** El vector que el análisis jurídico señala como más
-  silencioso: el dinero se quita antes que el derecho. El «colectivo LGTBI» figura entre los
-  destinatarios; sacarlo de esa enumeración no modificaría ninguna ley.
-- **`BOE-A-2024-23757`, cualificaciones profesionales.** El documento más grande del corpus
-  (1.975.355 caracteres, el que obliga a pensar en el truncado de 6.9.7) y el único que combina
-  contenido del ámbito educativo-laboral —criterios de competencia sobre orientación sexual e
-  identidad de género— con un título que dice «se actualizan y **suprimen**».
-- **`BOE-A-2024-23937`, convenio del aplicativo SEGISS.** El caso más discutible, y está puesto
-  para que la discusión quede escrita: su única coincidencia son tres apariciones de «Diversidad
-  Familiar» **dentro del nombre del órgano que firma**. Se etiqueta `sospecha` y no `descartada`
-  porque 7.3 mete el órgano emisor en el texto examinado **a propósito**; descartarlo sería
-  etiquetar en contra de una decisión de diseño vigente en vez de medir su efecto. Con la
-  medición al lado: «diversidad familiar» sale en 3 de 3.060 cuerpos y solo aquí es únicamente el
-  órgano — **con 1 caso de 3.060 no se toca un vocabulario**, que es la lección del ADR 0021.
-
-**623 tests en verde.** Gold set: 26 de 26 coincidiendo con su etiqueta.
-
-
----
-
-### ✅ El caso que faltaba desde el 9 de agosto, encontrado preguntándole al BOE — 2026-08-19/20
-
-El gold set llevaba once días pidiendo lo mismo: **una norma de título anodino que modifique una
-norma de la watchlist**, cuyo arquetipo es una disposición final de una ley de acompañamiento
-presupuestario. Sin ella, el eje referencial estaba **declarado pero no evaluado**: los tres
-casos donde disparaba los detectaba también el léxico.
-
-#### No se buscó ingiriendo días a ciegas: se le preguntó al BOE
-
-El texto **consolidado** de cada norma vigilada trae en `<posteriores>` quién la ha modificado
-después. 21 peticiones y salieron **29 normas modificadoras** con nombre y fecha, o sea
-exactamente qué días había que ingerir. Queda en `backend/scripts/quien_modifica.py`.
-
-El detalle que costó encontrarlo, y está escrito en el script para no repetirlo: **ese bloque no
-tiene la forma del `<anteriores>`** del texto de una norma. Usa `<id_norma>` y `<relacion>` («SE
-MODIFICA»), no el atributo `referencia` ni `<palabra>`.
-
-#### Cuatro días ingeridos, tres casos nuevos, y el corpus a 29
-
-De 3.232 normas a **4.081**, con 157 sumarios. Y los tres casos son un solo experimento:
-
-| caso | qué es | resultado |
-|---|---|---|
-| `BOE-A-2022-2066` | **Presupuestos Generales de Navarra 2022** | `relevante` por eje referencial. Modifican el art. 7 de la ley trans navarra |
-| `BOE-A-2021-1859` | **ley de medidas fiscales** de la Generalitat Valenciana | `relevante` por eje referencial. Modifica la ley LGTBI valenciana |
-| `BOE-A-2021-1860` | **Presupuestos** de la Generalitat 2021, **mismo día** que la anterior | `sospecha`: solo la **cita** |
-
-Lo que hace valioso al de Navarra: **161.104 caracteres y UN solo término directo** («lgtbi»).
-Sin el eje referencial sería `sospecha` —el último puesto de la cola— en vez de `relevante`. Es
-la demostración, con un documento real, de que el eje 2 **no duplica al léxico**.
-
-Lo que hace valioso al par valenciano: son dos leyes de acompañamiento hermanas, publicadas el
-**mismo día** por el **mismo parlamento**, con títulos igual de anodinos y **cuatro términos
-directos cada una**. Una modifica la ley LGTBI y la otra solo la cita. Sin la segunda, un eje
-referencial que disparase con cualquier mención pasaría el gold set igual de verde que uno
-correcto; con ella, **se pone rojo si alguien afloja la condición `es_modificativa`**, que es la
-única línea que separa «toca esta ley» de «la nombra».
-
-#### Y el ADR 0022 tiene su primera validación en la naturaleza
-
-Ejecutadas las dos fuentes de evidencia por separado sobre los cuerpos archivados:
-
-- `BOE-A-2021-1859`: el `<analisis>` dice `MODIFICA` **y el eje por citas del texto también**, por
-  su cuenta. Hasta este documento la aportación medida del eje por citas era cero.
-- `BOE-A-2022-2066`: aquí la señal la aporta **solo el metadato**; la cita aparece sin verbo
-  modificativo cerca y sale como `CITA`. Las dos fuentes se complementan y ninguna sobra.
-- `BOE-A-2021-1860`: `<analisis>` vacío y cita sin verbo → **no dispara**, que es lo correcto.
-
-#### Verificado
-
-- **635 tests en verde**, `ruff` y `mypy` limpios. Gold set: **29 de 29 coincidiendo** con su
-  etiqueta.
-- Estado del corpus: 4.081 normas, 7 relevantes, 45 sospechas, 172 ilegibles, **0 pendientes**,
-  0 en cola de fase 2.
-
-#### Siguiente, por orden
-
-1. **Seguir el filón**: quedan **26 normas modificadoras más** en la lista de
-   `quien_modifica.py` sin ingerir, entre ellas varias órdenes que tocan la **cartera común de
-   servicios del SNS** (`BOE-A-2024-12290`, `BOE-A-2025-9277`, `BOE-A-2026-8592`,
-   `BOE-A-2026-16654`) — el vector sanitario, que el corpus todavía no tiene medido. Cada día
-   cuesta unos 3 minutos de ingesta.
-2. **Recuperar las 172 ilegibles del DOGC por PDF** (~25k + ADR).
-3. **Terminar la poda de `docs/CLAUDE.md`** (62,2 KB con el límite en ~55).
-
-
----
+**La lección de método, que es lo que se conserva:** cuando el corpus no trae un tipo de caso, se
+puede preguntar por él en vez de ampliar el corpus a ciegas. 635 tests en verde y el gold set
+coincidiendo 29 de 29.
 
 ### ✅ El gold set encontró un falso positivo del clasificador, y era grave (ADR 0023) — 2026-08-20
 
