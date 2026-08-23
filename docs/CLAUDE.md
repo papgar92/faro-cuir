@@ -784,7 +784,11 @@ Si te encuentras haciendo cualquiera de estas, para:
   (escrito e implementado el 2026-08-22): el DOGC publica muchas normas solo en PDF, así que
   `security/pdf_safe.py` es ahora la puerta única para ese formato — con tres topes, sin ejecutar
   nada y distinguiendo «no se puede leer» de «no tiene letras», que es la cifra que decidirá algún
-  día si el OCR hace falta. El siguiente libre es el **0027**.
+  día si el OCR hace falta. Y **0027 el límite del eje referencial, medido** (escrito el
+  2026-08-23): ampliar la watchlist rinde 5 casos al año sobre un censo de 27.016 disposiciones,
+  así que **no es la palanca** — el sistema encuentra poco porque el retroceso que deja rastro
+  referencial es raro, y los mecanismos silenciosos no lo dejan por definición. Cambia lo que el
+  proyecto puede afirmar, y a mejor. El siguiente libre es el **0028**.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).
