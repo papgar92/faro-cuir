@@ -216,11 +216,19 @@ def aplicar(
     *,
     almacen_root: Path,
     documento_id: int | None = None,
+    limite: int | None = None,
 ) -> ResumenExtraccion:
     """Extrae y persiste. Idempotente: una norma con `deteccion` no se vuelve a tocar.
 
     `documento_id=None` barre toda la tabla; el worker normal lo llama acotado al documento
     que acaba de ingerir, igual que hace con el prefiltro.
+
+    **`limite` acota cuántas normas se procesan en esta pasada, y no es una comodidad.** Una
+    extracción cuesta ~318 s medidos (2026-08-28), así que vaciar la cola entera son decenas de
+    horas de CPU con tres núcleos ocupados. Hasta ahora la única forma de gastar menos era matar
+    el proceso a mano, y eso es exactamente lo que hizo falta cuando el extractor pasó cinco días
+    produciendo cero. Poder decir «hazme 40 y para» es lo que convierte una tanda en algo que se
+    puede presupuestar. Lo que se deje fuera no se pierde: la cola es una consulta.
 
     Ya no acepta un `httpx.Client`: este servicio no hace peticiones desde el ADR 0015. Ese
     parámetro solo lo usaban los tests, y era además un agujero en la puerta única —
@@ -228,6 +236,8 @@ def aplicar(
     colar un cliente sin timeout o sin verificación de TLS a través del control.
     """
     normas = list(session.scalars(_pendientes(documento_id)))
+    if limite is not None:
+        normas = normas[:limite]
     extraidas = fallidas = punteros = 0
 
     for norma in normas:

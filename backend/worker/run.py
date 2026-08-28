@@ -118,6 +118,17 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--limite",
+        type=int,
+        metavar="N",
+        help=(
+            "Con --extraer: procesa como mucho N normas y para. Una extracción cuesta ~318 s "
+            "medidos, así que vaciar la cola entera son decenas de horas de CPU; esto es lo que "
+            "permite lanzar una tanda acotada. Lo que se deja fuera no se pierde: la cola es una "
+            "consulta y la pasada siguiente lo recoge."
+        ),
+    )
+    parser.add_argument(
         "--importar-informes",
         type=Path,
         metavar="FICHERO.json",
@@ -404,7 +415,10 @@ def main(argv: list[str] | None = None) -> int:
         # —o `--reclasificar`— sin volver a llamar al modelo.
         with SessionLocal() as session:
             resumen_extraccion = servicio_extraccion.aplicar(
-                session, ProveedorOllama(), almacen_root=settings.almacen_root
+                session,
+                ProveedorOllama(),
+                almacen_root=settings.almacen_root,
+                limite=args.limite,
             )
         logger.info(
             "Extracción (prompt %s): %s pendientes, %s extraídas, %s fallidas, %s punteros. "
