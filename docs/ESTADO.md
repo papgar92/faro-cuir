@@ -1910,3 +1910,53 @@ Un fallo que **no rompe nada visiblemente** puede correr cinco días. Sin fila, 
 sola a la cola (6.9.3), así que el worker *parecía* avanzar. Es el mismo patrón que motivó el
 estado `ilegible` (ADR 0020) y la misma razón por la que el embudo cuenta lo que no puede hacer:
 **lo que no se cuenta, no se ve.** El log lo decía desde el 23 de agosto y nadie lo miró.
+
+### ⇨ CÓMO RETOMAR ESTO — cierre del 2026-08-28
+
+**Todo commiteado. La máquina se apagó con dos procesos a medias y ninguno pierde trabajo**, que
+es por diseño: el backfill es reanudable por marcas y la cola del extractor es una consulta.
+
+#### Lo que quedó a medias y cómo se retoma
+
+```bash
+docker compose up -d
+docker compose exec -d worker sh //app/backfill.sh                              # falta 1 bloque
+docker compose exec -d worker sh -c "python -m worker.run --extraer --limite 40 > /app/data/extraer-muestra.log 2>&1"
+```
+
+- **Backfill del BOE: 11 de 12 bloques.** El de 2025-10 se completó al reintentarlo; **falta
+  2025-09**, que también murió con un `502 Bad Gateway` del BOE. Relanzar salta los 11 hechos.
+- **Muestra del extractor: 9 de 40.** Se puede relanzar tal cual; lo ya extraído no se repite.
+
+#### El resultado de la muestra, que es lo que había que saber
+
+| | |
+|---|---|
+| Extracciones OK | 4 |
+| Descartadas por esquema | 2 |
+| **Descartadas por anclaje (regla de oro 9)** | **1** |
+| **Timeouts** | **0** |
+
+**Cero timeouts confirma que `num_predict` era la causa.** Y el descarte por anclaje es el sistema
+funcionando: «el campo `texto_anterior` del artículo 0 afirma un texto que no está en el documento
+archivado». **Es la regla de oro 9 cazando una alucinación en producción**, que era exactamente
+para lo que se diseñó el ADR 0013. Que aparezca con esta frecuencia sobre datos reales es el mejor
+argumento que tiene el proyecto para defender ese control ante el tribunal.
+
+#### Lo siguiente, por valor
+
+1. **Terminar la muestra de 40** y mirar `corroborar()`: ¿ve el modelo supresiones que las reglas
+   no ven? Es la única pregunta que reabriría el ADR 0016, y con ~30 extracciones se puede
+   contestar. **No vaciar la cola entera**: son 54 horas de CPU que no producen ni una alerta
+   (ADR 0027 y la entrada de esta misma fecha).
+2. **Gold set de 32 a 60-80 casos.** Sigue siendo el cuello de botella real del plazo y es tiempo
+   humano, no de máquina.
+3. **Tanda 2 de la watchlist** (~20k): campo de especificidad en `NormaVigilada` + que R-SUP-001
+   no afirme signo sobre norma-vehículo. Todo lo necesario está en `_pendientes_de_verificar` del
+   propio `config/watchlist.json`, con su rendimiento medido: 5 casos al año.
+
+#### Y una herramienta nueva que conviene no olvidar
+
+`--extraer --limite N`. El problema de fondo del incidente de esta semana no fue solo
+`num_predict`: fue que **no había forma de acotar el gasto**, así que la única manera de gastar
+menos era matar el proceso a mano. Ahora una tanda se puede presupuestar.
