@@ -1792,3 +1792,121 @@ ilegible **después** de esa pasada sí es un hueco de verdad.
 
 Recordatorio que no se negocia: cualquier cifra de cobertura del DOGC va acompañada de cuántas de
 sus normas son ilegibles, o afirma una vigilancia que no existe.
+
+### ⚠️ El extractor a escala: el timeout era un bug y el modelo ve el 3 % de la norma — 2026-08-28
+
+Primera tanda larga del extractor sobre la cola real (620 normas). Dos hallazgos, y el primero
+llevaba cinco días fallando **sin romper nada visiblemente**, que es la peor forma de fallar.
+
+#### 1. `llm_timeout_segundos` estaba mal calibrado: 180 s → 600 s
+
+| | |
+|---|---|
+| Documentos enviados al LLM | 43 |
+| **Descartados por timeout de Ollama** | **22 (51 %)** |
+| Descartados por esquema | 2 |
+
+La extracción medida son **133,9 s de media** (ADR 0011). Un timeout de 180 s es un margen del
+34 % sobre una media: **cualquier documento por encima de la media lo revienta**. No era una
+elección conservadora, era un error de calibración.
+
+**Y no se notó porque el fallo es silencioso por diseño:** sin fila, la norma vuelve sola a la
+cola (6.9.3). El worker parecía avanzar mientras reintentaba en bucle las mismas normas. Es el
+mismo patrón que el estado `ilegible` vino a resolver en el prefiltro — algo que no se puede
+hacer, repitiéndose sin que nadie lo cuente.
+
+Corregido en `config.py` y no en `.env`, porque es una corrección **medida** que debe quedar en el
+repositorio: 600 s son 4,5 veces la media y absorben la cola de documentos grandes.
+
+#### 2. El modelo ve menos del 5 % de la norma, y ahora ese dato viaja con la extracción
+
+Medido sobre 150 normas de la cola de 607:
+
+| | |
+|---|---|
+| **Caben enteras en el tope de 4.000** | **2 de 150 = 1 %** (~8 de 607) |
+| Mediana de la cola | 82.309 caracteres |
+| p75 | 138.530 |
+| De los 43 ya enviados, mediana original | 153.428 → el modelo vio el **2,6 %** |
+
+La sección 6.9.7 avisaba de que `MAX_CARACTERES_DOCUMENTO` estaba **sin medir**. Ya está medido, y
+es peor de lo que el aviso sugería.
+
+**Corrección de algo que se dijo mal al diagnosticar:** primero se afirmó que anotar offsets sobre
+ese 2,6 % «promete una trazabilidad que no existe». **Es falso.** Los offsets los calcula el
+sistema buscando sobre el texto archivado **completo** (ADR 0013), así que lo que el modelo cite
+del fragmento ancla perfectamente. Lo que es parcial es la **cobertura**, no el anclaje. Son cosas
+distintas y confundirlas lleva a desconfiar de un control que funciona.
+
+Lo que sí hacía falta: **`extraccion_json` registra ahora `caracteres_enviados` y
+`caracteres_documento`**. Sin eso, «el extractor no encontró nada aquí» no se distingue de «el
+extractor no lo miró» — y sobre esta cola eso pasa el 99 % de las veces. Mismo criterio que
+`ilegible` (ADR 0020): lo que el sistema no puede hacer se cuenta, no se omite.
+
+#### Qué se decidió y qué no, y por qué
+
+**La ventana deslizante de 6.9.7 —trocear con solapamiento y rebasar los offsets a posición
+absoluta— es la solución correcta y NO se implementa ahora.** El argumento no es el esfuerzo, es
+este:
+
+> **La extracción del LLM no produce las detecciones que llegan al gate humano.** Las produce el
+> catálogo de reglas, que lee el texto archivado **completo** (ADR 0016). Los punteros del
+> extractor son diagnóstico, no veredicto.
+
+O sea que multiplicar por ~38 el coste de CPU no desbloquearía ni una alerta ni un ítem de cola.
+Con el plazo del 10 de septiembre y el gold set como cuello real, la sección 8 dice que no.
+
+**Tampoco se restringe la cola a lo que cabe entero**, que era la otra opción barata: dejaría al
+extractor con **8 normas de 607**. Medido antes de descartarla.
+
+Así que el extractor sigue, con el timeout arreglado y **diciendo sobre cuánto documento se
+pronuncia**. Cualquier cifra que salga de él se lee con esa salvedad, y ahora la salvedad está en
+el dato y no en la memoria de quien lo mire.
+
+#### La causa raíz de verdad: `num_predict` no estaba fijado (misma fecha, hallazgo posterior)
+
+Lo anterior de esta entrada culpaba al timeout. **El timeout era un síntoma.** Un diagnóstico
+hecho desde fuera del repositorio encontró la causa: el bloque `options` de `llm/ollama.py` fijaba
+`temperature` y `seed` pero **no `num_predict`**, así que la generación era **ilimitada**. El
+modelo no terminaba el JSON nunca, la petición caducaba, la norma volvía a la cola y vuelta a
+empezar — **cinco días quemando tres de los cuatro núcleos para tirar el 100 % de los resultados**.
+
+El `500 | 3m0s | POST /api/generate` del log de Ollama era ininterrumpido desde el 23 de agosto.
+
+**Dimensionado con datos**, no a ojo: las 22 extracciones ya completadas miden 430 caracteres de
+mediana, 939 en el p90 y 2.086 la mayor. Fijado en **1536 tokens**.
+
+**Verificado que no trunca**, porque el primer caso medido fuera de esa muestra (3.391 caracteres)
+la superaba y daba miedo: la respuesta cierra limpia, parsea y valida contra el esquema con 5
+artículos extraídos.
+
+##### Lo que hay que saber antes de tocar cualquiera de los dos números
+
+> **`num_predict` y `llm_timeout_segundos` están atados.** El tiempo de una extracción lo manda lo
+> que el modelo **genera**, no el documento de entrada: medido, **3,2 tokens/s** en esta máquina.
+> 1536 tokens son ~480 s y caben en 600. **2048 serían ~640 s y volverían a caducar todas las
+> peticiones.** Al tocar uno hay que recalcular el otro: `num_predict / tokens_por_segundo < timeout`.
+
+##### El coste medido, y por qué NO se vació la cola
+
+`scripts/medir_extraccion.py` (separa la llamada fría, que carga 4,8 GB de modelo, de las
+calientes, que son las que presupuestan):
+
+| | tiempo | generado | del documento |
+|---|---|---|---|
+| 1 (fría) | 119,3 s | 339 car | 5,8 % |
+| 2 | 174,4 s | 727 car | 3,5 % |
+| 3 | 462,6 s | 3.386 car | 10,4 % |
+
+**318 s por norma → 54 horas para las 607.** Se decidió **no vaciar la cola**, por el mismo
+argumento del ADR 0027: **la extracción no alimenta el gate humano** —las detecciones las produce
+el catálogo de reglas, que lee el texto completo (ADR 0016)— así que serían 54 horas que no
+producen ni una alerta más. Se extrae solo una **muestra** para tener material de diagnóstico de
+`corroborar()`: si el modelo ve supresiones que las reglas no ven.
+
+##### La lección, que es la de siempre en este repositorio
+
+Un fallo que **no rompe nada visiblemente** puede correr cinco días. Sin fila, la norma vuelve
+sola a la cola (6.9.3), así que el worker *parecía* avanzar. Es el mismo patrón que motivó el
+estado `ilegible` (ADR 0020) y la misma razón por la que el embudo cuenta lo que no puede hacer:
+**lo que no se cuenta, no se ve.** El log lo decía desde el 23 de agosto y nadie lo miró.

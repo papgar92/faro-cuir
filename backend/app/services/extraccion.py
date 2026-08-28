@@ -56,7 +56,9 @@ logger = logging.getLogger(__name__)
 # pragmatismo de modelo, y el número sale de haberlo probado de verdad contra la Ley 4/2023
 # real (`BOE-A-2023-5366`) en la máquina del proyecto (CPU, sin GPU dedicada, ADR 0008):
 # 40.000 caracteres devolvía un JSON con un campo `error` en vez del esquema esperado (el
-# modelo se pierde con tanto contexto), y 8.000 agotaba el timeout de 180 s de puro lento.
+# modelo se pierde con tanto contexto), y 8.000 agotaba el timeout **de entonces, 180 s** de
+# puro lento (hoy son 600, recalibrados el 2026-08-28; y desde esa fecha `llm/ollama.py` acota
+# además la generación con `num_predict`, que era lo que de verdad la hacía interminable).
 # 3.000 sí funcionó de punta a punta. Se deja un margen sobre esa cifra verificada, no una
 # suposición redonda. **Esto es un parámetro de rendimiento, no de calidad**: seguirá sin
 # saber si el modelo entiende bien un artículo largo cortado a la mitad hasta que el gold set
@@ -128,21 +130,38 @@ def _anclar_extraccion(
     return anclas
 
 
-def _recortar(texto: str, *, identificador: str) -> str:
-    """Aplica el tope de caracteres, dejando constancia si se ha cortado algo.
+def _recortar(texto: str, *, identificador: str) -> tuple[str, int]:
+    """Aplica el tope de caracteres. Devuelve `(texto_enviado, caracteres_del_documento)`.
 
     Un recorte silencioso es peor que uno registrado: si el extractor empieza a fallar en
     normas largas, esto es lo primero que hay que poder mirar.
+
+    **Devuelve además el tamaño original porque el log no basta** (medido el 2026-08-28). Sobre
+    la cola real de 607 normas, **solo el 1 % cabe entero** y la mediana son 82.309 caracteres,
+    así que el modelo ve de mediana **menos del 5 % del documento**. Ese dato tiene que viajar
+    con la extracción, no quedarse en un WARNING que nadie lee al consultar la fila: quien lea
+    después «el extractor no encontró nada aquí» necesita saber si es que no había nada o es que
+    no lo miró.
+
+    Es el mismo criterio que el estado `ilegible` del prefiltro (ADR 0020): **lo que el sistema
+    no puede hacer se cuenta, no se omite.** Y el mismo que hace viajar `version_texto_plano` y
+    `version_anclaje` al lado de los offsets — un resultado sin saber sobre qué se produjo no es
+    interpretable.
+
+    **Lo que NO afecta es la trazabilidad.** Los offsets los calcula el sistema buscando sobre el
+    texto archivado **completo** (ADR 0013), así que lo que el modelo cite del fragmento ancla
+    bien. Lo que es parcial es la cobertura, no el anclaje: son cosas distintas y conviene no
+    confundirlas al leer una extracción.
     """
     if len(texto) <= MAX_CARACTERES_DOCUMENTO:
-        return texto
+        return texto, len(texto)
     logger.warning(
         "Documento de %s recortado de %s a %s caracteres antes de enviarlo al LLM.",
         identificador,
         len(texto),
         MAX_CARACTERES_DOCUMENTO,
     )
-    return texto[:MAX_CARACTERES_DOCUMENTO]
+    return texto[:MAX_CARACTERES_DOCUMENTO], len(texto)
 
 
 # Estados que entran en la cola del LLM, **y el orden en que entran** (CLAUDE.md 7.2).
@@ -228,7 +247,9 @@ def aplicar(
         if cuerpo is None:
             fallidas += 1
             continue
-        texto = _recortar(cuerpo.texto, identificador=norma.identificador_oficial)
+        texto, caracteres_documento = _recortar(
+            cuerpo.texto, identificador=norma.identificador_oficial
+        )
         try:
             resultado = extraer(proveedor, texto)
         except LLMError as exc:
@@ -279,6 +300,11 @@ def aplicar(
                 "anclas": anclas,
                 "version_texto_plano": VERSION_TEXTO_PLANO,
                 "version_anclaje": VERSION_ANCLAJE,
+                # Sobre cuánto documento se pronunció el modelo. Sin esto, «el extractor no
+                # encontró nada» no se distingue de «el extractor no lo miró», y sobre la cola
+                # real eso pasa el 99 % de las veces: solo el 1 % de las normas cabe entera.
+                "caracteres_enviados": len(texto),
+                "caracteres_documento": caracteres_documento,
                 "extraido_en": datetime.datetime.now(datetime.UTC).isoformat(),
             },
             clasificacion=Clasificacion.INDETERMINADO,

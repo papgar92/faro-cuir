@@ -381,18 +381,29 @@ class TestTextoPlano:
 
 
 class TestRecortar:
+    """El recorte, y **cuánto documento se quedó fuera**, que es el dato que faltaba.
+
+    `_recortar` devuelve `(texto_enviado, caracteres_del_documento)` desde el 2026-08-28. El
+    segundo valor acaba en `extraccion_json` porque el WARNING del log no basta: medido sobre la
+    cola real, **solo el 1 % de las normas cabe entera**, así que sin ese dato «el extractor no
+    encontró nada aquí» no se distingue de «el extractor no lo miró» en el 99 % de las filas.
+    """
+
     def test_no_toca_lo_que_ya_cabe(self) -> None:
-        assert servicio._recortar("corto", identificador="BOE-A-1") == "corto"
+        assert servicio._recortar("corto", identificador="BOE-A-1") == ("corto", 5)
 
     def test_recorta_al_tope_de_caracteres_y_lo_avisa(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         largo = "x" * (servicio.MAX_CARACTERES_DOCUMENTO + 500)
         with caplog.at_level("WARNING"):
-            recortado = servicio._recortar(largo, identificador="BOE-A-2023-5366")
+            recortado, totales = servicio._recortar(largo, identificador="BOE-A-2023-5366")
 
         assert len(recortado) == servicio.MAX_CARACTERES_DOCUMENTO
         assert "BOE-A-2023-5366" in caplog.text
+        # El tamaño que se devuelve es el del **documento**, no el del recorte: es lo que
+        # permite reconstruir después sobre qué fracción se pronunció el modelo.
+        assert totales == servicio.MAX_CARACTERES_DOCUMENTO + 500
 
 
 class TestAnclajeRegla9:
