@@ -2042,6 +2042,36 @@ Los dos son **reanudables por marcas** y **idempotentes por el sha256**: relanza
 segundos lo ya hecho. Un `exec` no sobrevive al reinicio del contenedor, así que hay que
 relanzarlos a mano tras un `docker compose up`.
 
+#### El bug que encontró la primera tanda real, y por qué importa el patrón
+
+A los tres minutos de lanzar el backfill del BOA — que es justo para lo que sirve lanzarlo.
+
+**Un día sin boletín no da 404 ni una lista vacía: el BOA devuelve 200 con la portada del
+diario** (8.127 bytes de HTML, idénticos el sábado y el domingo verificados). En cadena: el HTML
+llega a `xml_safe`, salta `DtdForbidden` —**correctamente**, un DOCTYPE es la vía de entrada de
+XXE—, el worker lo trata como fallo de control de seguridad y sale con código 3. El bloque se
+aborta entero y no se marca, así que **cada fin de semana mataba una tanda y la dejaba
+reintentándose sola**.
+
+Es el mismo patrón que el `num_predict` sin fijar del 2026-08-28 y que motivó el estado
+`ilegible` (ADR 0020): **algo que no se puede hacer, repitiéndose sin que nadie lo cuente.** La
+diferencia es que esta vez se vio en tres minutos, porque el script escribe marcas y el log dice
+qué bloque va por dónde.
+
+Se reconoce por el prólogo XML **antes** de tocar el parser y se trata como el 404 del BOE.
+**No relaja `xml_safe` en nada** —ese HTML no se parsea, se rechaza— y hay un test que lo fija
+comprobando que el DOCTYPE no aparece ni en el mensaje de error.
+
+**Lección para la cuarta fuente:** «cómo dice esta fuente que un día no tiene boletín» es una
+pregunta que hay que hacerle explícitamente a cada una. El BOE contesta 404, el DOGC una lista
+vacía, el BOA su portada. Ninguna lo documenta.
+
+#### Ritmo medido del backfill del BOA
+
+**~11 minutos por día de boletín**, y el coste no es la red (37 peticiones, ~380 KB) sino las
+etapas globales que corren en cada pasada. Un mes de BOA son ~20 días hábiles, o sea ~3,7 horas
+por bloque. Los 12 bloques son del orden de **dos días de reloj**, igual que pasó con el BOE.
+
 #### Lo siguiente, por valor (sin cambios respecto al cierre anterior salvo el punto 3)
 
 1. **Gold set de 32 a 60-80 casos.** Sigue siendo el cuello de botella real del plazo, y ahora
