@@ -88,8 +88,8 @@ y análisis estático estricto en CI.
 **Lo que todavía no está, dicho sin maquillar**: el corpus de evaluación tiene 32 documentos
 etiquetados y necesita bastantes más para que cualquier cifra de cobertura signifique algo, así
 que **este proyecto no publica ningún porcentaje de recall**; y de las 61 fuentes documentadas
-hay **tres integradas** —BOE, DOGC y BOA (ADR 0019 y 0028)—, así que el mapa pinta con trama los
-16 territorios donde todavía no mira nadie. El detalle honesto de cada hueco está en
+hay **cuatro integradas** —BOE, DOGC, BOA y BOCYL (ADR 0019, 0028 y 0029)—, así que el mapa pinta
+con trama los 15 territorios donde todavía no mira nadie. El detalle honesto de cada hueco está en
 [`docs/ESTADO.md`](docs/ESTADO.md).
 
 ## Aviso

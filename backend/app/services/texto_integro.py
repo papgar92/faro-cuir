@@ -39,7 +39,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ingest import boa
+from app.ingest import boa, bocyl
 from app.ingest.boe import SumarioInvalido
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
@@ -57,17 +57,25 @@ _CABECERAS = {"Accept": "application/xml"}
 # Comprobaciones de que el cuerpo descargado es el de la norma que se pidió, por prefijo del
 # identificador (el prefijo lo acuñamos nosotros al parsear el sumario, no viene de la fuente).
 #
-# **Una fuente entra aquí solo si su forma de direccionar el cuerpo puede devolver otro
-# documento.** El BOE y el DOGC piden una URL que nombra la disposición, así que no pueden
-# equivocarse de norma; el BOA no ofrece esa URL —probados `DOCN`, `NDOC`, `CLAVE` y el resto,
-# todos devuelven cero registros, y su URI ELI solo sirve HTML y solo para algunos rangos— y hay
-# que pedir «el registro número n del día d». Esa dirección deja de significar lo mismo si la
-# fuente reordena el día, y entonces archivaríamos el texto de una norma bajo el identificador
-# de otra: la corrupción de archivo silenciosa que la 6.5 existe para impedir (ADR 0028).
+# **Una fuente entra aquí si su cuerpo puede llegar sin ser el que se pidió.** Eso pasa por dos
+# motivos distintos, y los dos acaban en la misma corrupción de archivo silenciosa que la 6.5
+# existe para impedir:
+#
+#   * **El BOA no se puede direccionar por identificador** (ADR 0028). Probados `DOCN`, `NDOC`,
+#     `CLAVE` y el resto, todos devuelven cero registros, y su URI ELI solo sirve HTML y solo
+#     para algunos rangos, así que hay que pedir «el registro número n del día d». Esa dirección
+#     deja de significar lo mismo si la fuente reordena el día.
+#   * **El BOCYL sí se direcciona por identificador** (ADR 0029), así que no puede llegar la
+#     disposición de al lado. Lo que sí puede llegar es otra cosa bajo la misma URL: una página
+#     de error, o un documento resellado con otra fecha. Se comprueba la `<fechaPublicacion>`,
+#     que va dentro del propio identificador y no cuesta ni una petición.
+#
+# El BOE y el DOGC no necesitan validador: su URL nombra la disposición y su cuerpo no declara
+# una fecha con la que contrastarla.
 #
 # El fallo va por la vía normal del módulo: no se archiva, no se crea fila, y la norma vuelve
 # sola a la cola de la próxima pasada.
-_VALIDADORES = {"BOA-": boa.parsear_cuerpo}
+_VALIDADORES = {"BOA-": boa.parsear_cuerpo, "BOCYL-": bocyl.parsear_cuerpo}
 
 
 def _validar_cuerpo(contenido: bytes, identificador: str) -> None:

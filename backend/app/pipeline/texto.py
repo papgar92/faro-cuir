@@ -89,6 +89,13 @@ def texto_plano(raiz: Element) -> str:
         # sobre una estructura que ningun documento suyo tiene. Se sube cuando cambie como se
         # deriva algo YA archivado, no cuando se aprenda a leer una forma nueva.
         cuerpo = raiz.find("./registro/texto")
+    if cuerpo is None:
+        # BOCYL (ADR 0029): `disposicion > contenido > texto`, con el articulado en <p>. El
+        # <titulo> es hermano de <texto> dentro de <contenido>, así que apuntar a <contenido>
+        # metería el título en el articulado; se apunta a <texto>.
+        #
+        # `VERSION_TEXTO_PLANO` tampoco sube por esto, por lo mismo que en el caso del BOA.
+        cuerpo = raiz.find("./contenido/texto")
     objetivo = cuerpo if cuerpo is not None else raiz
     fragmentos = (fragmento.strip() for fragmento in objetivo.itertext())
     return " ".join(f for f in fragmentos if f)

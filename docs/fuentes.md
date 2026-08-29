@@ -74,7 +74,7 @@ hueco invisible.
 | TODO(verificar) | Canarias | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Cantabria | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Castilla-La Mancha | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
-| TODO(verificar) | Castilla y León | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
+| **BOCYL** (Boletín Oficial de Castilla y León) | Castilla y León | sumario `https://bocyl.jcyl.es/boletin.do?fechaBoletin={dd/mm/aaaa}` · texto `https://bocyl.jcyl.es/boletines/{aaaa/mm/dd}/xml/{id}.xml` | **Sumario HTML + XML por disposición**, verificado el 2026-08-29 descargando los dos | No | **TODO(verificar)** — no se localizó declaración de reutilización; no se deduce (regla de oro 8) | **Media** — es la primera fuente cuyo sumario hay que raspar; a cambio, el cuerpo es el XML más estructurado de las cuatro y se direcciona **por identificador** | **INTEGRADA** (ADR 0029), cuarta fuente; cobertura 27 de 27 el día verificado, 0 ilegibles |
 | **DOGC** (Diari Oficial de la Generalitat de Catalunya) | Catalunya | sumario `https://analisi.transparenciacatalunya.cat/resource/n6hn-rmy7.json` · texto `https://portaljuridic.gencat.cat/eli/...` | **API (JSON) + XML Akoma Ntoso** — verificado el 2026-08-16 descargando ambos | No | CC BY 4.0 (declarada por la fuente) | **Baja-media** — cinco particularidades, ver nota; el XML falta en 172 de 264 normas y no publica a quién afecta cada norma | **INTEGRADA** (ADR 0019), segunda fuente del proyecto; cobertura real 92 de 264 |
 | TODO(verificar) | Comunitat Valenciana | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Extremadura | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
@@ -180,6 +180,37 @@ El registro no dice a qué norma afecta, así que el eje referencial (7.3) depen
 del texto (ADR 0022). **La estructura de referencias es una particularidad del BOE, no un
 estándar.**
 
+### El BOCYL, integrado: la primera vez que este proyecto raspa HTML (ADR 0029)
+
+Cuarta fuente y tercera autonómica. Su XML por disposición es **el más estructurado de las cuatro
+integradas** —`seccion`, `subseccion`, `apartado`, `organismo`, `rango`, `numeroOficial`,
+`fechaDisposicion`, `fechaPublicacion`, y el articulado en `contenido > texto`— y, a diferencia
+del BOA, **se direcciona por su identificador**: la URL nombra el documento, así que desaparece la
+fragilidad del direccionamiento ordinal.
+
+**Lo que trae de nuevo al proyecto es el raspado, y con él una raya escrita:**
+
+> **El HTML aporta identificadores y metadatos. El texto que una alerta llegue a citar sale
+> siempre del XML.** La cadena de evidencia (6.5, 7.5) no pasa por el raspado en ningún punto.
+
+No hay sumario XML: `BOCYL-S-ddmmaaaa.xml` da 500, y el RSS por fecha **ignora el parámetro** y
+devuelve siempre el último boletín (comprobado pidiendo el 10/01/2024 y recibiendo el 28/08/2026).
+
+**Tres trampas verificadas, y las tres rompen en silencio si se pasan por alto:**
+
+1. **Todas las páginas llevan un enlace fijo a una disposición de noviembre de 2022**, incluidas
+   las de días sin boletín. Sin filtrar por la fecha que va dentro del identificador, cada día del
+   archivo ingeriría esa norma **bajo la fecha equivocada**.
+2. **El título es de cada disposición; la sección y el organismo son cabeceras de grupo.** Tratar
+   el título como estado corrido hace que una disposición sin `<p>` propio herede el de la
+   anterior y se archive con el título de otra norma. Lo encontró su test, no el diseño.
+3. **Sumario en UTF-8 y cuerpo en ISO-8859-15.** Cruzarlas no falla: ensucia el texto.
+
+**Y la cuarta manera distinta de decir «hoy no hay boletín»:** una página corta que tras el filtro
+por fecha deja cero disposiciones. El BOE contesta 404, el DOGC una lista vacía, el BOA su portada.
+**Ninguna lo documenta, y es la primera pregunta que hay que hacerle a una fuente nueva** — en el
+BOA, no habérsela hecho costó que cada fin de semana abortara un bloque entero de backfill.
+
 ### Las candidatas sondeadas y su estado — 2026-08-29
 
 Sondeadas pidiéndoles un día concreto, no leyendo su documentación. Es la misma disciplina del
@@ -188,17 +219,25 @@ ADR 0019 y vuelve a ser lo que separa «tiene portal de datos abiertos» de «se
 | Fuente | Qué se pudo obtener | Estado |
 |---|---|---|
 | **BOA** (Aragón) | Sumario y texto íntegro en XML, una petición, por fecha exacta | **INTEGRADA** (ADR 0028) |
+| **BOCYL** (Castilla y León) | Sumario HTML por fecha + XML por disposición, direccionable por identificador | **INTEGRADA** (ADR 0029) |
 | BON (Navarra) | Sumario HTML de 113 KB; no se localizó interfaz de datos | Pendiente |
 | BOC (Canarias) | Índice HTML | Pendiente |
 | DOE (Extremadura) | Índice HTML | Pendiente |
 | BORM (Murcia) | PDF del boletín | Pendiente — PDF: permitido por 6.1, pero es la vía cara |
 | BOPV (Euskadi) | Sumario HTML por **número de boletín**, no por fecha | Pendiente — falta resolver fecha → número |
-| BOCYL (Castilla y León) | El RSS por fecha devuelve 500 | Descartada por ahora |
 | DOGV (C. Valenciana) | 404 en la ruta de sumario probada | Descartada por ahora |
 | BOCM (Madrid) | RSS de 20 sumarios + HTML; el XML por disposición da 500 | Integrable con esfuerzo (ADR 0019) |
 | BOJA (Andalucía) | El HTML **declara que suprime contenido** | Descartada — choca con 7.1 |
+| BOIB (Illes Balears) | Front XHTML; el único acceso al texto localizado es PDF | Pendiente |
+| DOG (Galicia), BOPA (Asturias) | 404 en las rutas probadas | Pendiente |
+| **BORM (Murcia)** | **Captcha de Radware ante la petición del texto** | **Descartada, y NO por formato** — ver abajo |
 
-**Quedan dos huecos** dentro del límite de cinco fuentes de la sección 8.
+**Queda un hueco** dentro del límite de cinco fuentes de la sección 8.
+
+**El BORM merece su propia línea porque su motivo no es técnico.** Su portal responde a la
+petición del texto con una página de captcha. Sortearla sería eludir una detección de bots
+deliberada del titular de la fuente: no se hace y no se intenta. Queda documentada como lo que
+es —una fuente que no quiere ser leída por programa— y no como un formato difícil.
 
 ## Tabla provincial — los 43 BOP
 

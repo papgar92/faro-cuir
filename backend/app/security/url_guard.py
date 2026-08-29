@@ -76,6 +76,9 @@ DEFAULT_ALLOWLIST: frozenset[str] = frozenset(
         # El sumario y el texto íntegro salen del mismo host, así que aquí no hace falta la
         # gimnasia de dos dominios del DOGC: una sola entrada cubre las dos fases.
         "boa.aragon.es",
+        # --- BOCYL, cuarta fuente y tercera autonómica (ADR 0029) ---------------------------
+        # Sumario (HTML) y cuerpo (XML) salen del mismo host, como en el BOA.
+        "bocyl.jcyl.es",
     }
 )
 

@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ingest import boa, boe, dogc
+from app.ingest import boa, bocyl, boe, dogc
 from app.ingest.boe import Sumario
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
@@ -151,6 +151,31 @@ def ingerir_sumario_boa(
         sumario=sumario,
         contenido=contenido,
         url_original=boa.url_sumario(fecha),
+        almacen_root=almacen_root,
+    )
+
+
+def ingerir_sumario_bocyl(
+    session: Session,
+    *,
+    fuente_id: int,
+    fecha: datetime.date,
+    almacen_root: Path,
+    client: httpx.Client | None = None,
+) -> ResultadoIngesta:
+    """Lo mismo para el BOCYL (ADR 0029), cuarta fuente y tercera autonómica.
+
+    Comparte con las otras tres todo lo que va después de parsear: el archivo (6.5) y la
+    idempotencia no pueden depender de qué boletín sea.
+    """
+    contenido = bocyl.descargar_sumario(fecha, client=client)
+    sumario = bocyl.parsear_sumario(contenido, fecha)
+    return _archivar_y_registrar(
+        session,
+        fuente_id=fuente_id,
+        sumario=sumario,
+        contenido=contenido,
+        url_original=bocyl.url_sumario(fecha),
         almacen_root=almacen_root,
     )
 

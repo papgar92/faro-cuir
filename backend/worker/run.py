@@ -47,6 +47,7 @@ FUENTES: dict[str, tuple[TipoFuente, str | None, Callable[..., ingesta.Resultado
     "boe": (TipoFuente.BOE, None, ingesta.ingerir_sumario_boe),
     "dogc": (TipoFuente.BOLETIN_AUTONOMICO, "CT", ingesta.ingerir_sumario_dogc),
     "boa": (TipoFuente.BOLETIN_AUTONOMICO, "AR", ingesta.ingerir_sumario_boa),
+    "bocyl": (TipoFuente.BOLETIN_AUTONOMICO, "CL", ingesta.ingerir_sumario_bocyl),
 }
 
 FUENTES_SOPORTADAS = tuple(FUENTES)

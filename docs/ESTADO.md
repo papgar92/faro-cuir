@@ -2082,3 +2082,103 @@ por bloque. Los 12 bloques son del orden de **dos días de reloj**, igual que pa
    su estado están en `docs/fuentes.md`; las dos con mejor relación son **BOPV (Euskadi)**, que
    solo necesita resolver fecha → número de boletín, y **BOCM (Madrid)**, que es donde ocurrió el
    caso insignia y es la que peor formato tiene. Quedan dos huecos en el límite de la sección 8.
+
+### ✅ Cuarta fuente: el BOCYL, y la raya escrita del raspado — 2026-08-29 (tarde)
+
+Pedido por el humano: *«a por otra CCAA»*. Se integra el **Boletín Oficial de Castilla y León**
+(ADR 0029). El mapa pasa de 3 a **4 de 19 territorios**, y con el que más superficie ocupa.
+
+**Queda un hueco** dentro del límite de cinco fuentes de la sección 8.
+
+#### Por qué esta y no otra
+
+Segunda tanda de sondeo, otra vez descargando. Y corrigió un error de la primera: **el BOCYL se
+había descartado porque su RSS por fecha devolvía 500**, y eso era cierto e irrelevante — el RSS
+no es su interfaz de datos. Su XML por disposición es **el más estructurado de las cuatro fuentes
+integradas**, y a diferencia del BOA **se direcciona por identificador**: la URL nombra el
+documento, así que desaparece la fragilidad ordinal que gobierna aquel módulo.
+
+Ingesta real del día verificado: **27 items, 27 cuerpos, 0 fallidas, 0 ilegibles**, y el texto
+derivado son decenas de miles de caracteres de articulado real (comprobado sobre el archivo, no
+sobre el log).
+
+#### Lo nuevo que trae al proyecto: raspar HTML, con una raya escrita
+
+Es la primera fuente cuyo **sumario** hay que leer de HTML (no hay sumario XML: `BOCYL-S-*.xml`
+da 500 y el RSS **ignora el parámetro de fecha** — pedido el 10/01/2024, devuelve el 28/08/2026).
+La regla que lo hace aceptable, y que no se negocia:
+
+> **El HTML aporta identificadores y metadatos. El texto que una alerta llegue a citar sale
+> siempre del XML.** La cadena de evidencia (6.5, 7.5) no pasa por el raspado en ningún punto.
+
+**Cualquier fuente futura que exija raspar el *texto* choca con esto y necesita su propio ADR.**
+Es lo que aplazó a Euskadi (BOPV), cuyo cuerpo es HTML.
+
+#### Tres trampas verificadas, y las tres rompen en silencio
+
+1. **Todas las páginas llevan un enlace fijo a una disposición de noviembre de 2022**, incluidas
+   las de días sin boletín. Sin filtrar por la fecha que va dentro del identificador, cada día del
+   archivo ingeriría esa norma **bajo la fecha equivocada**.
+2. **El título es de cada disposición; sección y organismo son cabeceras de grupo.** La primera
+   versión trataba los tres igual, así que una disposición sin título propio **heredaba el de la
+   anterior** y se habría archivado con el título de otra norma. **Lo encontró su test, no el
+   diseño** — y es peor que descartarla, porque no rompe nada visible.
+3. **Sumario en UTF-8, cuerpo en ISO-8859-15.** Cruzarlas no falla: ensucia el texto.
+
+#### Y la cuarta manera distinta de decir «hoy no hay boletín»
+
+El BOE contesta 404, el DOGC una lista vacía, el BOA su portada, el BOCYL una página corta que
+tras el filtro por fecha deja cero disposiciones. **Cuatro fuentes, cuatro maneras, ninguna
+documentada.** Es la primera pregunta que hay que hacerle a una fuente nueva: no habérsela hecho
+al BOA costó que cada fin de semana abortara un bloque entero de backfill.
+
+#### El BORM (Murcia) queda descartado, y NO por formato
+
+Su portal responde a la petición del texto con **un captcha de Radware**. Sortearlo sería eludir
+una detección de bots deliberada del titular de la fuente: no se hace y no se intenta. Queda
+documentado como lo que es —una fuente que no quiere ser leída por programa—, no como un formato
+difícil.
+
+#### Qué se tocó
+
+- `backend/app/ingest/bocyl.py` (nuevo) y `backend/tests/test_ingest_bocyl.py` (15 tests).
+- `security/url_guard.py`: una entrada, `bocyl.jcyl.es`.
+- `services/texto_integro.py`: el BOCYL entra en el registro de validadores **por un motivo
+  distinto al del BOA**, y el comentario lo distingue — el BOA porque no se puede direccionar por
+  identificador, el BOCYL porque su cuerpo declara una fecha contrastable.
+- `pipeline/texto.py`: tercera rama, `disposicion > contenido > texto`. Apunta a `<texto>` y no a
+  `<contenido>` porque `<titulo>` es su hermano. **`VERSION_TEXTO_PLANO` sigue sin subir.**
+- `worker/run.py` y `services/ingesta.py`: una fila más en la tabla `FUENTES`. El refactor del
+  ADR 0028 se paga aquí: añadir la cuarta fuente al despacho fue una línea.
+- Migración `f4a8d21e7c93` **a mano**. Solo un INSERT: CHECK a **15** antes y después.
+- `docs/adr/0029-*.md`, `docs/fuentes.md`, `README.md`.
+
+#### Estado al cerrar
+
+| | |
+|---|---|
+| Fuentes activas | **4** (BOE, DOGC, BOA, BOCYL) |
+| Territorios pintados | **4 de 19** |
+| Normas | BOE 75.501 · DOGC 645 · BOA 483 · BOCYL 27 |
+| Suite | 727 tests, `ruff` + `mypy` limpios |
+
+**Aviso operativo que ya ha costado tiempo dos veces:** los backfills se lanzan con
+`docker compose exec -d`, y **un `exec` no sobrevive al cierre de la sesión ni al reinicio del
+contenedor**. Los dos murieron al acabar la sesión anterior. Son reanudables por marcas, así que
+relanzarlos salta en segundos lo hecho:
+
+```bash
+docker compose exec -d worker sh //app/backfill.sh          # BOE, falta el bloque 2025-09
+docker compose exec -d worker sh //app/backfill_boa.sh      # BOA, 12 bloques
+```
+
+#### Lo siguiente, por valor
+
+1. **Gold set de 32 a 60-80 casos.** Sigue siendo el cuello de botella real del plazo, y cada
+   fuente nueva lo agrava: hay cuatro fuentes que evaluar con un corpus que no ha crecido. Es
+   tiempo humano, no de máquina.
+2. **Backfill del BOCYL**, cuando convenga darle volumen (aún solo tiene el día de verificación).
+3. **Quinta y última fuente**, si se quiere cerrar el límite de la sección 8. La candidata con
+   mejor relación es **BOPV (Euskadi)**, pero antes hay que resolver dos cosas: el índice
+   fecha → número de boletín, y que su cuerpo es HTML — lo segundo choca con la raya del ADR 0029
+   y necesitaría su propio ADR.
