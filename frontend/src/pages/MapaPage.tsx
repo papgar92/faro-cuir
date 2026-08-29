@@ -85,7 +85,16 @@ export function MapaPage({ onGoArchivo, onGoTimeline, ccaaInicial }: MapaPagePro
             <h2 className="font-serif text-2xl font-bold tracking-tight text-ink">
               Estado de los derechos por comunidad autónoma
             </h2>
-            <span className="text-xs text-ink-3">Ventana de evaluación: últimos 90 días</span>
+            {/* **Aquí ponía «Ventana de evaluación: últimos 90 días» y era falso.** Herencia de
+                los datos de maqueta: ni este componente ni `construirRegiones` ni
+                `GET /api/cobertura` filtran por fecha en ningún punto — se agregan TODAS las
+                alertas aprobadas. Con una ventana real de 90 días el mapa hoy estaría vacío,
+                porque las alertas que hay son de publicaciones de 2024.
+                Encontrado el 2026-08-29 al preguntar el humano qué ventana se estaba usando.
+                Un archivo de vigilancia no debe olvidar; lo que no puede es decir que olvida. */}
+            <span className="text-xs text-ink-3">
+              Todas las alertas aprobadas, sin límite de fecha
+            </span>
           </div>
           <p className="mt-2 max-w-[64ch] text-sm text-ink-2">
             Clasificación derivada de los cambios normativos detectados y validados. Pasa el cursor o
@@ -132,6 +141,21 @@ export function MapaPage({ onGoArchivo, onGoTimeline, ccaaInicial }: MapaPagePro
                 }}
               />
               Vigilada, sin alertas
+            </span>
+            {/* El quinto estado, y el único que no habla de nuestra cobertura sino del
+                territorio: aquí no hay ley autonómica que vigilar. Enunciado como hecho y no
+                como valoración — el mapa no dice si eso está bien o mal (regla de oro 2). */}
+            <span className="flex items-center gap-1.5 text-xs text-ink-2">
+              <span
+                aria-hidden="true"
+                className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(var(--color-line-2) 1px, var(--color-surface-2) 1px)",
+                  backgroundSize: "6px 6px",
+                }}
+              />
+              Sin ley autonómica LGTBI
             </span>
             <span className="ml-auto font-mono text-xs text-ink-3">color + símbolo + texto</span>
           </div>

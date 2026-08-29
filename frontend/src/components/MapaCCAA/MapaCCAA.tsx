@@ -60,6 +60,11 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
         ? `${path.name}: sin fuente vigilada todavía, ${deuda} boletín${deuda === 1 ? "" : "es"} oficial${deuda === 1 ? "" : "es"} conocido${deuda === 1 ? "" : "s"} sin integrar`
         : `${path.name}: sin fuente vigilada todavía`;
     }
+    if (region.sinLeyAutonomica) {
+      // El hecho, no su valoración (regla de oro 2). Va el primero de los silencios porque es
+      // el único que no habla de nuestra cobertura sino del territorio.
+      return `${region.name}: no tiene ley autonómica LGTBI que vigilar`;
+    }
     if (region.state === null) {
       // La distinción que este mapa no puede perder: aquí SÍ se mira, y no ha salido nada
       // aprobado. Decir "estable" sería convertir el silencio en tranquilidad.
@@ -85,6 +90,15 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
     // Vigilada y sin conclusión: trama **clara**. Sin fuente: trama densa. Son dos silencios
     // distintos —"todavía no ha salido nada" y "aquí no estamos mirando"— y confundirlos sería
     // tan malo como pintarlos de gris "estable".
+    // **Sin ley autonómica: su propio relleno, y va ANTES que "vigilada sin alertas".** Son dos
+    // silencios que se pintaban igual y significan lo contrario: en Aragón «hay dos leyes
+    // vigiladas y nadie las ha tocado», en Castilla y León «no hay ninguna ley que tocar».
+    // Con el mismo blanco, el segundo se leía como tranquilidad.
+    //
+    // Es un hecho verificado, no un juicio: el mapa dice que no hay marco, no dice si eso está
+    // bien o mal. Por eso el relleno **no es rojo** ni ningún color de estado — eso sería emitir
+    // el veredicto que la regla de oro 2 prohíbe.
+    if (region?.sinLeyAutonomica) return "url(#sin-ley)";
     if (region?.vigilada) return "url(#sin-alertas)";
     // **Tres densidades y no una.** Las quince comunidades sin vigilar se pintaban todas igual, y
     // no son iguales: Andalucía tiene 8 boletines provinciales conocidos sin integrar y La Rioja
@@ -235,6 +249,14 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
           >
             <rect width={9} height={9} fill="var(--color-surface)" />
             <line x1={0} y1={0} x2={0} y2={9} stroke="var(--color-line-2)" strokeWidth={1} />
+          </pattern>
+          {/* Sin ley autonómica que vigilar. Puntos y no rayas: las tres tramas rayadas hablan
+              de NUESTRA cobertura —cuánto se nos escapa—, y esta habla del territorio. Que se
+              distinga de un vistazo es el punto de que exista. Sin color de estado, porque el
+              hecho no lleva veredicto (regla de oro 2). */}
+          <pattern id="sin-ley" patternUnits="userSpaceOnUse" width={6} height={6}>
+            <rect width={6} height={6} fill="var(--color-surface-2)" />
+            <circle cx={3} cy={3} r={1} fill="var(--color-line-2)" />
           </pattern>
         </defs>
 

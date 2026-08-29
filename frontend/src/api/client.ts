@@ -218,6 +218,11 @@ export interface CoberturaCcaaApi {
    */
   normas: number;
   ilegibles: number;
+  /**
+   * Motivo verificado por el que la comunidad NO tiene ley autonómica LGTBI, o `null`.
+   * Sale de `_sin_ley_autonomica` de la watchlist. Hoy son dos: Asturias y Castilla y León.
+   */
+  sin_ley_autonomica: string | null;
 }
 
 export interface CoberturaApi {

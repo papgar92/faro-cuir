@@ -22,6 +22,7 @@ from app.database import SessionLocal
 from app.models.documento import Documento, TipoDocumento
 from app.models.fuente import Fuente
 from app.models.norma import EstadoPrefiltro, Norma
+from app.pipeline import watchlist
 from app.schemas.cobertura import Cobertura, CoberturaCcaa, CoberturaNivel
 
 router = APIRouter(prefix="/api", tags=["cobertura"])
@@ -158,8 +159,39 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
         if entrada_fecha is not None:
             entrada_fecha.ultima_publicacion = fecha
 
-    for entrada in por_ccaa.values():
+    # Qué comunidades no tienen ley autonómica que vigilar. El dato ya estaba verificado en la
+    # watchlist y no llegaba a ninguna pantalla; ver la nota del campo en el esquema.
+    sin_ley = watchlist.watchlist().sin_ley
+
+    # **Una comunidad sin ley autonómica tiene que salir aunque no tenga ninguna fuente
+    # registrada.** `por_ccaa` se construye desde las filas de `fuente`, y las uniprovinciales no
+    # tienen BOP propio, así que Asturias —una de las dos sin ley, con Castilla y León— no
+    # aparecía en la respuesta y su ausencia de marco no habría llegado a ninguna pantalla.
+    # Justo la mitad del dato, y la mitad que menos se ve.
+    #
+    # No altera los totales: `conocidas_total` y `vigiladas_total` se suman de la consulta, no
+    # de este diccionario.
+    for codigo in sin_ley:
+        por_ccaa.setdefault(
+            codigo,
+            CoberturaCcaa(
+                ccaa_codigo=codigo,
+                # El código, no un nombre. `frontend/src/lib/territorio.ts` deriva los nombres
+                # de la geometría del mapa precisamente para no mantener dos listas de
+                # comunidades —«Euskadi» aquí y «País Vasco» allí es como se cruzan sin que
+                # nada falle—, así que el backend no inventa una segunda tabla para dos filas.
+                ccaa=codigo,
+                niveles=[],
+                conocidas=0,
+                vigiladas=0,
+                normas=0,
+                ilegibles=0,
+            ),
+        )
+
+    for codigo, entrada in por_ccaa.items():
         entrada.niveles.sort(key=lambda nivel: nivel.ambito)
+        entrada.sin_ley_autonomica = sin_ley.get(codigo)
 
     # Los sumarios, que es lo que `GET /api/documentos` lista y lo que la portada llama
     # «documentos archivados». Los cuerpos y los consolidados no se cuentan aquí por lo mismo que

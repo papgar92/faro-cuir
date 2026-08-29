@@ -186,3 +186,52 @@ def test_cuenta_los_boletines_archivados_y_no_los_cuerpos(
     sesion_db.commit()
 
     assert client.get("/api/cobertura").json()["documentos"] == 1
+
+
+def test_publica_que_comunidades_no_tienen_ley_autonomica(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """El dato estaba verificado en la watchlist y no llegaba a ninguna pantalla.
+
+    Sin él, el mapa pintaba igual dos silencios opuestos: Aragón sin alertas es «hay dos leyes
+    vigiladas y nadie las ha tocado», y Castilla y León sin alertas es «no hay ninguna ley que
+    tocar». Con el mismo relleno, el segundo se lee como tranquilidad — que es exactamente lo
+    que este mapa existe para no hacer.
+
+    Es un hecho verificado con su fecha, no una valoración (regla de oro 2).
+    """
+    _fuente(sesion_db, codigo="CL")
+    sesion_db.commit()
+
+    por_ccaa = {c["ccaa_codigo"]: c for c in client.get("/api/cobertura").json()["por_ccaa"]}
+
+    assert "no tiene ley autonomica LGTBI" in por_ccaa["CL"]["sin_ley_autonomica"]
+
+
+def test_una_comunidad_sin_ley_sale_aunque_no_tenga_ninguna_fuente_registrada(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """Asturias es uniprovincial: no tiene BOP propio, así que no tiene ninguna fila en `fuente`.
+
+    `por_ccaa` se construye agrupando esa tabla, de modo que Asturias no aparecía en la respuesta
+    y su ausencia de marco no habría llegado nunca al mapa. Es la mitad del dato, y la mitad que
+    menos se ve.
+    """
+    respuesta = client.get("/api/cobertura").json()
+    por_ccaa = {c["ccaa_codigo"]: c for c in respuesta["por_ccaa"]}
+
+    assert "AS" in por_ccaa
+    assert por_ccaa["AS"]["conocidas"] == 0
+    assert "no tiene ley autonomica LGTBI" in por_ccaa["AS"]["sin_ley_autonomica"]
+    # Añadir la fila no puede inflar los totales, que se suman de la consulta y no del diccionario.
+    assert respuesta["conocidas"] == 0
+
+
+def test_una_comunidad_con_ley_no_lleva_el_campo(client: TestClient, sesion_db: Session) -> None:
+    """`None` significa «sí tiene ley», no «no lo sabemos»: la watchlist lo tiene verificado."""
+    _fuente(sesion_db, codigo="AR")
+    sesion_db.commit()
+
+    por_ccaa = {c["ccaa_codigo"]: c for c in client.get("/api/cobertura").json()["por_ccaa"]}
+
+    assert por_ccaa["AR"]["sin_ley_autonomica"] is None

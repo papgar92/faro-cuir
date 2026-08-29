@@ -63,6 +63,20 @@ class CoberturaCcaa(BaseModel):
     # `ilegibles` a solas no dice si son 172 de 264 o de 20.000.
     normas: int
     ilegibles: int
+    # --- Si aquí hay marco que vigilar, o no lo hay --------------------------------------------
+    # Motivo verificado por el que esta comunidad **no tiene ley autonómica LGTBI**, o `None` si
+    # sí la tiene. Sale de `_sin_ley_autonomica` de `config/watchlist.json`.
+    #
+    # Existe porque el mapa pintaba igual dos cosas opuestas, y la que sale perdiendo es la que
+    # este proyecto existe para enseñar: Aragón sin alertas significa «hay dos leyes vigiladas y
+    # nadie las ha tocado», y Castilla y León sin alertas significa «no hay ninguna ley que
+    # tocar». Con el mismo relleno blanco, la segunda se lee como tranquilidad.
+    #
+    # Es el **retroceso por ausencia** del ADR 0027 —el que no deja rastro referencial porque no
+    # hay norma a la que referirse— y es el único de esa familia del que el proyecto tiene dato
+    # verificado. No publicarlo cuando se tiene sería el mismo silencio que la sección 7.2 no
+    # permite en el embudo.
+    sin_ley_autonomica: str | None = None
 
 
 class Cobertura(BaseModel):

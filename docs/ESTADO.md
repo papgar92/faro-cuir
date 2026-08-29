@@ -2182,3 +2182,70 @@ docker compose exec -d worker sh //app/backfill_boa.sh      # BOA, 12 bloques
    mejor relación es **BOPV (Euskadi)**, pero antes hay que resolver dos cosas: el índice
    fecha → número de boletín, y que su cuerpo es HTML — lo segundo choca con la raya del ADR 0029
    y necesitaría su propio ADR.
+
+### ⚠️ La «ventana de 90 días» del mapa no existía, y dos silencios se pintaban igual — 2026-08-29 (cierre)
+
+Salió de una pregunta del humano —*«CyL está vigilada sin alertas… ¿no hay forma de saber si lo
+último es avance o retroceso?»*— y destapó dos cosas, la primera de ellas una afirmación falsa en
+la portada pública.
+
+#### 1. El mapa decía «Ventana de evaluación: últimos 90 días» y era mentira
+
+**No hay ninguna ventana, en ningún sitio.** Ni `GET /api/cobertura` ni `construirRegiones` ni el
+componente filtran por fecha: se agregan **todas** las alertas aprobadas. Era herencia de la época
+de datos de maqueta y nadie la volvió a mirar.
+
+Lo que lo hace grave y no cosmético: **con una ventana real de 90 días el mapa estaría hoy
+vacío**, porque las 8 alertas son de publicaciones de 2024. O sea que la etiqueta no solo era
+falsa, era falsa en la dirección que más engaña — decía que el mapa era reciente cuando lo que
+enseña es todo el histórico.
+
+Corregido diciendo lo que hace: **«Todas las alertas aprobadas, sin límite de fecha»**. No se
+implementa una ventana real: un archivo de vigilancia no debe olvidar (6.5). Lo que no puede es
+decir que olvida.
+
+#### 2. «Vigilada sin alertas» significaba dos cosas opuestas, con el mismo relleno
+
+| | Aragón | Castilla y León |
+|---|---|---|
+| Días ingeridos | 24, hasta 2026-08-28 | 1, de 2024-01-10 |
+| Leyes en la watchlist | **2** (Ley 18/2018 y Ley 4/2018 de identidad y expresión de género) | **ninguna** |
+| Qué significa «sin alertas» | hay marco y **nadie lo ha tocado** | **no hay marco que tocar** |
+
+Castilla y León y Asturias son **las dos únicas comunidades sin ley autonómica LGTBI**, verificado
+el 2026-08-08 y escrito desde entonces en `_sin_ley_autonomica` de la watchlist. **El dato existía
+y no llegaba a ninguna pantalla**, así que el mapa pintaba las dos situaciones con el mismo blanco
+y la segunda se leía como tranquilidad.
+
+Es el **retroceso por ausencia** del ADR 0027 —el que no deja rastro referencial porque no hay
+norma a la que referirse— y es el único de esa familia del que el proyecto tiene dato verificado.
+
+**Quinto estado del mapa: «Sin ley autonómica LGTBI».** Relleno de **puntos**, no de rayas, y la
+distinción no es estética: las tres tramas rayadas hablan de **nuestra** cobertura —cuánto se nos
+escapa—, y esta habla del **territorio**. Y **sin color de estado**: el mapa dice que no hay marco,
+no dice si eso está bien o mal, que es lo que prohíbe la regla de oro 2.
+
+#### Lo que costó descubrir, y por eso tiene test
+
+`por_ccaa` se construye agrupando la tabla `fuente`, y **Asturias es uniprovincial: no tiene BOP
+propio, así que no tiene ninguna fila**. No aparecía en la respuesta, de modo que su ausencia de
+marco no habría llegado nunca al mapa — la mitad del dato, y la mitad que menos se ve. Ahora la
+entrada se crea aunque no haya fuentes, sin tocar los totales.
+
+#### Qué se tocó
+
+- `schemas/cobertura.py` y `api/cobertura.py`: campo `sin_ley_autonomica` + 3 tests.
+- `frontend/`: `api/client.ts`, `lib/mapa.ts`, `components/MapaCCAA/MapaCCAA.tsx` (relleno,
+  patrón y etiqueta accesible), `pages/MapaPage.tsx` (leyenda y la etiqueta falsa).
+- `backend/backfill_bocyl.sh` (nuevo), lanzado.
+
+#### Y una respuesta que hay que tener a mano, porque la pregunta va a volver
+
+**El sistema solo firma avance o retroceso cuando la evidencia nombra una norma vigilada** con el
+verbo pegado (ADR 0023); lo demás cae a `indeterminado` y va a la cola humana. El ADR 0027 ya midió
+el alcance: solo el **7 % de las disposiciones modifican algo** y el eje referencial rinde **~5
+casos al año**. **El silencio es el estado normal esperado, no un fallo.**
+
+«Vigilada, sin alertas» quiere decir literalmente *«leímos su boletín y nada tocó las leyes que
+vigilamos»*. No quiere decir *«aquí todo va bien»*, y ahora el mapa tiene un estado más para no
+dejar que se lea así.

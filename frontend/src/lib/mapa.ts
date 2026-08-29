@@ -45,6 +45,19 @@ export interface RegionMapa {
   vigilada: boolean;
   fuentesVigiladas: number;
   fuentesConocidas: number;
+  /**
+   * Motivo verificado por el que esta comunidad **no tiene ley autonómica LGTBI**, o `null`.
+   *
+   * Es la distinción que faltaba y que hacía mentir al mapa en el caso que menos se ve: Aragón
+   * sin alertas significa «hay dos leyes vigiladas y nadie las ha tocado», y Castilla y León sin
+   * alertas significa «no hay ninguna ley que tocar». Con el mismo relleno, la segunda se leía
+   * como tranquilidad.
+   *
+   * **No es un juicio, es un hecho verificado** (`_sin_ley_autonomica` de la watchlist, con su
+   * fecha de comprobación). El mapa dice que no hay marco; no dice si eso está bien o mal, que
+   * es lo que prohíbe la regla de oro 2.
+   */
+  sinLeyAutonomica: string | null;
   /** Titular y fecha de la alerta más reciente, si la hay. */
   title?: string;
   date?: string;
@@ -104,6 +117,7 @@ export function construirRegiones(
       vigilada: false,
       fuentesVigiladas: 0,
       fuentesConocidas: 0,
+      sinLeyAutonomica: null,
     };
   }
 
@@ -117,8 +131,10 @@ export function construirRegiones(
       vigilada: false,
       fuentesVigiladas: 0,
       fuentesConocidas: 0,
+      sinLeyAutonomica: null,
     });
     region.vigilada = ccaa.vigiladas > 0;
+    region.sinLeyAutonomica = ccaa.sin_ley_autonomica ?? null;
     region.fuentesVigiladas = ccaa.vigiladas;
     region.fuentesConocidas = ccaa.conocidas;
   }
@@ -141,6 +157,7 @@ export function construirRegiones(
         vigilada: false,
         fuentesVigiladas: 0,
         fuentesConocidas: 0,
+        sinLeyAutonomica: null,
       });
 
       region.alerts += 1;
