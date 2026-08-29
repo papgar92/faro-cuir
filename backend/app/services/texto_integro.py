@@ -45,6 +45,7 @@ from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
 from app.security import hashing, url_guard
 from app.security.url_guard import UrlGuardError
+from app.security.xml_safe import XmlSafeError
 from app.services.archivo import archivar
 
 logger = logging.getLogger(__name__)
@@ -193,7 +194,7 @@ def descargar(
 
         try:
             _validar_cuerpo(contenido, norma.identificador_oficial)
-        except SumarioInvalido as exc:
+        except (SumarioInvalido, XmlSafeError) as exc:
             # No es un fallo de red: es la fuente devolviendo algo que no es lo que se pidió.
             # Se registra aparte de los fallos rutinarios por lo mismo que los de `url_guard`
             # en el worker: si se mezcla con ellos, deja de verse.

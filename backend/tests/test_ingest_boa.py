@@ -18,7 +18,7 @@ import datetime
 import pytest
 
 from app.ingest import boa
-from app.ingest.boe import SumarioInvalido
+from app.ingest.boe import SumarioInvalido, SumarioNoDisponible
 from app.pipeline.texto import texto_plano
 from app.security import xml_safe
 
@@ -168,3 +168,31 @@ class TestTextoPlano:
         assert texto.startswith("El Estatuto de Autonomía de Aragón")
         assert "DEPARTAMENTO DE ECONOMÍA" not in texto
         assert "ORDEN EEI/1987/2023" not in texto
+
+
+class TestDiaSinBoletin:
+    """Un día sin boletín no da 404 ni una lista vacía: sirve la portada del diario.
+
+    Y hay que reconocerlo **antes** de tocar el parser. Si el HTML llegara a `xml_safe` saltaría
+    `DtdForbidden` —correctamente— pero el worker lo trata como fallo de control de seguridad y
+    aborta la tanda entera: cada fin de semana mataría un bloque de backfill. Pasó de verdad, en
+    la primera ejecución del backfill del BOA (2026-08-01 y 02, sábado y domingo).
+    """
+
+    PORTADA = b'<!DOCTYPE html><html lang="es-ES"><head><title>BOA</title></head></html>'
+
+    def test_el_sumario_lo_trata_como_dia_sin_boletin(self) -> None:
+        with pytest.raises(SumarioNoDisponible):
+            boa.parsear_sumario(self.PORTADA, FECHA)
+
+    def test_el_cuerpo_lo_trata_como_respuesta_invalida(self) -> None:
+        """Aquí no vale «no hay boletín»: el día existe, su sumario se parseó."""
+        with pytest.raises(SumarioInvalido):
+            boa.parsear_cuerpo(self.PORTADA, "BOA-007938287")
+
+    def test_el_html_no_llega_nunca_al_parser_de_xml(self) -> None:
+        """Que esto se reconozca aquí NO relaja `xml_safe`: el HTML no se parsea, se rechaza."""
+        with pytest.raises(SumarioNoDisponible) as capturado:
+            boa.parsear_sumario(b"   " + self.PORTADA, FECHA)
+
+        assert "DOCTYPE" not in str(capturado.value)

@@ -83,6 +83,17 @@ _PATRON_CONTROL = re.compile(r"^\d{6,12}$")
 
 _LONGITUD_MAXIMA_TITULO = 2000
 
+# **Un día sin boletín no da 404 ni una lista vacía: BRSCGI sirve la portada del diario.**
+# HTTP 200, `<!DOCTYPE html>`, 8.127 bytes idénticos en los dos días verificados (2026-08-01 y
+# 2026-08-02, sábado y domingo). Un día con boletín empieza siempre por el prólogo XML.
+#
+# Hay que reconocerlo **antes** de tocar el parser: si el HTML llega a `xml_safe`, salta
+# `DtdForbidden` —correctamente, un DOCTYPE es la vía de entrada de XXE— el worker lo trata como
+# fallo de control de seguridad y **aborta la tanda entera**. Cada fin de semana mataría un
+# bloque de backfill. Que se reconozca aquí no relaja `xml_safe` en nada: este HTML no se
+# parsea, se rechaza.
+_PROLOGO_XML = b"<?xml"
+
 
 def url_sumario(fecha: datetime.date) -> str:
     """Consulta del día entero. El filtro por fecha lo hace la fuente, no nosotros.
@@ -141,6 +152,16 @@ def parsear_sumario(contenido: bytes, fecha: datetime.date) -> Sumario:
     X y archivar el del día Y corrompería el archivo de la 6.5 de una forma difícil de detectar
     después. Un registro cuya fecha no cuadre no se corrige, se descarta y se dice.
     """
+    if not contenido.lstrip().startswith(_PROLOGO_XML):
+        # Mismo criterio que el 404 del BOE y la lista vacía del DOGC: es una respuesta válida
+        # del mundo, no un fallo del sistema. El mensaje lleva el tamaño a propósito — si esto
+        # apareciera muchos días seguidos no sería el calendario, sería la fuente rota, y quien
+        # mire el log tiene que poder distinguirlo sin ir a comprobarlo a mano.
+        raise SumarioNoDisponible(
+            f"El BOA no publicó boletín el {fecha}: la fuente responde 200 con la portada del "
+            f"diario ({len(contenido)} bytes, HTML) en vez del XML de datos abiertos."
+        )
+
     esperada = fecha.strftime("%Y%m%d")
     registros = _registros(contenido, f"el sumario del {fecha}")
 
@@ -230,6 +251,15 @@ def parsear_cuerpo(contenido: bytes, identificador_esperado: str) -> Element:
     Comprobarlo es barato: el registro trae su propio `<docn>`. Se compara y, si no cuadra, se
     levanta y la norma se queda sin cuerpo, que la devuelve sola a la cola de la fase 2.
     """
+    if not contenido.lstrip().startswith(_PROLOGO_XML):
+        # Aquí sí es inválido y no "no hay boletín": se pidió un registro concreto de un día que
+        # ya sabemos que existe, porque su sumario se parseó. Sigue la vía de fallo de la fase 2
+        # —sin fila, la norma vuelve sola a la cola— en vez de reventar la tanda.
+        raise SumarioInvalido(
+            f"Se pidió el cuerpo de {identificador_esperado} y la fuente devolvió "
+            f"{len(contenido)} bytes que no son XML."
+        )
+
     registros = _registros(contenido, f"el cuerpo de {identificador_esperado}")
     if len(registros) != 1:
         raise SumarioInvalido(
