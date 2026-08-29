@@ -104,7 +104,8 @@ def main(argv: list[str]) -> int:
             etiqueta = "FRIA (incluye cargar el modelo)" if hechas == 1 else "caliente"
             print(
                 f"{hechas}. {norma.identificador_oficial:20} {tardo:7.1f}s  {etiqueta}\n"
-                f"   documento {totales:,} car → enviados {len(texto):,} ({100 * len(texto) / totales:.1f}%)\n"
+                f"   documento {totales:,} car → enviados {len(texto):,} "
+                f"({100 * len(texto) / totales:.1f}%)\n"
                 f"   {estado}"
             )
 
@@ -114,7 +115,8 @@ def main(argv: list[str]) -> int:
         media = statistics.mean(calientes)
         print(f"COSTE POR NORMA (calientes): {media:.1f}s de media sobre {len(calientes)} medidas")
         print(
-            f"Presupuesto de la cola: {len(ids):,} normas × {media:.0f}s = {len(ids) * media / 3600:.1f} horas"
+            f"Presupuesto de la cola: {len(ids):,} normas × {media:.0f}s = "
+            f"{len(ids) * media / 3600:.1f} horas"
         )
     else:
         print("Solo se midió la llamada fría; lanza con 2 o más para tener coste por norma.")

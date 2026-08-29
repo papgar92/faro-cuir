@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ingest import boe, dogc
+from app.ingest import boa, boe, dogc
 from app.ingest.boe import Sumario
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
@@ -126,6 +126,31 @@ def ingerir_sumario_dogc(
         sumario=sumario,
         contenido=contenido,
         url_original=dogc.url_sumario(fecha),
+        almacen_root=almacen_root,
+    )
+
+
+def ingerir_sumario_boa(
+    session: Session,
+    *,
+    fuente_id: int,
+    fecha: datetime.date,
+    almacen_root: Path,
+    client: httpx.Client | None = None,
+) -> ResultadoIngesta:
+    """Lo mismo para el BOA (ADR 0028), tercera fuente y segunda autonómica.
+
+    Comparte con las otras dos todo lo que va después de parsear, por el mismo motivo: el
+    archivo (6.5) y la idempotencia no pueden depender de qué boletín sea.
+    """
+    contenido = boa.descargar_sumario(fecha, client=client)
+    sumario = boa.parsear_sumario(contenido, fecha)
+    return _archivar_y_registrar(
+        session,
+        fuente_id=fuente_id,
+        sumario=sumario,
+        contenido=contenido,
+        url_original=boa.url_sumario(fecha),
         almacen_root=almacen_root,
     )
 

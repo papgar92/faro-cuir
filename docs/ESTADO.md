@@ -1960,3 +1960,95 @@ argumento que tiene el proyecto para defender ese control ante el tribunal.
 `--extraer --limite N`. El problema de fondo del incidente de esta semana no fue solo
 `num_predict`: fue que **no había forma de acotar el gasto**, así que la única manera de gastar
 menos era matar el proceso a mano. Ahora una tanda se puede presupuestar.
+
+### ✅ Tercera fuente: el BOA, y el mapa deja de pintar dos territorios — 2026-08-29
+
+Pedido por el humano: *«levanta el backend para poder ver la interfaz gráfica. La ingesta cómo
+fue? Quiero que el mapa se vaya rellenando.»* El mapa se rellena con **fuentes**, no con más BOE:
+lo estatal no colorea comunidades a propósito (pintarlas todas diría que hay diecisiete cambios
+donde hay uno). Así que la tarea era una fuente autonómica nueva.
+
+**Esto reordena el PLAN A V1**, y conviene decirlo claro: la auditoría de las 17 autonómicas
+estaba **explícitamente fuera de V1** como el recorte grande. Sigue fuera; lo que ha entrado es
+**una** fuente integrada de verdad, que es otra cosa y cabe en el límite de cinco de la sección 8
+(vamos por 3). El cuello de botella del plazo **no se ha movido**: sigue siendo el gold set.
+
+#### Lo que hay ahora
+
+| | |
+|---|---|
+| Fuentes activas | **3** (BOE, DOGC, **BOA**) |
+| Territorios pintados en el mapa | **3 de 19** (era 2) |
+| Documentos archivados | 671 sumarios + 75.986 textos + 7 consolidados |
+| Normas | ~75.700 |
+| Alertas emitidas (con gate humano) | 8 |
+
+#### La fuente, en corto (el detalle está en el ADR 0028)
+
+El BOA es **la fuente más barata integrada hasta ahora**, y por una pieza que no está documentada
+en ninguna parte: BRSCGI acepta `OUTPUTMODE=XML` sobre `SEC=OPENDATABOAXML`, y ese endpoint
+devuelve **sumario y texto íntegro en la misma petición**, filtrable por fecha exacta.
+
+Dos cosas que importan más que la comodidad:
+
+1. **Trae resoluciones.** El ADR 0019 dejó escrito que el DOGC publica solo disposiciones
+   generales y que **sus resoluciones e instrucciones no están, y son un vector de retroceso
+   real**. En el día verificado, **15 de las 38 disposiciones del BOA son resoluciones**. Esta
+   fuente cubre ese hueco para una comunidad.
+2. **Cobertura completa desde el primer día: 38 de 38 cuerpos, 0 fallidas, 0 `ilegible`.** El
+   DOGC iba con 172 de 264 ilegibles (65 %). Aquí no existe el problema de los cuerpos que la
+   fuente promete y no sirve.
+
+**Su única particularidad, y gobierna el módulo entero: no se puede pedir un documento por su
+identificador.** Probados siete nombres de campo, los siete devuelven cero registros; la URI ELI
+solo sirve HTML y solo para algunos rangos. La única dirección es la **posición ordinal dentro
+del día**, así que el cuerpo descargado **se verifica contra el `<docn>` que trae** antes de
+archivarlo. Sin esa comprobación, un día reordenado en origen archivaría el texto de una norma
+bajo el identificador de otra — corrupción de archivo silenciosa, que es el modo de fallo que la
+6.5 existe para impedir. Tiene su test.
+
+#### Qué se tocó
+
+- `backend/app/ingest/boa.py` (nuevo) y `backend/tests/test_ingest_boa.py` (15 tests).
+- `security/url_guard.py`: una entrada, `boa.aragon.es` (aquí sumario y cuerpo salen del mismo
+  host, sin la gimnasia de dos dominios que necesitó el DOGC).
+- `services/texto_integro.py`: registro de validadores del cuerpo por prefijo. **Una fuente entra
+  ahí solo si su forma de direccionar el cuerpo puede devolver otro documento**; el BOE y el DOGC
+  no lo necesitan.
+- `pipeline/texto.py`: rama para `documento > registro > texto`. **`VERSION_TEXTO_PLANO` NO sube**
+  y está razonado en el código: gobierna las colas de reproceso y subirla reprocesaría 75.000
+  normas cuya derivación esta rama no toca.
+- `worker/run.py`: el despacho de fuentes deja de ser un `if fuente != "boe"` con el código de
+  comunidad a mano y pasa a ser la tabla `FUENTES`. Con dos colaba; con tres, no.
+- Migración `e3f7a1c92b64` **escrita a mano**. Solo un INSERT: las CHECK siguen siendo **15**
+  antes y después, comprobado con el `SELECT ... FROM pg_constraint` de la sección 10.
+- `docs/adr/0028-*.md`, `docs/fuentes.md` (BOA + tabla de las 10 candidatas sondeadas), `README.md`.
+
+#### Dos cosas que se arreglaron de paso, y no eran del encargo
+
+- **`scripts/medir_extraccion.py` dejaba `ruff` en rojo** (dos líneas largas del trabajo del
+  2026-08-28). El CI estaba rojo desde entonces.
+- **El README afirmaba tres cosas falsas**: 14 casos de gold set (son 32), que faltaba la
+  trazabilidad por offsets (está desde el ADR 0013) y que solo el BOE estaba integrado.
+
+#### Corriendo de fondo al cerrar
+
+```bash
+docker compose exec -d worker sh //app/backfill.sh          # BOE, falta el bloque 2025-09
+docker compose exec -d worker sh //app/backfill_boa.sh      # BOA, 12 bloques hacia atrás desde 2026-08
+```
+
+Los dos son **reanudables por marcas** y **idempotentes por el sha256**: relanzarlos salta en
+segundos lo ya hecho. Un `exec` no sobrevive al reinicio del contenedor, así que hay que
+relanzarlos a mano tras un `docker compose up`.
+
+#### Lo siguiente, por valor (sin cambios respecto al cierre anterior salvo el punto 3)
+
+1. **Gold set de 32 a 60-80 casos.** Sigue siendo el cuello de botella real del plazo, y ahora
+   más: hay una fuente más que evaluar y el corpus no ha crecido. Es tiempo humano.
+2. **Terminar la muestra de 40 del extractor** y mirar `corroborar()`: ¿ve el modelo supresiones
+   que las reglas no ven? Es la única pregunta que reabriría el ADR 0016.
+3. **Cuarta fuente, si se quiere seguir rellenando el mapa** (~20k). Las candidatas sondeadas y
+   su estado están en `docs/fuentes.md`; las dos con mejor relación son **BOPV (Euskadi)**, que
+   solo necesita resolver fecha → número de boletín, y **BOCM (Madrid)**, que es donde ocurrió el
+   caso insignia y es la que peor formato tiene. Quedan dos huecos en el límite de la sección 8.

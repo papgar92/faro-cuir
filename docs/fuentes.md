@@ -68,7 +68,7 @@ hueco invisible.
 |---|---|---|---|---|---|---|---|
 | BOE (Boletín Oficial del Estado) | Estado | `https://boe.es/datosabiertos/api/boe/sumario/{fecha}` | API (XML/JSON) | No | TODO(verificar) | Baja — API REST abierta, sin autenticación, formato estructurado | Alta — fuente base nacional, integración más barata de las 18, candidata natural a estar entre las primeras 5 |
 | TODO(verificar) | Andalucía | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
-| TODO(verificar) | Aragón | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
+| **BOA** (Boletín Oficial de Aragón) | Aragón | `https://www.boa.aragon.es/cgi-bin/EBOA/BRSCGI?CMD=VERLST&OUTPUTMODE=XML&BASE=BOLE&SEC=OPENDATABOAXML&PUBL={fecha}` | **API (XML)** — sumario **y texto íntegro en la misma respuesta**, verificado el 2026-08-29 descargando un día entero | No | CC BY 4.0 (declarada por el catálogo de datos abiertos de Aragón) | **Baja** — una sola entrada de allowlist, sin clave, sin redirecciones; su única pega es que no deja pedir un documento por su identificador | **INTEGRADA** (ADR 0028), tercera fuente del proyecto; cobertura 38 de 38 el día verificado, 0 ilegibles |
 | TODO(verificar) | Principado de Asturias | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Illes Balears | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Canarias | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
@@ -150,6 +150,55 @@ un estándar**, y darla por hecha deja el eje 2 apagado en silencio.
 **Y el dato que justifica toda esta capa**, medido sobre 1.193 normas del BOE: de órganos
 autonómicos llegan al BOE **31 ítems**, todos anuncios y correcciones. Las leyes autonómicas sí se
 republican; los decretos y órdenes, no. Sin boletines autonómicos, esa normativa es invisible.
+
+### El BOA, integrado: la fuente más barata hasta ahora y por qué (ADR 0028)
+
+Es la tercera fuente y la segunda autonómica, y entró por dos motivos, en este orden:
+
+1. **Cubre lo que el DOGC no.** Aquel publica solo disposiciones generales; sus **resoluciones e
+   instrucciones no están**, y son un vector de retroceso real. El BOA trae las cuatro secciones:
+   en el día verificado (2024-01-10), de 38 disposiciones **15 son resoluciones**.
+2. Suma una comunidad al mapa, que pasa de 2 a 3 territorios vigilados de 19.
+
+**La pieza que lo hace viable no está documentada en ninguna parte:** BRSCGI, el buscador
+documental del Gobierno de Aragón, acepta `OUTPUTMODE=XML` sobre una sección de datos abiertos
+(`SEC=OPENDATABOAXML`), y ese endpoint devuelve **sumario y texto íntegro en la misma petición**,
+filtrable por fecha exacta. Ojo con el matiz, que es fácil de leer mal: **la sección elige la
+plantilla y el `OUTPUTMODE` sin ella se ignora en silencio** — `SEC=OPENDATASUMARIO&OUTPUTMODE=JSON`
+sigue devolviendo el HTML del diario.
+
+**Su única particularidad, y gobierna el módulo entero: no se puede pedir un documento por su
+identificador.** Probados `DOCN`, `DOCN-C`, `NDOC`, `CLAVE`, `TEXT`, `@DOCN` y la forma
+entrecomillada: los siete devuelven cero registros. La URI ELI que publica la fuente solo sirve
+HTML (`/xml` da 404) y solo existe para algunos rangos. La única dirección es **la posición
+ordinal dentro del día**, y por eso el cuerpo descargado se verifica contra el `<docn>` que trae
+antes de archivarlo: sin esa comprobación, un día reordenado en origen archivaría el texto de una
+norma bajo el identificador de otra. Está en el ADR 0028 con su test.
+
+**Lo que NO trae, y vale lo mismo que en el DOGC:** no hay equivalente del `<analisis>` del BOE.
+El registro no dice a qué norma afecta, así que el eje referencial (7.3) depende aquí de las citas
+del texto (ADR 0022). **La estructura de referencias es una particularidad del BOE, no un
+estándar.**
+
+### Las candidatas sondeadas y su estado — 2026-08-29
+
+Sondeadas pidiéndoles un día concreto, no leyendo su documentación. Es la misma disciplina del
+ADR 0019 y vuelve a ser lo que separa «tiene portal de datos abiertos» de «se puede ingerir».
+
+| Fuente | Qué se pudo obtener | Estado |
+|---|---|---|
+| **BOA** (Aragón) | Sumario y texto íntegro en XML, una petición, por fecha exacta | **INTEGRADA** (ADR 0028) |
+| BON (Navarra) | Sumario HTML de 113 KB; no se localizó interfaz de datos | Pendiente |
+| BOC (Canarias) | Índice HTML | Pendiente |
+| DOE (Extremadura) | Índice HTML | Pendiente |
+| BORM (Murcia) | PDF del boletín | Pendiente — PDF: permitido por 6.1, pero es la vía cara |
+| BOPV (Euskadi) | Sumario HTML por **número de boletín**, no por fecha | Pendiente — falta resolver fecha → número |
+| BOCYL (Castilla y León) | El RSS por fecha devuelve 500 | Descartada por ahora |
+| DOGV (C. Valenciana) | 404 en la ruta de sumario probada | Descartada por ahora |
+| BOCM (Madrid) | RSS de 20 sumarios + HTML; el XML por disposición da 500 | Integrable con esfuerzo (ADR 0019) |
+| BOJA (Andalucía) | El HTML **declara que suprime contenido** | Descartada — choca con 7.1 |
+
+**Quedan dos huecos** dentro del límite de cinco fuentes de la sección 8.
 
 ## Tabla provincial — los 43 BOP
 

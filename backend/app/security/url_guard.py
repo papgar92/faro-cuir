@@ -72,6 +72,10 @@ DEFAULT_ALLOWLIST: frozenset[str] = frozenset(
         # escrita y no de tapadillo, porque "dominios oficiales" deja de ser autodescriptivo en
         # cuanto uno de ellos no lo parece.
         "transparenciacatalunya.cat",
+        # --- BOA, tercera fuente y segunda autonómica (ADR 0028) ----------------------------
+        # El sumario y el texto íntegro salen del mismo host, así que aquí no hace falta la
+        # gimnasia de dos dominios del DOGC: una sola entrada cubre las dos fases.
+        "boa.aragon.es",
     }
 )
 

@@ -14,6 +14,7 @@ import datetime
 import logging
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from sqlalchemy import select
@@ -37,7 +38,18 @@ from app.services import revision as servicio_revision
 
 logger = logging.getLogger("worker")
 
-FUENTES_SOPORTADAS = ("boe", "dogc")
+# Qué sabe ingerir el worker. La tabla existe porque hasta el ADR 0028 esto era un `if
+# fuente != "boe"` con el código de comunidad escrito a mano en la consulta: con dos fuentes
+# colaba, con tres deja de colar y la cuarta se añadiría por copia. Cada fila dice las tres
+# cosas que distinguen una fuente: qué tipo es, qué comunidad la publica (None = estatal) y
+# quién sabe leerla.
+FUENTES: dict[str, tuple[TipoFuente, str | None, Callable[..., ingesta.ResultadoIngesta]]] = {
+    "boe": (TipoFuente.BOE, None, ingesta.ingerir_sumario_boe),
+    "dogc": (TipoFuente.BOLETIN_AUTONOMICO, "CT", ingesta.ingerir_sumario_dogc),
+    "boa": (TipoFuente.BOLETIN_AUTONOMICO, "AR", ingesta.ingerir_sumario_boa),
+}
+
+FUENTES_SOPORTADAS = tuple(FUENTES)
 
 
 def _fecha(valor: str) -> datetime.date:
@@ -491,11 +503,12 @@ def _ingerir_dia(  # noqa: C901
 ) -> int:
     """Una pasada completa del pipeline sobre un día de boletín."""
     with SessionLocal() as session:
-        tipo = TipoFuente.BOE if fuente_pedida == "boe" else TipoFuente.BOLETIN_AUTONOMICO
+        tipo, ccaa_codigo, ingerir = FUENTES[fuente_pedida]
         consulta = select(Fuente).where(Fuente.tipo == tipo)
-        if fuente_pedida != "boe":
-            # Hay 17 boletines autonómicos posibles en el modelo; hoy solo uno integrado.
-            consulta = consulta.where(Fuente.ccaa_codigo == "CT")
+        if ccaa_codigo is not None:
+            # Hay 17 boletines autonómicos posibles en el modelo; sin acotar la comunidad, la
+            # consulta devolvería el primero que hubiera y se archivaría el BOA bajo el DOGC.
+            consulta = consulta.where(Fuente.ccaa_codigo == ccaa_codigo)
         fuente = session.scalar(consulta)
         if fuente is None:
             logger.error(
@@ -508,9 +521,6 @@ def _ingerir_dia(  # noqa: C901
             logger.error("La fuente %r está marcada como inactiva; no se ingiere.", fuente.nombre)
             return 2
 
-        ingerir = (
-            ingesta.ingerir_sumario_boe if fuente_pedida == "boe" else ingesta.ingerir_sumario_dogc
-        )
         try:
             resultado = ingerir(
                 session,

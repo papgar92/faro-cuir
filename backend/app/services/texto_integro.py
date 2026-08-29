@@ -39,6 +39,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.ingest import boa
+from app.ingest.boe import SumarioInvalido
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
 from app.security import hashing, url_guard
@@ -50,6 +52,28 @@ logger = logging.getLogger(__name__)
 # La API del BOE sirve el texto íntegro de cada disposición con la misma cabecera que el
 # sumario. Verificado en la medición del ADR 0011 sobre 436 documentos reales.
 _CABECERAS = {"Accept": "application/xml"}
+
+# Comprobaciones de que el cuerpo descargado es el de la norma que se pidió, por prefijo del
+# identificador (el prefijo lo acuñamos nosotros al parsear el sumario, no viene de la fuente).
+#
+# **Una fuente entra aquí solo si su forma de direccionar el cuerpo puede devolver otro
+# documento.** El BOE y el DOGC piden una URL que nombra la disposición, así que no pueden
+# equivocarse de norma; el BOA no ofrece esa URL —probados `DOCN`, `NDOC`, `CLAVE` y el resto,
+# todos devuelven cero registros, y su URI ELI solo sirve HTML y solo para algunos rangos— y hay
+# que pedir «el registro número n del día d». Esa dirección deja de significar lo mismo si la
+# fuente reordena el día, y entonces archivaríamos el texto de una norma bajo el identificador
+# de otra: la corrupción de archivo silenciosa que la 6.5 existe para impedir (ADR 0028).
+#
+# El fallo va por la vía normal del módulo: no se archiva, no se crea fila, y la norma vuelve
+# sola a la cola de la próxima pasada.
+_VALIDADORES = {"BOA-": boa.parsear_cuerpo}
+
+
+def _validar_cuerpo(contenido: bytes, identificador: str) -> None:
+    for prefijo, validar in _VALIDADORES.items():
+        if identificador.startswith(prefijo):
+            validar(contenido, identificador)
+            return
 
 
 @dataclass(frozen=True)
@@ -162,6 +186,20 @@ def descargar(
                 "No se pudo descargar el cuerpo de %s: %s: %s",
                 norma.identificador_oficial,
                 type(exc).__name__,
+                exc,
+            )
+            fallidas += 1
+            continue
+
+        try:
+            _validar_cuerpo(contenido, norma.identificador_oficial)
+        except SumarioInvalido as exc:
+            # No es un fallo de red: es la fuente devolviendo algo que no es lo que se pidió.
+            # Se registra aparte de los fallos rutinarios por lo mismo que los de `url_guard`
+            # en el worker: si se mezcla con ellos, deja de verse.
+            logger.error(
+                "CUERPO DESCARTADO, no corresponde a la norma pedida (%s): %s",
+                norma.identificador_oficial,
                 exc,
             )
             fallidas += 1
