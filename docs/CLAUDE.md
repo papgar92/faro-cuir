@@ -683,7 +683,33 @@ Si te encuentras haciendo cualquiera de estas, para:
   falta (la capa de texto del DOGC existe y se lee). **Antes de escribir una línea de OCR hay que
   demostrar con un documento real que su PDF no tiene capa de texto**, y llevarlo a un ADR. Lo que
   esta sección protege no es la técnica, es el plazo.
-- **Monitorización de prensa o redes sociales.** No.
+- ~~**Monitorización de prensa o redes sociales.** No.~~ — **relajado por el humano el
+  2026-08-30**, con un motivo de plazo dicho tal cual: la entrega es el 10 de septiembre y
+  construir a mano la configuración del proyecto es trabajo muy arduo. **En fase de construcción
+  la IA puede ayudar a investigar**, prensa y fuentes secundarias incluidas; en fase de
+  mantenimiento se volverá a revisar una a una.
+
+  **Lo que esto autoriza y lo que no, porque la diferencia es todo el proyecto:**
+
+  - **SÍ**: usar búsqueda web, prensa y fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistía)
+    para **construir y contrastar la configuración** — la watchlist, `docs/fuentes.md`, candidatos
+    del gold set. Ya se hizo así una vez y salió bien: el `jurista-lgtbi` encontró contrastando
+    con esas fuentes que a Aragón le faltaba una de sus dos leyes.
+  - **SÍ, con una condición que no se negocia**: todo lo que entre en la configuración **se ancla
+    a un identificador oficial verificado** (`BOE-A-…`) y se anota con su fecha de comprobación en
+    el campo `nota`. La prensa sirve para **encontrar** una norma, nunca para afirmarla. Una
+    entrada sin identificador comprobado no entra.
+  - **NO**: que nada procedente de prensa o redes sea **entrada del pipeline** ni contenido
+    publicado. Ni se ingiere, ni se archiva, ni se clasifica, ni alimenta una alerta. El archivo
+    de la 6.5 solo contiene boletines oficiales.
+  - **NO**: que un modelo emita «esta comunidad va a peor» y eso llegue a una pantalla. Sigue
+    intacta la **regla de oro 2** —la clasificación avance/retroceso se deriva del diff con reglas
+    auditables— y la **3** —el LLM extrae hechos, no dicta veredictos—. La CHECK
+    `origenclasificacion` lo hace cumplir, y no se toca.
+
+  Dicho corto: **la IA ayuda a construir la lista de lo que hay que vigilar; no ayuda a decidir
+  qué ha pasado.** Lo primero es investigación con verificación humana detrás; lo segundo es el
+  veredicto que este proyecto existe para no delegar.
 - **Publicación totalmente automática** sin gate humano. No.
 - **Almacenar el veredicto del LLM como si fuera la clasificación.** La clasificación se deriva
   del diff.

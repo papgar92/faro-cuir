@@ -10,7 +10,13 @@ import { TopAlertsRanking } from "../components/TopAlertsRanking/TopAlertsRankin
 import { ESTADO_MAPA_META, type EstadoMapa } from "../lib/classification";
 import { CoberturaTotal } from "../components/CoberturaTotal/CoberturaTotal";
 import { PanelEstatal } from "../components/PanelEstatal/PanelEstatal";
-import { construirRegiones, resumenEstatal } from "../lib/mapa";
+import {
+  categoriaMarco,
+  construirRegiones,
+  MARCO_ETIQUETA,
+  resumenEstatal,
+  type VistaMapa,
+} from "../lib/mapa";
 import { escribirUrl } from "../lib/navigation";
 
 const ESTADOS_LEYENDA = Object.keys(ESTADO_MAPA_META) as EstadoMapa[];
@@ -37,6 +43,12 @@ interface MapaPageProps {
  * «vigilada, sin alertas aprobadas» y otra para «sin fuente vigilada». Ver `lib/mapa.ts`.
  */
 export function MapaPage({ onGoArchivo, onGoTimeline, ccaaInicial }: MapaPageProps) {
+  // Arranca en `marco` a propósito. `cambios` solo pinta las alertas aprobadas y el ADR 0027
+  // midió que eso son ~5 casos al año: quien entra por primera vez se encontraba un mapa casi
+  // vacío que se lee como «no pasa nada» cuando lo que dice es «no ha cambiado nada». La línea
+  // base contesta antes la pregunta que trae la gente —qué hay en mi comunidad— y deja el
+  // movimiento para quien lo busque.
+  const [vista, setVista] = useState<VistaMapa>("marco");
   const [hover, setHover] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(ccaaInicial ?? null);
   const activeCode = hover ?? pinned;
@@ -85,6 +97,28 @@ export function MapaPage({ onGoArchivo, onGoTimeline, ccaaInicial }: MapaPagePro
             <h2 className="font-serif text-2xl font-bold tracking-tight text-ink">
               Estado de los derechos por comunidad autónoma
             </h2>
+            <div className="flex items-center gap-2" role="group" aria-label="Qué pinta el mapa">
+              {(
+                [
+                  ["marco", "Marco normativo"],
+                  ["cambios", "Cambios detectados"],
+                ] as const
+              ).map(([valor, texto]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  onClick={() => setVista(valor)}
+                  aria-pressed={vista === valor}
+                  className={`rounded border px-2.5 py-1 text-xs transition-colors ${
+                    vista === valor
+                      ? "border-line-2 bg-surface-2 font-medium text-ink"
+                      : "border-line bg-surface text-ink-2 hover:text-ink"
+                  }`}
+                >
+                  {texto}
+                </button>
+              ))}
+            </div>
             {/* **Aquí ponía «Ventana de evaluación: últimos 90 días» y era falso.** Herencia de
                 los datos de maqueta: ni este componente ni `construirRegiones` ni
                 `GET /api/cobertura` filtran por fecha en ningún punto — se agregan TODAS las
@@ -93,15 +127,56 @@ export function MapaPage({ onGoArchivo, onGoTimeline, ccaaInicial }: MapaPagePro
                 Encontrado el 2026-08-29 al preguntar el humano qué ventana se estaba usando.
                 Un archivo de vigilancia no debe olvidar; lo que no puede es decir que olvida. */}
             <span className="text-xs text-ink-3">
-              Todas las alertas aprobadas, sin límite de fecha
+              {vista === "marco"
+                ? "Marco vigente; las derogadas no cuentan"
+                : "Todas las alertas aprobadas, sin límite de fecha"}
             </span>
           </div>
           <p className="mt-2 max-w-[64ch] text-sm text-ink-2">
-            Clasificación derivada de los cambios normativos detectados y validados. Pasa el cursor o
-            pulsa una comunidad para ver su resumen. Cada comunidad enlaza a sus alertas y a la fuente
-            oficial.
+            {vista === "marco"
+              ? "Qué ley protectora existe hoy en cada comunidad, según la lista de normas vigiladas, auditada una a una contra el BOE. Es la línea base: enumera lo que hay, no lo puntúa. Los cambios sobre ella están en la otra vista."
+              : "Clasificación derivada de los cambios normativos detectados y validados. Pasa el cursor o pulsa una comunidad para ver su resumen. Cada comunidad enlaza a sus alertas y a la fuente oficial."}
           </p>
 
+          {/* Leyenda de la LÍNEA BASE. Dice qué existe en cada comunidad, con su identificador
+              del BOE detrás; no puntúa ni ordena. «Solo ley trans» y «solo ley LGTBI» comparten
+              claridad porque son dos ámbitos distintos, no dos peldaños. */}
+          {vista === "marco" && (
+            <div className="mt-4 flex flex-wrap items-center gap-4 rounded border border-line bg-inset p-3">
+              {(
+                [
+                  ["ambas", "var(--color-marco-2)"],
+                  ["lgtbi", "var(--color-marco-1)"],
+                  [
+                    "trans",
+                    "repeating-linear-gradient(45deg, var(--color-marco-linea) 0 1.6px, var(--color-marco-1) 1.6px 6px)",
+                  ],
+                  [
+                    "ninguna",
+                    "radial-gradient(var(--color-line-2) 1px, var(--color-surface-2) 1px)",
+                  ],
+                ] as const
+              ).map(([clave, fondo]) => (
+                <span key={clave} className="flex items-center gap-1.5 text-xs text-ink-2">
+                  <span
+                    aria-hidden="true"
+                    className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
+                    style={
+                      fondo.startsWith("var")
+                        ? { background: fondo }
+                        : { backgroundImage: fondo, backgroundSize: "6px 6px" }
+                    }
+                  />
+                  {MARCO_ETIQUETA[clave]}
+                </span>
+              ))}
+              <span className="ml-auto font-mono text-xs text-ink-3">
+                auditado contra boe.es, una a una
+              </span>
+            </div>
+          )}
+
+          {vista === "cambios" && (
           <div className="mt-4 flex flex-wrap items-center gap-4 rounded border border-line bg-inset p-3">
             {ESTADOS_LEYENDA.map((estado) => (
               <ClassificationBadge key={estado} meta={ESTADO_MAPA_META[estado]} />
@@ -159,10 +234,12 @@ export function MapaPage({ onGoArchivo, onGoTimeline, ccaaInicial }: MapaPagePro
             </span>
             <span className="ml-auto font-mono text-xs text-ink-3">color + símbolo + texto</span>
           </div>
+          )}
 
           <PanelEstatal resumen={estatal} onVerAlertas={() => onGoTimeline()} />
 
           <MapaCCAA
+            vista={vista}
             regions={regiones}
             activeCode={activeCode}
             onEnter={setHover}

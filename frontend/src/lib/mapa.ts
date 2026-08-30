@@ -1,4 +1,4 @@
-import type { AlertaApi, CoberturaApi } from "../api/client";
+import type { AlertaApi, CoberturaApi, LeyVigenteApi } from "../api/client";
 import { CCAA_PATHS } from "../components/MapaCCAA/ccaa-paths";
 import type { EstadoMapa } from "./classification";
 import { nombreTerritorio } from "./territorio";
@@ -58,6 +58,8 @@ export interface RegionMapa {
    * es lo que prohíbe la regla de oro 2.
    */
   sinLeyAutonomica: string | null;
+  /** Leyes autonómicas **en vigor** de esta comunidad. La línea base del mapa. */
+  leyesVigentes: LeyVigenteApi[];
   /** Titular y fecha de la alerta más reciente, si la hay. */
   title?: string;
   date?: string;
@@ -118,6 +120,7 @@ export function construirRegiones(
       fuentesVigiladas: 0,
       fuentesConocidas: 0,
       sinLeyAutonomica: null,
+      leyesVigentes: [],
     };
   }
 
@@ -132,9 +135,11 @@ export function construirRegiones(
       fuentesVigiladas: 0,
       fuentesConocidas: 0,
       sinLeyAutonomica: null,
+      leyesVigentes: [],
     });
     region.vigilada = ccaa.vigiladas > 0;
     region.sinLeyAutonomica = ccaa.sin_ley_autonomica ?? null;
+    region.leyesVigentes = ccaa.leyes_vigentes ?? [];
     region.fuentesVigiladas = ccaa.vigiladas;
     region.fuentesConocidas = ccaa.conocidas;
   }
@@ -158,6 +163,7 @@ export function construirRegiones(
         fuentesVigiladas: 0,
         fuentesConocidas: 0,
         sinLeyAutonomica: null,
+        leyesVigentes: [],
       });
 
       region.alerts += 1;
@@ -245,3 +251,45 @@ export function resumenEstatal(alertas: AlertaApi[] | undefined): ResumenEstatal
 export function deudaCobertura(region: RegionMapa): number {
   return Math.max(0, region.fuentesConocidas - region.fuentesVigiladas);
 }
+
+
+/**
+ * Las dos vistas del mapa, y por qué hacen falta las dos.
+ *
+ * `cambios` es lo que había: pinta **movimiento** —las alertas aprobadas—. Es lo que el sistema
+ * afirma y solo después del gate humano. Su problema es que el ADR 0027 midió que el eje
+ * referencial rinde ~5 casos al año, así que casi todo el mapa está en silencio casi siempre, y
+ * un mapa en blanco se lee como «no pasa nada» cuando lo que dice es «no ha cambiado nada».
+ *
+ * `marco` pinta **estado**: qué ley protectora existe hoy en cada comunidad, de la watchlist,
+ * auditada una a una contra boe.es. Es la línea base sobre la que `cambios` es el delta, y es el
+ * «Rainbow Map por comunidad autónoma» del pitch (CLAUDE.md sección 1).
+ *
+ * **Ninguna de las dos puntúa.** `marco` enumera lo que hay, con su identificador del BOE
+ * enlazable; decir qué comunidad está «mejor» sería el juicio propio que prohíbe la regla de
+ * oro 2, y por eso su paleta es de un tono propio y no la de avance/retroceso.
+ */
+export type VistaMapa = "cambios" | "marco";
+
+/** Qué marco tiene una comunidad. `null` = no lo sabemos (aún no ha llegado la cobertura). */
+export type CategoriaMarco = "ambas" | "lgtbi" | "trans" | "ninguna" | null;
+
+export function categoriaMarco(region: RegionMapa | undefined): CategoriaMarco {
+  if (!region) return null;
+  // El hecho verificado manda sobre la lista vacía: «no tiene ley» y «todavía no hemos cargado
+  // sus leyes» son cosas distintas y solo la primera se puede afirmar.
+  if (region.sinLeyAutonomica) return "ninguna";
+  if (region.leyesVigentes.length === 0) return null;
+  const trans = region.leyesVigentes.some((ley) => ley.tipo === "trans");
+  const lgtbi = region.leyesVigentes.some((ley) => ley.tipo === "lgtbi");
+  if (trans && lgtbi) return "ambas";
+  return trans ? "trans" : "lgtbi";
+}
+
+/** Etiqueta de cada categoría: dice **qué existe**, nunca cuánto vale. */
+export const MARCO_ETIQUETA: Record<Exclude<CategoriaMarco, null>, string> = {
+  ambas: "Ley trans y ley LGTBI",
+  trans: "Solo ley de identidad de género",
+  lgtbi: "Solo ley LGTBI integral",
+  ninguna: "Sin ley autonómica",
+};

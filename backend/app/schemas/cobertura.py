@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CoberturaNivel(BaseModel):
@@ -27,6 +27,20 @@ class CoberturaNivel(BaseModel):
     conocidas: int
     # De esas, cuántas se están ingiriendo de verdad (`activa`). Hoy, fuera del BOE, cero.
     vigiladas: int
+
+
+class LeyVigente(BaseModel):
+    """Una ley autonómica en vigor de la watchlist. Auditada una a una contra boe.es."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    identificador: str
+    titulo: str
+    # "trans" (ley específica de identidad/expresión de género) o "lgtbi" (ley LGTBI integral).
+    # **No se deduce del título con una expresión regular**: "transgénero" aparece dentro de casi
+    # todas las integrales y un regex las cruzaría. Se escribe a mano en la watchlist leyendo el
+    # título oficial.
+    tipo: str
 
 
 class CoberturaCcaa(BaseModel):
@@ -77,6 +91,22 @@ class CoberturaCcaa(BaseModel):
     # verificado. No publicarlo cuando se tiene sería el mismo silencio que la sección 7.2 no
     # permite en el embudo.
     sin_ley_autonomica: str | None = None
+    # --- Línea base: qué marco protector EXISTE hoy aquí ---------------------------------------
+    # Las leyes autonómicas **vigentes** de esta comunidad, de la watchlist. Es la línea base
+    # sobre la que las alertas son el delta.
+    #
+    # Existe porque el mapa solo sabía pintar *cambios*, y el ADR 0027 midió que eso son ~5 casos
+    # al año: quince comunidades en blanco no porque no pase nada, sino porque el mapa no sabía
+    # decir qué hay. Con la línea base dice **el estado**, no solo el movimiento — que es el
+    # «Rainbow Map por comunidad autónoma» del pitch de la sección 1.
+    #
+    # **Enseña qué existe; no puntúa.** Que una comunidad tenga ley trans y otra no es un hecho
+    # verificable contra un BOE-A; decir cuál está «mejor» sería el juicio propio que prohíbe la
+    # regla de oro 2. Por eso viaja la lista de leyes con su identificador, y no una nota.
+    #
+    # Las **derogadas quedan fuera**: se siguen vigilando para no perder el rastro histórico,
+    # pero no son marco vigente (ver `vigente` en `pipeline/watchlist.py`).
+    leyes_vigentes: list[LeyVigente] = Field(default_factory=list)
 
 
 class Cobertura(BaseModel):

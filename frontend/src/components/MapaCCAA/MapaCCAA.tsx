@@ -1,5 +1,11 @@
 import { useRef } from "react";
-import { deudaCobertura, type RegionMapa } from "../../lib/mapa";
+import {
+  categoriaMarco,
+  deudaCobertura,
+  MARCO_ETIQUETA,
+  type RegionMapa,
+  type VistaMapa,
+} from "../../lib/mapa";
 import { ESTADO_MAPA_META, type ColorClasificacion } from "../../lib/classification";
 import { CCAA_PATHS, INSET_CANARIAS, MAPA_VIEWBOX, type CcaaPath } from "./ccaa-paths";
 
@@ -9,7 +15,25 @@ interface MapaCCAAProps {
   onEnter: (code: string) => void;
   onLeave: () => void;
   onPick: (code: string) => void;
+  /** Qué pinta el mapa: el movimiento (alertas) o el estado (marco normativo vigente). */
+  vista: VistaMapa;
 }
+
+/**
+ * Relleno de la línea base. Tono propio y **fuera de la paleta de alertas**: en verde o rojo se
+ * leería como avance/retroceso, que es el veredicto que la regla de oro 2 reserva al clasificador
+ * por reglas. Aquí no se juzga, se enumera lo que hay.
+ *
+ * `trans` y `lgtbi` comparten claridad a propósito: son **dos ámbitos distintos**, no dos peldaños
+ * de una escala, y se distinguen por trama —no por intensidad— para que no se lean como «más» y
+ * «menos». `ambas` sí es más intenso porque ahí hay las dos cosas, que es un recuento, no una nota.
+ */
+const FILL_MARCO: Record<string, string> = {
+  ambas: "var(--color-marco-2)",
+  lgtbi: "var(--color-marco-1)",
+  trans: "url(#marco-trans)",
+  ninguna: "url(#sin-ley)",
+};
 
 const FILL_VAR: Record<ColorClasificacion, string> = {
   adv: "var(--color-adv-bg)",
@@ -46,12 +70,26 @@ const INSULARES = CCAA_PATHS.filter((p) => p.inset);
  * Accesibilidad: cada entidad es `role="button"` con `aria-label` legible sin
  * depender del color, y Enter/Espacio la seleccionan.
  */
-export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: MapaCCAAProps) {
+export function MapaCCAA({
+  regions,
+  activeCode,
+  onEnter,
+  onLeave,
+  onPick,
+  vista,
+}: MapaCCAAProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const activePath = activeCode ? CCAA_PATHS.find((p) => p.code === activeCode) : undefined;
 
   const etiqueta = (path: CcaaPath) => {
     const region = regions[path.code];
+    if (vista === "marco") {
+      const categoria = categoriaMarco(region);
+      // Sin dato no se inventa una categoría: se dice que no se sabe. Es la misma regla que
+      // impide pintar de "estable" lo que nadie ha mirado.
+      if (!categoria) return `${path.name}: marco normativo sin determinar`;
+      return `${region?.name ?? path.name}: ${MARCO_ETIQUETA[categoria].toLowerCase()}`;
+    }
     if (!region || (!region.vigilada && region.alerts === 0)) {
       // La deuda va también en el texto: la gradación de la trama es información, y una
       // información que solo existe en el color no existe para quien no lo ve.
@@ -79,6 +117,10 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
 
   const relleno = (path: CcaaPath) => {
     const region = regions[path.code];
+    if (vista === "marco") {
+      const categoria = categoriaMarco(region);
+      return categoria ? FILL_MARCO[categoria] : "url(#sin-vigilar-1)";
+    }
     // Sin fila no hay estado: se pinta como territorio sin vigilar, no como
     // "estable". Pintar de estable lo que nadie mira es afirmar un resultado.
     //
@@ -254,6 +296,18 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
               de NUESTRA cobertura —cuánto se nos escapa—, y esta habla del territorio. Que se
               distinga de un vistazo es el punto de que exista. Sin color de estado, porque el
               hecho no lleva veredicto (regla de oro 2). */}
+          {/* Solo ley de identidad de género: trama del mismo tono que `ambas`, no un tinte más
+              claro. La diferencia con «solo ley LGTBI» es de ÁMBITO, no de grado. */}
+          <pattern
+            id="marco-trans"
+            patternUnits="userSpaceOnUse"
+            width={6}
+            height={6}
+            patternTransform="rotate(45)"
+          >
+            <rect width={6} height={6} fill="var(--color-marco-1)" />
+            <line x1={0} y1={0} x2={0} y2={6} stroke="var(--color-marco-linea)" strokeWidth={1.6} />
+          </pattern>
           <pattern id="sin-ley" patternUnits="userSpaceOnUse" width={6} height={6}>
             <rect width={6} height={6} fill="var(--color-surface-2)" />
             <circle cx={3} cy={3} r={1} fill="var(--color-line-2)" />

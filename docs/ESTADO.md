@@ -2249,3 +2249,69 @@ casos al año**. **El silencio es el estado normal esperado, no un fallo.**
 «Vigilada, sin alertas» quiere decir literalmente *«leímos su boletín y nada tocó las leyes que
 vigilamos»*. No quiere decir *«aquí todo va bien»*, y ahora el mapa tiene un estado más para no
 dejar que se lea así.
+
+### ✅ La línea base: el mapa deja de pintar solo el movimiento y pinta el estado — 2026-08-30
+
+Pedido por el humano tras ver que quince comunidades salían en blanco. **El mapa solo sabía
+pintar *cambios*** —alertas aprobadas— y el ADR 0027 midió que eso son **~5 casos al año**: un
+mapa vacío casi siempre, que se lee como «no pasa nada» cuando lo que dice es «no ha cambiado
+nada». Ahora tiene dos vistas y **arranca en la línea base**.
+
+#### El hallazgo que lo hizo barato: la watchlist ya estaba completa
+
+No hizo falta investigar nada. `config/watchlist.json` ya tenía **las 17 comunidades cubiertas**,
+auditadas una a una contra boe.es entre el 2026-08-08 y el 2026-08-20: 20 leyes autonómicas en 15
+CCAA, más Asturias y Castilla y León verificadas **sin ley**. El dato estaba y no llegaba a
+ninguna pantalla.
+
+| categoría | CCAA |
+|---|---|
+| Ley trans **y** ley LGTBI | 4 |
+| Solo ley LGTBI integral | 8 |
+| Solo ley de identidad de género | 3 |
+| Sin ley autonómica | 2 (AS, CL) |
+
+#### Dos campos nuevos en la watchlist, y el segundo evitó una mentira
+
+- **`tipo`** (`trans` | `lgtbi`), solo en las 20 autonómicas. **Escrito a mano leyendo el título
+  oficial de cada una, no deducido con un regex**: «transgénero» aparece dentro de casi todas las
+  LGTBI integrales y un regex las habría cruzado.
+- **`vigente`**, que solo aparece cuando es `false`. Hoy una: **la Ley 14/2012 vasca, derogada por
+  la 4/2024**. Se sigue vigilando a propósito —una norma derogada aparece en las referencias de
+  las que la citan— pero **no cuenta como marco vigente**. Sin este campo la línea base habría
+  dicho que Euskadi tiene una ley que ya no existe.
+
+**La `version` de la watchlist NO sube por esto**, y está razonado en el propio fichero: subirla
+devuelve las ~78.000 normas a la cola del prefiltro y no cambiaría ni un resultado, porque ni el
+eje referencial ni las reglas miran estos campos. Mismo criterio que `VERSION_TEXTO_PLANO`.
+
+#### Lo que la línea base NO hace
+
+**Enumera lo que hay; no puntúa.** Cada comunidad enseña sus leyes con su `BOE-A-…`; decir cuál
+está «mejor» sería el juicio propio que prohíbe la regla de oro 2. Por eso:
+
+- La paleta es **de tono propio (violeta) y está fuera de la de alertas**: en verde o rojo se
+  leería como avance/retroceso, que es el veredicto reservado al clasificador por reglas.
+- **«Solo ley trans» y «solo ley LGTBI» comparten claridad** y se distinguen por trama, no por
+  intensidad: son dos **ámbitos** distintos, no dos peldaños de una escala.
+
+#### Qué se tocó
+
+`config/watchlist.json`, `pipeline/watchlist.py`, `schemas/cobertura.py`, `api/cobertura.py`
+(+3 tests, 11 en total en ese fichero), `frontend/`: `index.css` (3 tokens en claro y oscuro),
+`api/client.ts`, `lib/mapa.ts`, `MapaCCAA.tsx`, `MapaPage.tsx`.
+
+#### ⚠️ Cambio de regla: la sección 8 de CLAUDE.md se relaja
+
+**Pedido por el humano el 2026-08-30**, con motivo de plazo: la entrega es el 10 de septiembre y
+construir la configuración a mano es trabajo muy arduo. La prohibición de monitorizar prensa y
+redes queda relajada **para la fase de construcción**; en mantenimiento se revisará una a una.
+
+Escrito en la sección 8 con sus límites, que son lo que hay que respetar: la IA puede **investigar
+para construir la configuración** (watchlist, fuentes, gold set) siempre que **todo lo que entre
+se ancle a un identificador oficial verificado** con su fecha en la `nota`; y **nada de prensa
+entra en el pipeline, ni se archiva, ni se clasifica, ni llega a una pantalla**. Las reglas de oro
+2 y 3 y la CHECK `origenclasificacion` siguen intactas.
+
+Dicho corto: **la IA ayuda a construir la lista de lo que hay que vigilar; no ayuda a decidir qué
+ha pasado.**

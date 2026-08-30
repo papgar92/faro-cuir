@@ -64,6 +64,16 @@ class NormaVigilada:
     # cobertura por comunidad, que es lo que convierte esta lista en algo auditable: sin él, que
     # falte la ley de una CCAA entera no se distingue de que esa CCAA no tenga ley.
     ambito: str = ""
+    # --- Solo para la LÍNEA BASE del mapa; nada del pipeline los mira ---------------------------
+    # `tipo`: "trans" (ley específica de identidad/expresión de género) o "lgtbi" (ley LGTBI
+    # integral). Vacío en las estatales, que no se pintan en el mapa.
+    tipo: str = ""
+    # ¿Sigue en vigor? **`False` no quiere decir «dejar de vigilarla»**: una norma derogada sigue
+    # apareciendo en las referencias de las que la citan, y perder ese rastro sería perder el
+    # histórico. Quiere decir que **no cuenta como marco vigente**. Hoy es una: la Ley 14/2012
+    # vasca, derogada por la 4/2024. Sin esta distinción la línea base diría que Euskadi tiene una
+    # ley que ya no existe.
+    vigente: bool = True
 
 
 @dataclass(frozen=True)
@@ -146,6 +156,10 @@ def cargar(ruta: Path | None = None) -> Watchlist:
                 titulo=entrada.get("titulo", ""),
                 nota=entrada.get("nota", ""),
                 ambito=entrada.get("ambito", ""),
+                tipo=entrada.get("tipo", ""),
+                # Ausente = vigente. Lo excepcional es la derogación, y hacerla explícita en el
+                # fichero deja la anomalía a la vista de quien lo lee.
+                vigente=entrada.get("vigente", True),
             )
         )
 

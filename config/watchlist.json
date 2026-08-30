@@ -4,7 +4,26 @@
     "JSON con la biblioteca estandar, sin dependencias (CLAUDE.md seccion 3). JSON no admite",
     "comentarios, asi que cada entrada lleva su campo 'nota': la justificacion viaja CON el",
     "dato, no encima. Al cambiar esta lista hay que SUBIR 'version', o lo anterior no se",
-    "reevalua (worker.run --reprefiltrar lo hace solo al detectar el cambio de version)."
+    "reevalua (worker.run --reprefiltrar lo hace solo al detectar el cambio de version).",
+    "--",
+    "CAMPOS 'tipo' y 'vigente', anadidos el 2026-08-30 para la LINEA BASE del mapa.",
+    "  - 'tipo': 'trans' (ley especifica de identidad/expresion de genero) o 'lgtbi' (ley LGTBI",
+    "    integral). Solo en las 20 autonomicas: las estatales no se pintan en el mapa y",
+    "    clasificarlas anadiria riesgo de error sin usarlo nadie. NO se deduce del titulo con una",
+    "    expresion regular: se escribe a mano leyendo el titulo OFICIAL de cada una, porque",
+    "    'transgenero' aparece dentro de casi todas las LGTBI integrales y un regex las cruzaria.",
+    "  - 'vigente': solo aparece cuando es FALSE. Hoy una: la Ley 14/2012 vasca, derogada por la",
+    "    4/2024 y mantenida a proposito para no perder el rastro historico. SIN ESTE CAMPO LA LINEA",
+    "    BASE MENTIRIA: diria que Euskadi tiene una ley que ya no existe. Una norma derogada se",
+    "    sigue vigilando y NO cuenta como marco vigente; son dos cosas distintas.",
+    "--",
+    "LA 'version' NO SUBE POR ESTOS DOS CAMPOS, y es deliberado. Subirla hace que TODAS las normas",
+    "vuelvan a la cola del prefiltro (`Norma.prefiltro_version_watchlist != version` en",
+    "services/prefiltro.py): hoy son ~78.000, horas de trabajo. Y no cambiaria ni un resultado,",
+    "porque ni el eje referencial ni las reglas miran 'tipo' ni 'vigente' — el indice de la",
+    "watchlist se construye solo con los identificadores. Se sube cuando cambia QUE se vigila, no",
+    "cuando se anade una descripcion de lo ya vigilado. Mismo criterio que VERSION_TEXTO_PLANO en",
+    "pipeline/texto.py."
   ],
   "_como_funciona": [
     "Eje 2 del prefiltro (CLAUDE.md 7.3). Cualquier disposicion que MODIFIQUE o DEROGUE una de",
@@ -89,121 +108,142 @@
       "identificador": "BOE-A-2018-1549",
       "ambito": "AN",
       "titulo": "Ley 8/2017, de 28 de diciembre, para garantizar los derechos, la igualdad de trato y no discriminacion de las personas LGTBI y sus familiares en Andalucia",
-      "nota": "Andalucia. Ojo al desfase: Ley 8/2017 con identificador de 2018. Verificada el 2026-08-08."
+      "nota": "Andalucia. Ojo al desfase: Ley 8/2017 con identificador de 2018. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2019-2712",
       "ambito": "AR",
       "titulo": "Ley 18/2018, de 20 de diciembre, de igualdad y proteccion integral contra la discriminacion por razon de orientacion sexual, expresion e identidad de genero en la Comunidad Autonoma de Aragon",
-      "nota": "Aragon. Mismo desfase de ano: Ley 18/2018, identificador de 2019. Verificada el 2026-08-08."
+      "nota": "Aragon. Mismo desfase de ano: Ley 18/2018, identificador de 2019. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2016-6310",
       "ambito": "IB",
       "titulo": "Ley 8/2016, de 30 de mayo, para garantizar los derechos de lesbianas, gays, trans, bisexuales e intersexuales y para erradicar la LGTBI fobia (Illes Balears)",
-      "nota": "Illes Balears. Cuidado: hay DOS leyes 8/2016 en esta lista, esta y la de Murcia, aprobadas con tres dias de diferencia. Por eso se vigila por identificador y nunca por numero de ley. Verificada el 2026-08-08."
+      "nota": "Illes Balears. Cuidado: hay DOS leyes 8/2016 en esta lista, esta y la de Murcia, aprobadas con tres dias de diferencia. Por eso se vigila por identificador y nunca por numero de ley. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2021-11382",
       "ambito": "CN",
       "titulo": "Ley 2/2021, de 7 de junio, de igualdad social y no discriminacion por razon de identidad de genero, expresion de genero y caracteristicas sexuales (Canarias)",
-      "nota": "Canarias. Verificada el 2026-08-08."
+      "nota": "Canarias. Verificada el 2026-08-08.",
+      "tipo": "trans"
     },
     {
       "identificador": "BOE-A-2020-15880",
       "ambito": "CB",
       "titulo": "Ley 8/2020, de 11 de noviembre, de Garantia de Derechos de las Personas Lesbianas, Gais, Trans, Transgenero, Bisexuales e Intersexuales y No Discriminacion por Razon de Orientacion Sexual e Identidad de Genero (Cantabria)",
-      "nota": "Cantabria. Prohibe expresamente las terapias de conversion, que es uno de los puntos donde mas se ha intentado retroceder. Verificada el 2026-08-08."
+      "nota": "Cantabria. Prohibe expresamente las terapias de conversion, que es uno de los puntos donde mas se ha intentado retroceder. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2022-12291",
       "ambito": "CM",
       "titulo": "Ley 5/2022, de 6 de mayo, de Diversidad Sexual y Derechos LGTBI en Castilla-La Mancha",
-      "nota": "Castilla-La Mancha. Verificada el 2026-08-08."
+      "nota": "Castilla-La Mancha. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2014-8608",
       "ambito": "AN",
       "titulo": "Ley 2/2014, de 8 de julio, integral para la no discriminacion por motivos de identidad de genero y reconocimiento de los derechos de las personas transexuales de Andalucia",
-      "nota": "Andalucia, ley trans. Verificada contra el BOE el 2026-08-20. FALTABA: esta comunidad tiene DOS leyes -una trans y otra LGTBI- y la lista solo recogia una. Lo encontro el jurista-lgtbi al contrastar la watchlist con las fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistia). La ley trans es siempre la mitad mas expuesta del par."
+      "nota": "Andalucia, ley trans. Verificada contra el BOE el 2026-08-20. FALTABA: esta comunidad tiene DOS leyes -una trans y otra LGTBI- y la lista solo recogia una. Lo encontro el jurista-lgtbi al contrastar la watchlist con las fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistia). La ley trans es siempre la mitad mas expuesta del par.",
+      "tipo": "trans"
     },
     {
       "identificador": "BOE-A-2018-7154",
       "ambito": "AR",
       "titulo": "Ley 4/2018, de 19 de abril, de Identidad y Expresion de Genero e Igualdad Social y no Discriminacion de Aragon",
-      "nota": "Aragon, ley trans. Verificada contra el BOE el 2026-08-20. FALTABA: esta comunidad tiene DOS leyes -una trans y otra LGTBI- y la lista solo recogia una. Lo encontro el jurista-lgtbi al contrastar la watchlist con las fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistia). La ley trans es siempre la mitad mas expuesta del par. Y es el caso vivo: en marzo de 2025 hubo un intento de derogarla en las Cortes de Aragon. Sin esta entrada, una norma que la modificara no disparaba el eje referencial."
+      "nota": "Aragon, ley trans. Verificada contra el BOE el 2026-08-20. FALTABA: esta comunidad tiene DOS leyes -una trans y otra LGTBI- y la lista solo recogia una. Lo encontro el jurista-lgtbi al contrastar la watchlist con las fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistia). La ley trans es siempre la mitad mas expuesta del par. Y es el caso vivo: en marzo de 2025 hubo un intento de derogarla en las Cortes de Aragon. Sin esta entrada, una norma que la modificara no disparaba el eje referencial.",
+      "tipo": "trans"
     },
     {
       "identificador": "BOE-A-2017-5118",
       "ambito": "VC",
       "titulo": "Ley 8/2017, de 7 de abril, integral del reconocimiento del derecho a la identidad y a la expresion de genero de la Comunitat Valenciana",
-      "nota": "Comunitat Valenciana, ley trans. Verificada contra el BOE el 2026-08-20. FALTABA: esta comunidad tiene DOS leyes -una trans y otra LGTBI- y la lista solo recogia una. Lo encontro el jurista-lgtbi al contrastar la watchlist con las fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistia). La ley trans es siempre la mitad mas expuesta del par. Correccion de errores en BOE-A-2017-7173, no anotada aqui porque la watchlist vigila la norma, no sus erratas."
+      "nota": "Comunitat Valenciana, ley trans. Verificada contra el BOE el 2026-08-20. FALTABA: esta comunidad tiene DOS leyes -una trans y otra LGTBI- y la lista solo recogia una. Lo encontro el jurista-lgtbi al contrastar la watchlist con las fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistia). La ley trans es siempre la mitad mas expuesta del par. Correccion de errores en BOE-A-2017-7173, no anotada aqui porque la watchlist vigila la norma, no sus erratas.",
+      "tipo": "trans"
     },
     {
       "identificador": "BOE-A-2014-11990",
       "ambito": "CT",
       "titulo": "Ley 11/2014, de 10 de octubre, para garantizar los derechos de lesbianas, gays, bisexuales, transgeneros e intersexuales y para erradicar la homofobia, la bifobia y la transfobia (Catalunya)",
-      "nota": "Catalunya. Una de las mas citadas como modelo, y por eso una de las mas expuestas. Verificada el 2026-08-08."
+      "nota": "Catalunya. Una de las mas citadas como modelo, y por eso una de las mas expuestas. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2019-281",
       "ambito": "VC",
       "titulo": "Ley 23/2018, de 29 de noviembre, de igualdad de las personas LGTBI (Comunitat Valenciana)",
-      "nota": "Comunitat Valenciana. Tercer caso de desfase de ano: Ley 23/2018, identificador de 2019. Verificada el 2026-08-08."
+      "nota": "Comunitat Valenciana. Tercer caso de desfase de ano: Ley 23/2018, identificador de 2019. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2015-5015",
       "ambito": "EX",
       "titulo": "Ley 12/2015, de 8 de abril, de igualdad social de lesbianas, gais, bisexuales, transexuales, transgenero e intersexuales y de politicas publicas contra la discriminacion por orientacion sexual e identidad de genero en la Comunidad Autonoma de Extremadura",
-      "nota": "Extremadura. Verificada el 2026-08-08."
+      "nota": "Extremadura. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2014-5488",
       "ambito": "GA",
       "titulo": "Ley 2/2014, de 14 de abril, por la igualdad de trato y la no discriminacion de lesbianas, gays, transexuales, bisexuales e intersexuales en Galicia",
-      "nota": "Galicia. Verificada el 2026-08-08."
+      "nota": "Galicia. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2016-6728",
       "ambito": "MD",
       "titulo": "Ley 2/2016, de 29 de marzo, de Identidad y Expresion de Genero e Igualdad Social y no Discriminacion de la Comunidad de Madrid",
-      "nota": "Madrid. LA MAS IMPORTANTE DE LA LISTA despues de la estatal: es la unica con una reforma restrictiva ya consumada (Ley 17/2023, BOE-A-2024-10767), que es el caso que CLAUDE.md 7.8 pide para el gold set y que ya esta en tests/gold_set/casos/. Verificada el 2026-08-08."
+      "nota": "Madrid. LA MAS IMPORTANTE DE LA LISTA despues de la estatal: es la unica con una reforma restrictiva ya consumada (Ley 17/2023, BOE-A-2024-10767), que es el caso que CLAUDE.md 7.8 pide para el gold set y que ya esta en tests/gold_set/casos/. Verificada el 2026-08-08.",
+      "tipo": "trans"
     },
     {
       "identificador": "BOE-A-2016-11096",
       "ambito": "MD",
       "titulo": "Ley 3/2016, de 22 de julio, de Proteccion Integral contra LGTBIfobia y la Discriminacion por Razon de Orientacion e Identidad Sexual en la Comunidad de Madrid",
-      "nota": "Madrid. La companera de la 2/2016; tambien reformada en 2023. Verificada el 2026-08-08."
+      "nota": "Madrid. La companera de la 2/2016; tambien reformada en 2023. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2016-6170",
       "ambito": "MC",
       "titulo": "Ley 8/2016, de 27 de mayo, de igualdad social de lesbianas, gais, bisexuales, transexuales, transgenero e intersexuales, y de politicas publicas contra la discriminacion por orientacion sexual e identidad de genero en la Region de Murcia",
-      "nota": "Murcia. La otra 'Ley 8/2016'; ver la nota de Illes Balears. Verificada el 2026-08-08."
+      "nota": "Murcia. La otra 'Ley 8/2016'; ver la nota de Illes Balears. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2017-8527",
       "ambito": "NC",
       "titulo": "Ley Foral 8/2017, de 19 de junio, para la igualdad social de las personas LGTBI+ (Navarra)",
-      "nota": "Navarra. Es 'Ley Foral' por el regimen foral, pero su identificador en el BOE es un BOE-A normal. Verificada el 2026-08-08."
+      "nota": "Navarra. Es 'Ley Foral' por el regimen foral, pero su identificador en el BOE es un BOE-A normal. Verificada el 2026-08-08.",
+      "tipo": "lgtbi"
     },
     {
       "identificador": "BOE-A-2024-4867",
       "ambito": "PV",
       "titulo": "Ley 4/2024, de 15 de febrero, de no discriminacion por motivos de identidad de genero y de reconocimiento de los derechos de las personas trans (Euskadi)",
-      "nota": "Euskadi. Es la VIGENTE: derogo a la Ley 14/2012. Verificada el 2026-08-08."
+      "nota": "Euskadi. Es la VIGENTE: derogo a la Ley 14/2012. Verificada el 2026-08-08.",
+      "tipo": "trans"
     },
     {
       "identificador": "BOE-A-2012-9664",
       "ambito": "PV",
       "titulo": "Ley 14/2012, de 28 de junio, de no discriminacion por motivos de identidad de genero y de reconocimiento de los derechos de las personas transexuales (Euskadi)",
-      "nota": "Euskadi. DEROGADA por la Ley 4/2024. Se mantiene vigilada a proposito: una norma derogada sigue apareciendo en las referencias de las que la citan o la reforman, y perder ese rastro seria perder el historico. No cuesta nada tenerla."
+      "nota": "Euskadi. DEROGADA por la Ley 4/2024. Se mantiene vigilada a proposito: una norma derogada sigue apareciendo en las referencias de las que la citan o la reforman, y perder ese rastro seria perder el historico. No cuesta nada tenerla.",
+      "tipo": "trans",
+      "vigente": false
     },
     {
       "identificador": "BOE-A-2022-3601",
       "ambito": "RI",
       "titulo": "Ley 2/2022, de 23 de febrero, de igualdad, reconocimiento a la identidad y expresion de genero y derechos de las personas trans y sus familiares en la Comunidad Autonoma de La Rioja",
-      "nota": "La Rioja. Verificada el 2026-08-08."
+      "nota": "La Rioja. Verificada el 2026-08-08.",
+      "tipo": "trans"
     },
     {
       "identificador": "BOE-A-2022-11589",

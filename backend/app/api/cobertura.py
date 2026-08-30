@@ -23,7 +23,7 @@ from app.models.documento import Documento, TipoDocumento
 from app.models.fuente import Fuente
 from app.models.norma import EstadoPrefiltro, Norma
 from app.pipeline import watchlist
-from app.schemas.cobertura import Cobertura, CoberturaCcaa, CoberturaNivel
+from app.schemas.cobertura import Cobertura, CoberturaCcaa, CoberturaNivel, LeyVigente
 
 router = APIRouter(prefix="/api", tags=["cobertura"])
 
@@ -161,7 +161,18 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
 
     # Qué comunidades no tienen ley autonómica que vigilar. El dato ya estaba verificado en la
     # watchlist y no llegaba a ninguna pantalla; ver la nota del campo en el esquema.
-    sin_ley = watchlist.watchlist().sin_ley
+    lista = watchlist.watchlist()
+    sin_ley = lista.sin_ley
+
+    # Línea base por comunidad: las leyes autonómicas **en vigor**. Las derogadas se siguen
+    # vigilando —no se pierde el rastro histórico— pero no son marco vigente.
+    leyes: dict[str, list[LeyVigente]] = {}
+    for norma in lista.normas:
+        if norma.ambito in ("", "estatal") or not norma.vigente:
+            continue
+        leyes.setdefault(norma.ambito, []).append(
+            LeyVigente(identificador=norma.identificador, titulo=norma.titulo, tipo=norma.tipo)
+        )
 
     # **Una comunidad sin ley autonómica tiene que salir aunque no tenga ninguna fuente
     # registrada.** `por_ccaa` se construye desde las filas de `fuente`, y las uniprovinciales no
@@ -171,7 +182,9 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
     #
     # No altera los totales: `conocidas_total` y `vigiladas_total` se suman de la consulta, no
     # de este diccionario.
-    for codigo in sin_ley:
+    # Una comunidad con ley pero sin fuente registrada tampoco puede faltar: su marco es un
+    # hecho, lo vigilemos o no. Mismo motivo que la vuelta de `sin_ley` de abajo.
+    for codigo in list(sin_ley) + list(leyes):
         por_ccaa.setdefault(
             codigo,
             CoberturaCcaa(
@@ -192,6 +205,7 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
     for codigo, entrada in por_ccaa.items():
         entrada.niveles.sort(key=lambda nivel: nivel.ambito)
         entrada.sin_ley_autonomica = sin_ley.get(codigo)
+        entrada.leyes_vigentes = sorted(leyes.get(codigo, []), key=lambda ley: ley.identificador)
 
     # Los sumarios, que es lo que `GET /api/documentos` lista y lo que la portada llama
     # «documentos archivados». Los cuerpos y los consolidados no se cuentan aquí por lo mismo que

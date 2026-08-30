@@ -194,6 +194,14 @@ export interface CoberturaNivelApi {
   vigiladas: number;
 }
 
+/** Una ley autonómica en vigor de la watchlist, auditada contra boe.es. */
+export interface LeyVigenteApi {
+  identificador: string;
+  titulo: string;
+  /** "trans" (identidad/expresión de género) o "lgtbi" (ley LGTBI integral). */
+  tipo: string;
+}
+
 export interface CoberturaCcaaApi {
   ccaa_codigo: string;
   ccaa: string;
@@ -223,6 +231,8 @@ export interface CoberturaCcaaApi {
    * Sale de `_sin_ley_autonomica` de la watchlist. Hoy son dos: Asturias y Castilla y León.
    */
   sin_ley_autonomica: string | null;
+  /** Leyes autonómicas **en vigor** de esta comunidad. Las derogadas no salen. */
+  leyes_vigentes: LeyVigenteApi[];
 }
 
 export interface CoberturaApi {
