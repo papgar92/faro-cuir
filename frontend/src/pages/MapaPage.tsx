@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { listarAlertas, obtenerCobertura } from "../api/client";
 import { useRecurso } from "../api/useRecurso";
 import { ClassificationBadge } from "../components/ClassificationBadge/ClassificationBadge";
@@ -8,13 +8,24 @@ import { Manifiesto } from "../components/Manifiesto/Manifiesto";
 import { RegionDetailPanel } from "../components/RegionDetailPanel/RegionDetailPanel";
 import { TopAlertsRanking } from "../components/TopAlertsRanking/TopAlertsRanking";
 import { ESTADO_MAPA_META, type EstadoMapa } from "../lib/classification";
-import { alertasEstatales, construirRegiones } from "../lib/mapa";
+import { CoberturaTotal } from "../components/CoberturaTotal/CoberturaTotal";
+import { PanelEstatal } from "../components/PanelEstatal/PanelEstatal";
+import {
+  categoriaMarco,
+  construirRegiones,
+  MARCO_ETIQUETA,
+  resumenEstatal,
+  type VistaMapa,
+} from "../lib/mapa";
+import { escribirUrl } from "../lib/navigation";
 
 const ESTADOS_LEYENDA = Object.keys(ESTADO_MAPA_META) as EstadoMapa[];
 
 interface MapaPageProps {
   onGoArchivo: () => void;
   onGoTimeline: (comunidad?: string) => void;
+  /** Comunidad que venía en la URL (`?ccaa=CT`). Se usa como selección inicial. */
+  ccaaInicial?: string;
 }
 
 /**
@@ -31,10 +42,24 @@ interface MapaPageProps {
  * tranquilidad. Por eso hay tres categorías y dos de ellas no son un color, sino trama: una para
  * «vigilada, sin alertas aprobadas» y otra para «sin fuente vigilada». Ver `lib/mapa.ts`.
  */
-export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
+export function MapaPage({ onGoArchivo, onGoTimeline, ccaaInicial }: MapaPageProps) {
+  // Arranca en `marco` a propósito. `cambios` solo pinta las alertas aprobadas y el ADR 0027
+  // midió que eso son ~5 casos al año: quien entra por primera vez se encontraba un mapa casi
+  // vacío que se lee como «no pasa nada» cuando lo que dice es «no ha cambiado nada». La línea
+  // base contesta antes la pregunta que trae la gente —qué hay en mi comunidad— y deja el
+  // movimiento para quien lo busque.
+  const [vista, setVista] = useState<VistaMapa>("marco");
   const [hover, setHover] = useState<string | null>(null);
-  const [pinned, setPinned] = useState<string | null>(null);
+  const [pinned, setPinned] = useState<string | null>(ccaaInicial ?? null);
   const activeCode = hover ?? pinned;
+
+  // La comunidad FIJADA va a la URL; la del ratón no. Es la distinción que hace que el enlace
+  // sirva para algo: `?ccaa=CT` significa «alguien eligió Catalunya», no «el cursor pasó por
+  // encima». Escribir el hover llenaría la barra de direcciones de ruido y, con `replaceState`,
+  // dejaría la última comunidad rozada como si fuera la elegida.
+  useEffect(() => {
+    escribirUrl({ screen: "mapa", ccaa: pinned ?? undefined });
+  }, [pinned]);
   // Las dos peticiones que sostienen el mapa. Van juntas y a la vez: la cobertura dice dónde se
   // mira y las alertas qué ha salido, y ninguna de las dos por sí sola permite pintar sin mentir.
   const coberturaEstado = useRecurso((signal) => obtenerCobertura(signal), []);
@@ -48,7 +73,7 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
     coberturaEstado.fase === "listo" ? coberturaEstado.datos : undefined,
   );
   const activeRegion = activeCode ? (regiones[activeCode] ?? null) : null;
-  const estatales = alertasEstatales(alertasEstado.fase === "listo" ? alertasEstado.datos : []);
+  const estatal = resumenEstatal(alertasEstado.fase === "listo" ? alertasEstado.datos : []);
   // Territorio dibujado en el mapa del que no hay ninguna fila. Hoy son Ceuta y
   // Melilla. Sin esta rama, pulsarlas no hacía absolutamente nada y quedaba como
   // un fallo de la interfaz en vez de como lo que es: un hueco de cobertura.
@@ -72,31 +97,112 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
             <h2 className="font-serif text-2xl font-bold tracking-tight text-ink">
               Estado de los derechos por comunidad autónoma
             </h2>
-            <span className="text-xs text-ink-3">Ventana de evaluación: últimos 90 días</span>
+            <div className="flex items-center gap-2" role="group" aria-label="Qué pinta el mapa">
+              {(
+                [
+                  ["marco", "Marco normativo"],
+                  ["cambios", "Cambios detectados"],
+                ] as const
+              ).map(([valor, texto]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  onClick={() => setVista(valor)}
+                  aria-pressed={vista === valor}
+                  className={`rounded border px-2.5 py-1 text-xs transition-colors ${
+                    vista === valor
+                      ? "border-line-2 bg-surface-2 font-medium text-ink"
+                      : "border-line bg-surface text-ink-2 hover:text-ink"
+                  }`}
+                >
+                  {texto}
+                </button>
+              ))}
+            </div>
+            {/* **Aquí ponía «Ventana de evaluación: últimos 90 días» y era falso.** Herencia de
+                los datos de maqueta: ni este componente ni `construirRegiones` ni
+                `GET /api/cobertura` filtran por fecha en ningún punto — se agregan TODAS las
+                alertas aprobadas. Con una ventana real de 90 días el mapa hoy estaría vacío,
+                porque las alertas que hay son de publicaciones de 2024.
+                Encontrado el 2026-08-29 al preguntar el humano qué ventana se estaba usando.
+                Un archivo de vigilancia no debe olvidar; lo que no puede es decir que olvida. */}
+            <span className="text-xs text-ink-3">
+              {vista === "marco"
+                ? "Marco vigente; las derogadas no cuentan"
+                : "Todas las alertas aprobadas, sin límite de fecha"}
+            </span>
           </div>
           <p className="mt-2 max-w-[64ch] text-sm text-ink-2">
-            Clasificación derivada de los cambios normativos detectados y validados. Pasa el cursor o
-            pulsa una comunidad para ver su resumen. Cada comunidad enlaza a sus alertas y a la fuente
-            oficial.
+            {vista === "marco"
+              ? "Qué ley protectora existe hoy en cada comunidad, según la lista de normas vigiladas, auditada una a una contra el BOE. Es la línea base: enumera lo que hay, no lo puntúa. Los cambios sobre ella están en la otra vista."
+              : "Clasificación derivada de los cambios normativos detectados y validados. Pasa el cursor o pulsa una comunidad para ver su resumen. Cada comunidad enlaza a sus alertas y a la fuente oficial."}
           </p>
 
+          {/* Leyenda de la LÍNEA BASE. Dice qué existe en cada comunidad, con su identificador
+              del BOE detrás; no puntúa ni ordena. «Solo ley trans» y «solo ley LGTBI» comparten
+              claridad porque son dos ámbitos distintos, no dos peldaños. */}
+          {vista === "marco" && (
+            <div className="mt-4 flex flex-wrap items-center gap-4 rounded border border-line bg-inset p-3">
+              {(
+                [
+                  ["ambas", "var(--color-marco-2)"],
+                  ["lgtbi", "var(--color-marco-1)"],
+                  [
+                    "trans",
+                    "repeating-linear-gradient(45deg, var(--color-marco-linea) 0 1.6px, var(--color-marco-1) 1.6px 6px)",
+                  ],
+                  [
+                    "ninguna",
+                    "radial-gradient(var(--color-line-2) 1px, var(--color-surface-2) 1px)",
+                  ],
+                ] as const
+              ).map(([clave, fondo]) => (
+                <span key={clave} className="flex items-center gap-1.5 text-xs text-ink-2">
+                  <span
+                    aria-hidden="true"
+                    className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
+                    style={
+                      fondo.startsWith("var")
+                        ? { background: fondo }
+                        : { backgroundImage: fondo, backgroundSize: "6px 6px" }
+                    }
+                  />
+                  {MARCO_ETIQUETA[clave]}
+                </span>
+              ))}
+              <span className="ml-auto font-mono text-xs text-ink-3">
+                auditado contra boe.es, una a una
+              </span>
+            </div>
+          )}
+
+          {vista === "cambios" && (
           <div className="mt-4 flex flex-wrap items-center gap-4 rounded border border-line bg-inset p-3">
             {ESTADOS_LEYENDA.map((estado) => (
               <ClassificationBadge key={estado} meta={ESTADO_MAPA_META[estado]} />
             ))}
             {/* Ceuta y Melilla se dibujan pero no tienen fuente en docs/fuentes.md.
                 Un gris igual al de "estable" diría que se han mirado y están bien. */}
+            {/* La trama densa dejó de ser una sola: ahora tiene tres pasos por deuda de
+                cobertura, y la leyenda tiene que enseñar los tres o el degradado del mapa no se
+                puede leer. El orden va de menos a más, como se lee. */}
             <span className="flex items-center gap-1.5 text-xs text-ink-2">
-              <span
-                aria-hidden="true"
-                className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
-                style={{
-                  // Misma trama que el patrón SVG del mapa, con los mismos tokens.
-                  backgroundImage:
-                    "repeating-linear-gradient(45deg, var(--color-line-2) 0 1.4px, var(--color-surface-2) 1.4px 5px)",
-                }}
-              />
-              Sin fuente vigilada
+              <span className="flex gap-0.5" aria-hidden="true">
+                {[
+                  { sep: "7px", grosor: "1px" },
+                  { sep: "5px", grosor: "1.4px" },
+                  { sep: "3.4px", grosor: "1.6px" },
+                ].map((paso) => (
+                  <span
+                    key={paso.sep}
+                    className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
+                    style={{
+                      backgroundImage: `repeating-linear-gradient(45deg, var(--color-line-2) 0 ${paso.grosor}, var(--color-surface-2) ${paso.grosor} ${paso.sep})`,
+                    }}
+                  />
+                ))}
+              </span>
+              Sin vigilar — 1-2 · 3-5 · 6+ boletines pendientes
             </span>
             {/* La categoría que evita la mentira más fácil de este mapa: aquí SÍ se mira y no
                 ha salido nada aprobado. No es «estable». */}
@@ -111,42 +217,29 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
               />
               Vigilada, sin alertas
             </span>
+            {/* El quinto estado, y el único que no habla de nuestra cobertura sino del
+                territorio: aquí no hay ley autonómica que vigilar. Enunciado como hecho y no
+                como valoración — el mapa no dice si eso está bien o mal (regla de oro 2). */}
+            <span className="flex items-center gap-1.5 text-xs text-ink-2">
+              <span
+                aria-hidden="true"
+                className="inline-block h-3 w-3 rounded-[2px] border border-line-2"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(var(--color-line-2) 1px, var(--color-surface-2) 1px)",
+                  backgroundSize: "6px 6px",
+                }}
+              />
+              Sin ley autonómica LGTBI
+            </span>
             <span className="ml-auto font-mono text-xs text-ink-3">color + símbolo + texto</span>
           </div>
+          )}
 
-          {/* Lo que el mapa no puede pintar sin mentir: una norma estatal afecta a las
-              diecisiete comunidades. Pintarlas todas diría que hay diecisiete cambios cuando hay
-              uno; pintar una sola sería falso. Va fuera de la geometría, con su recuento. */}
-          <div className="mt-4 rounded border border-line bg-inset p-3">
-            <p className="text-sm leading-relaxed text-ink-2">
-              <strong className="font-semibold text-ink">Ámbito estatal:</strong>{" "}
-              {estatales.length === 0 ? (
-                <>ninguna alerta aprobada todavía. Afectarían a todo el territorio.</>
-              ) : (
-                <>
-                  {estatales.length} alerta{estatales.length === 1 ? "" : "s"} aprobada
-                  {estatales.length === 1 ? "" : "s"} sobre normativa estatal, que{" "}
-                  <strong className="font-semibold text-ink">afecta a las diecisiete
-                  comunidades</strong> y por eso no se pinta en el mapa: colorearlas todas diría
-                  que hay diecisiete cambios cuando hay uno.
-                </>
-              )}
-            </p>
-            {estatales.length > 0 && (
-              <ul className="mt-2 flex list-none flex-col gap-1 p-0">
-                {estatales.slice(0, 3).map((alerta) => (
-                  <li key={alerta.id} className="text-xs leading-snug text-ink-2">
-                    <span className="font-mono text-[11px] text-ink-3">
-                      {alerta.norma.identificador_oficial}
-                    </span>{" "}
-                    {alerta.norma.titulo}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <PanelEstatal resumen={estatal} onVerAlertas={() => onGoTimeline()} />
 
           <MapaCCAA
+            vista={vista}
             regions={regiones}
             activeCode={activeCode}
             onEnter={setHover}
@@ -193,7 +286,15 @@ export function MapaPage({ onGoArchivo, onGoTimeline }: MapaPageProps) {
               </p>
             </div>
           ) : (
-            <TopAlertsRanking regions={regiones} />
+            // En reposo el `aside` enseñaba solo un ranking de 3 filas, que con 3 comunidades no
+            // ordena nada. Debajo va el dato que de verdad explica la pantalla: 2 fuentes de 45.
+            <>
+              <TopAlertsRanking regions={regiones} />
+              <CoberturaTotal
+                cobertura={coberturaEstado.fase === "listo" ? coberturaEstado.datos : undefined}
+                onGoArchivo={onGoArchivo}
+              />
+            </>
           )}
         </aside>
       </div>

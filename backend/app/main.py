@@ -8,6 +8,7 @@ from app.api.alertas import router as alertas_router
 from app.api.cobertura import router as cobertura_router
 from app.api.documentos import router as documentos_router
 from app.api.feed import router as feed_router
+from app.api.hallazgos import router as hallazgos_router
 from app.api.health import router as health_router
 from app.api.revision import router as revision_router
 from app.config import get_settings
@@ -49,6 +50,11 @@ app.include_router(alertas_router)
 # después de las alertas porque es el mismo dato con otra piel — y comparte la consulta, que es
 # donde vive el control de que solo salga lo aprobado.
 app.include_router(feed_router)
+# Los hallazgos históricos (ADR 0025, decisiones 3 y 4): cambios que el archivo prueba y que
+# **nadie ha revisado**, publicables solo porque una organización con nombre ya los documentó.
+# Router aparte del de alertas a propósito: son dos superficies que afirman cosas distintas, y
+# fundirlas en una ruta con un parámetro dejaría la diferencia en manos de una etiqueta.
+app.include_router(hallazgos_router)
 # El panel de revisión (gate humano, regla de oro 4): la única parte de la API que escribe y la
 # única con autenticación. Va detrás de los mismos dos middlewares que todo lo demás — el
 # limitador de peticiones también cuenta los intentos de login, además de la cadencia propia

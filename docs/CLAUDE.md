@@ -5,13 +5,11 @@
 >
 > **Aquí están las reglas; en [`ESTADO.md`](ESTADO.md) está dónde estamos** (la sección 11:
 > qué se hizo, qué toca, y cuánto contexto cuesta cada tarea pendiente). Al empezar, lee los
-> dos; al cerrar un trabajo, actualiza `ESTADO.md`. Se separaron el 2026-08-09 porque este
-> fichero entra entero en el contexto de **cada subagente** y el historial de estado era el
-> 54 % de sus 124 KB — 17.000 tokens por agente en algo que ningún agente lee.
+> dos; al cerrar un trabajo, actualiza `ESTADO.md`.
 >
-> **Mantén este fichero por debajo de ~55 KB.** No es estética: es el coste fijo de arrancar
-> cualquier trabajo. Si crece, lo que sobra casi siempre es historial, y el historial va a
-> `ESTADO.md`.
+> **Mantén este fichero por debajo de ~55 KB.** No es estética: entra entero en el contexto de
+> **cada subagente**, así que es el coste fijo de arrancar cualquier trabajo. Si crece, lo que
+> sobra casi siempre es historial, y el historial va a `ESTADO.md`.
 
 <!--
 REVISIÓN 2026-08-07 — qué cambia respecto de la versión anterior y por qué.
@@ -38,18 +36,17 @@ etiquetar 150-200 documentos a mano, o se etiquetan dos veces. Ver "EMPIEZA AQU�
 **Tienes poder total de decisión. Pregunta lo mínimo y pide recursos lo mínimo.**
 
 - **Decide tú** cualquier cosa reversible: diseño, librerías, estructura, nombres, orden del
-  trabajo, qué verificar y cómo. No propongas un plan y esperes el OK salvo que el trabajo
-  sea grande o cambie el rumbo del proyecto; para lo demás, hazlo y cuéntalo al terminar.
+  trabajo, qué verificar y cómo. No propongas un plan y esperes el OK salvo que el trabajo sea
+  grande o cambie el rumbo; para lo demás, hazlo y cuéntalo al terminar.
 - **Elige siempre la opción de coste 0 €** y la que exija menos cosas que conseguir (claves,
-  cuentas, servicios de terceros, instalaciones). Si una decisión ahorra una clave de API a
-  cambio de algo de calidad, ahorra la clave. Ver ADR 0008.
-- **Para y pregunta solo en cuatro casos:** algo cuesta dinero; hace falta una credencial o
-  una cuenta que no existe; es una acción externa e irreversible (sección 12: publicar en
-  redes, contactar con asociaciones, subir el repo); o contradice algo de este archivo.
+  cuentas, servicios de terceros). Si ahorra una clave de API a cambio de algo de calidad, ahorra
+  la clave (ADR 0008).
+- **Para y pregunta solo en cuatro casos:** cuesta dinero; hace falta una credencial o cuenta que
+  no existe; es una acción externa e irreversible (sección 12); o contradice algo de este archivo.
 - Cuando decidas algo no obvio, **déjalo escrito** (ADR si es arquitectura, comentario si es
   local) y avisa al terminar. Autonomía no es silencio: es no interrumpir.
-- Si te falta un dato para decidir, **mira antes de preguntar** (el repo, la máquina, la API
-  real). Preguntar algo que podías haber comprobado tú cuesta más que comprobarlo.
+- Si te falta un dato, **mira antes de preguntar** (el repo, la máquina, la API real). Preguntar
+  algo que podías comprobar cuesta más que comprobarlo.
 
 ---
 
@@ -84,10 +81,10 @@ afecten a los derechos del colectivo LGTBI+, con foco especial en las personas t
 - **Autonómico:** 17 boletines/diarios oficiales.
 - **Local:** **43 Boletines Oficiales de la Provincia** (ADR 0014, decidido el 2026-08-08).
 
-**61 fuentes en total.** La capa local se vigila por el BOP y no municipio a municipio porque
-una ordenanza municipal **no entra en vigor si no se publica íntegra en el BOP** (Ley 5/2002,
-`BOE-A-2002-6467`): el municipio no es una fuente, es un emisor que publica en la fuente
-provincial. Eso convierte 8.131 municipios en 43 boletines. Ver `docs/fuentes.md`.
+**61 fuentes en total.** La capa local se vigila por el BOP y no municipio a municipio porque una
+ordenanza municipal **no entra en vigor si no se publica íntegra en el BOP** (Ley 5/2002,
+`BOE-A-2002-6467`): el municipio no es una fuente, es un emisor que publica en la provincial. Eso
+convierte 8.131 municipios en 43 boletines. Ver `docs/fuentes.md`.
 
 **Registradas ≠ vigiladas:** el guardarraíl de la sección 8 (máximo 5 fuentes integradas en la
 primera iteración) sigue en pie y con 61 fuentes importa más, no menos.
@@ -148,8 +145,8 @@ Es la **práctica final de un máster de Ciberseguridad e IA**. Plazo: ~6 semana
 | Contenedores | Docker + docker-compose |
 | CI | GitHub Actions: `ruff` → `mypy` → `alembic` → `pytest` → `pip-audit` → `gitleaks` |
 
-Sin dependencias nuevas para la watchlist ni para el driver de sesiones: YAML versionado y
-bash. Coste 0 € y una cosa menos que auditar.
+Sin dependencias nuevas para la watchlist ni para el driver de sesiones. Coste 0 € y una cosa
+menos que auditar.
 
 ---
 
@@ -205,9 +202,8 @@ farocuir/                      # nombre canónico del proyecto; la carpeta local
     └── package.json
 ```
 
-`config/vocabulario.yaml` es una migración pendiente y **no urgente** del diccionario que hoy
-vive en `pipeline/prefiltro.py`; se hará cuando toque tocar el vocabulario por otra razón, no
-como trabajo propio. `VERSION_VOCABULARIO` sigue mandando en cualquier caso.
+`config/vocabulario.yaml` es una migración pendiente y **no urgente** del diccionario que hoy vive
+en `pipeline/prefiltro.py`. `VERSION_VOCABULARIO` manda en cualquier caso.
 
 ---
 
@@ -221,17 +217,14 @@ Entidades núcleo (nombres reales de tabla en snake_case):
 - **documento** — un documento crudo ingerido. `id`, `fuente_id`, `identificador_oficial`,
   `fecha_publicacion`, `url_original`, `sha256`, `sello_tiempo`, `ruta_almacen`, `estado_pipeline`,
   **`tipo`** (`sumario`|`texto_norma`|`consolidado`). El `sha256` + `sello_tiempo` forman el
-  **archivo íntegro verificable** (ver sección 6.5). **Tres clases de fila**: el sumario del día
-  y el cuerpo de cada norma (ADR 0015), más el **texto consolidado** de una norma vigilada (ADR
-  0018), que es de donde sale el texto anterior de un artículo modificado. La garantía de 6.5 se
-  implementa aquí una sola vez y por eso ninguna de las tres tiene tabla propia; `tipo` es una
-  columna y no una convención porque `GET /api/documentos` tiene que poder filtrarla — sin ella
-  listaría cientos de cuerpos al día como si fueran boletines, en silencio.
-  **`consolidado` no es un `texto_norma` más y la distinción es del ADR 0018**: `texto_norma` es
-  lo que la fuente publicó aquel día —el hecho que este archivo existe para conservar— y
-  `consolidado` es una elaboración posterior de la propia fuente, que cambia cada vez que alguien
-  modifica la norma. Confundirlos haría que el archivo dejara de poder afirmar «el día X esto
-  decía exactamente esto».
+  **archivo íntegro verificable** (ver sección 6.5). **Tres clases de fila**: el sumario del día, el cuerpo de cada norma (ADR 0015) y el **texto
+  consolidado** de una norma vigilada (ADR 0018), de donde sale el texto anterior de un artículo
+  modificado. La garantía de 6.5 se implementa aquí una sola vez, y por eso ninguna tiene tabla
+  propia; `tipo` es columna y no convención porque `GET /api/documentos` tiene que filtrarla.
+  **`consolidado` no es un `texto_norma` más** (ADR 0018): `texto_norma` es lo que la fuente
+  publicó aquel día —el hecho que este archivo conserva— y `consolidado` es una elaboración
+  posterior que cambia cada vez que alguien modifica la norma. Confundirlos haría que el archivo
+  dejara de poder afirmar «el día X esto decía exactamente esto».
 - **norma** — un ítem normativo identificado dentro de un documento. `id`, `documento_id`,
   **`documento_texto_id`** (dónde está archivado su cuerpo; NULL = cola de la fase 2),
   `titulo`, `rango` (ley|decreto|orden|instruccion|resolucion|proposicion), `organo_emisor`,
@@ -256,8 +249,8 @@ Entidades núcleo (nombres reales de tabla en snake_case):
   `webhook_url` (opcional), `ccaa_interes[]`, `token_baja_opaco`. **El canal principal no
   crea filas aquí** (ver 6.4).
 
-Regla de versionado: **nunca se sobrescribe una versión de norma**. El histórico es inmutable;
-esa inmutabilidad es parte del valor (archivo de lo que realmente se publicó).
+Regla de versionado: **nunca se sobrescribe una versión de norma**. El histórico es inmutable, y
+esa inmutabilidad es parte del valor: es el archivo de lo que realmente se publicó.
 
 ---
 
@@ -272,8 +265,12 @@ ataque principal. Trátalo así.
 - **Bombas XML / billion laughs:** límites de profundidad de anidamiento y de expansión de
   entidades. Test con payload.
 - **Zip bombs:** si algún día se descomprime algo, límite de ratio y de tamaño total.
-- **PDF:** extracción de texto solo. **Nada de OCR** (fuera de alcance, sección 8). Límite de
-  tamaño y de páginas.
+- **PDF:** extracción de la capa de texto. **El OCR deja de estar prohibido** (decisión del
+  humano, 2026-08-22) pero sigue siendo **el último recurso, nunca el primero**: se intenta la
+  capa de texto y solo si el PDF no la tiene se plantea OCR, con su propio ADR. Medido antes de
+  cambiar la regla: un PDF del DOGC trae 59 referencias de fuente, 18 bloques de texto y **cero
+  imágenes**, así que para esta fuente el OCR no hace falta. Límite de tamaño y de páginas,
+  siempre: un PDF es entrada hostil como cualquier otra.
 
 ### 6.2 SSRF en la ingesta
 El worker sigue URLs que vienen de los sumarios. Si no se validan, se convierte en tu proxy a la
@@ -298,11 +295,10 @@ Estar suscrito a alertas de derechos trans revela afinidad al colectivo. Por tan
 - Token de baja **opaco** (aleatorio), nunca derivado del email ni predecible.
 - Los suscriptores **nunca** entran en el LLM ni en logs.
 
-**Canal pull primero (ADR 0010, escrito e implementado el 2026-08-14).** El canal principal de
-difusión es *pull*: web pública + feed Atom en `GET /api/alertas.xml`. Quien quiera enterarse se
-suscribe con su lector y el sistema **no sabe quién es**. Sin lista, sin fichero, sin brecha
-posible, y desaparece medio capítulo de cumplimiento. El correo y los webhooks quedan como vías
-**secundarias y opcionales**, con doble opt-in y todo lo anterior.
+**Canal pull primero (ADR 0010).** El canal principal de difusión es *pull*: web pública + feed
+Atom en `GET /api/alertas.xml`. Quien quiera enterarse se suscribe con su lector y el sistema **no
+sabe quién es**. Sin lista, sin fichero, sin brecha posible. El correo y los webhooks quedan como
+vías **secundarias y opcionales**, con doble opt-in y todo lo anterior.
 
 **Nada de feeds personalizados ni de tokens por suscriptor**: una URL única por persona es una
 lista de suscriptores con otro nombre, y encima una que viaja en la barra de direcciones. Hay un
@@ -338,19 +334,16 @@ delimitación clara del contenido, el prompt de sistema nunca es sobreescribible
 documento, y la salida del LLM se valida contra un esquema Pydantic (si no valida, se descarta,
 no se "interpreta").
 
-Ya implementado y verificado (ver sección 11): marcas largas de delimitación, eliminación de
-esas marcas si el propio documento las contiene, y un test que **simula que la inyección
-funciona** y comprueba que la salida se descarta igual. Esa es la defensa que cuenta.
+Ya implementado: marcas largas de delimitación, eliminación de esas marcas si el propio documento
+las contiene, y un test que **simula que la inyección funciona** y comprueba que la salida se
+descarta igual. Esa es la defensa que cuenta.
 
-Añadidos por la fase 2 y el eje referencial:
-- El bloque `<analisis>` del XML del BOE (referencias a otras normas) es **entrada igual de
-  hostil** que el articulado. El eje referencial (7.3) lo parsea; los identificadores que
-  saque se validan contra formato conocido antes de compararse con la watchlist, y nunca se
-  usan para construir una URL (ver 6.10).
-- Los offsets (7.5) son también un control anti-inyección: una respuesta que afirme un texto
-  que no está en el rango que ella misma declara se descarta automáticamente. Una inyección
-  que consiga que el modelo invente contenido tiene que además acertar con las coordenadas
-  del contenido inventado en un texto que no controla.
+- El bloque `<analisis>` del BOE es **entrada igual de hostil** que el articulado. El eje
+  referencial (7.3) lo parsea; los identificadores que saque se validan contra formato conocido
+  antes de compararse con la watchlist, y nunca se usan para construir una URL (6.10).
+- Los offsets (7.5) son también control anti-inyección: una respuesta que afirme un texto que no
+  está en el rango que ella misma declara se descarta sola. Una inyección que haga inventar
+  contenido tiene además que acertar sus coordenadas en un texto que no controla.
 
 ### 6.8 Higiene general
 - Secretos solo por entorno. `.env` en `.gitignore`. `gitleaks` en CI.
@@ -368,17 +361,15 @@ el adaptador `llm/ollama.py`, no en la interfaz.
    `url_guard` con el HTTP saliente y `xml_safe` con el XML. Ningún otro módulo importa el
    cliente ni conoce la URL.
 2. **La URL de Ollama es la excepción declarada a la allowlist de `url_guard`** (ADR 0006):
-   es un destino local y fijo de configuración, no una URL que venga de una fuente. Por eso
-   mismo se valida al arrancar (host de la config, esquema y puerto esperados) y nunca se
-   compone con nada dinámico. En docker vale `host.docker.internal` vía `extra_hosts`; fuera
-   de docker, `127.0.0.1`. Ver sección 11.
+   destino local y fijo de configuración, no una URL que venga de una fuente. Se valida al
+   arrancar (host, esquema y puerto esperados) y nunca se compone con nada dinámico. En docker,
+   `host.docker.internal` vía `extra_hosts`; fuera, `127.0.0.1`.
 3. **Salida estructurada siempre.** El adaptador pasa el esquema JSON derivado del modelo
-   Pydantic (`Extraccion.model_json_schema()`) en el campo `format` de la petición, cuando el
-   backend lo soporta. **Esto es una ayuda, no el control**: el control sigue siendo la
-   validación Pydantic con `extra="forbid"`. Si la validación falla, se descarta; **un solo
-   reintento** y a la vía de fallo normal (sin fila → la norma se reintenta sola en la
-   siguiente pasada del worker). Nunca parseo de texto suelto, nunca "interpretar" una
-   respuesta inválida, nunca reintento libre en bucle.
+   Pydantic (`Extraccion.model_json_schema()`) en el campo `format`, cuando el backend lo soporta.
+   **Es una ayuda, no el control**: el control sigue siendo la validación Pydantic con
+   `extra="forbid"`. Si falla se descarta, con **un solo reintento**, y a la vía de fallo normal
+   (sin fila → la norma vuelve sola a la cola). Nunca parseo de texto suelto, nunca «interpretar»
+   una respuesta inválida, nunca reintento libre en bucle.
 4. **Determinismo.** `temperature: 0`, `top_p` fijo y `seed` fijo, **fijados dentro del
    adaptador**, no expuestos en la interfaz (la interfaz no lleva parámetros de muestreo a
    propósito, ADR 0008 y sección 11). Una extracción del mismo texto con el mismo modelo y el
@@ -389,16 +380,15 @@ el adaptador `llm/ollama.py`, no en la interfaz.
    pesos distintos con el tiempo), `seed`, `version_prompt`, hash del prompt renderizado y
    `version_normalizacion` (7.5). Sin esto una evaluación del gold set no es reproducible ni
    comparable entre sesiones.
-6. **Degradación ruidosa.** Si Ollama no responde, no hay respaldo heurístico, no hay
-   "seguimos con lo que se pueda": el worker marca el trabajo como no procesado, lo dice en
-   el log y sale con código distinto de cero. Un sistema de vigilancia que falla en silencio
-   es peor que uno que no existe, porque genera confianza infundada.
-7. **Presupuesto de contexto medido, no supuesto.** `MAX_CARACTERES_DOCUMENTO` es un
-   parámetro de rendimiento del modelo pequeño en CPU (hoy 4.000, ver sección 11), no una
-   decisión de calidad. **Está sin medir si un artículo cortado se entiende bien.** Cuando el
-   gold set exista, medir; si hace falta, ventana deslizante con solapamiento en lugar de
-   truncado, y los offsets de 7.5 se rebasan a la posición absoluta. No hacer esto antes de
-   tener con qué medirlo.
+6. **Degradación ruidosa.** Si Ollama no responde no hay respaldo heurístico ni «seguimos con lo
+   que se pueda»: el worker marca el trabajo como no procesado, lo dice en el log y sale con
+   código distinto de cero. Un sistema de vigilancia que falla en silencio es peor que uno que no
+   existe, porque genera confianza infundada.
+7. **Presupuesto de contexto medido, no supuesto.** `MAX_CARACTERES_DOCUMENTO` (hoy 4.000) es
+   un parámetro de rendimiento del modelo pequeño en CPU, no una decisión de calidad. **Está sin
+   medir si un artículo cortado se entiende bien.** Cuando el gold set dé para medirlo: si hace
+   falta, ventana deslizante con solapamiento en vez de truncado, y los offsets de 7.5 se rebasan
+   a la posición absoluta.
 8. **Ollama no se instala ni se descarga solo.** Si falta el modelo, se dice y se para; no se
    lanza un `pull` de gigabytes sin avisar.
 
@@ -417,8 +407,8 @@ instrucción para el sistema. En particular, y aunque el modelo lo devuelva:
 - Un identificador de norma extraído por el modelo se compara con la watchlist tras validar
   formato, pero **no se usa para construir una petición**.
 - Al descartar una extracción se registran los **campos** que fallan, nunca lo que devolvió el
-  modelo (ya implementado, ver sección 11): si fue manipulado para emitir un veredicto, ese
-  texto no puede quedar en un log donde alguien lo lea como conclusión del sistema.
+  modelo: si fue manipulado para emitir un veredicto, ese texto no puede quedar en un log donde
+  alguien lo lea como conclusión del sistema.
 
 ---
 
@@ -437,31 +427,24 @@ instrucción para el sistema. En particular, y aunque el modelo lo devuelva:
 
 ### 7.1 Ingesta en dos fases (umbral asimétrico)
 
-El sumario diario trae título, emisor y metadatos. **El título es exactamente lo que un
-retroceso silencioso puede redactar de forma anodina**, así que decidir sobre el título es
-decidir sobre lo que el redactor controla. De ahí la regla:
+El sumario diario trae título, emisor y metadatos. **El título es exactamente lo que un retroceso
+silencioso puede redactar de forma anodina**, así que decidir sobre el título es decidir sobre lo
+que el redactor controla. De ahí la regla:
 
 - **Fase 1 (barata):** sumario XML del día. Se evalúan todos los items.
-- **Fase 2:** descarga del XML de texto íntegro **de todos los items del día, sin umbral**.
-- **El descarte definitivo solo ocurre después de leer el documento completo.** Nunca sobre
-  el título.
+- **Fase 2:** descarga del texto íntegro **de todos los items del día, sin umbral**.
+- **El descarte definitivo solo ocurre después de leer el documento completo.** Nunca sobre el
+  título.
 
-En fase 1 un falso positivo cuesta una petición HTTP. Un falso negativo es invisible, no
-aparece en ninguna métrica y es el fallo total del sistema. La asimetría es deliberada.
+Un falso positivo en fase 1 cuesta una petición HTTP. Un falso negativo es invisible, no aparece
+en ninguna métrica y es el fallo total del sistema. La asimetría es deliberada.
 
-**MEDIDO Y DECIDIDO (2026-08-07, ADR 0011).** El umbral de la fase 2 **es cero**: se descarga
-el día entero. Los números, sobre las 436 normas de los dos días ingeridos, descargadas todas:
-un día de BOE son **~4,3 MB y ~10 s de red** (85 s de reloj con la pausa de cortesía). El
-umbral bajo candidato ahorraba 4 MB al día y **rescataba 1 de las 23 normas que el título
-descartaba y el texto íntegro dispara** (1 de las 9 con término directo). No es que el umbral
-estuviera mal calibrado: la información no está en el título.
-
-**Lo que sí es caro es el LLM:** 133,9 s por extracción medidos en esta máquina, o sea ~16 h
-de CPU si se le mandara el día entero. Por eso **el prefiltro deja de ser la puerta de la red
-y pasa a ser la puerta del LLM**, evaluándose sobre el texto íntegro; sobre el título solo
-sirve para priorizar la cola, nunca para descartar. Reproducir la medición:
-`backend/scripts/medir_fase2.py`. El `sha256` ya hace idempotente la descarga, así que
-reprocesar no duplica.
+**MEDIDO Y DECIDIDO (ADR 0011).** El umbral de la fase 2 **es cero**: se descarga el día
+entero, porque un día de BOE cuesta ~4,3 MB y ~10 s de red y la información no está en el
+título. **Lo caro es el LLM: 133,9 s por extracción**, o sea ~16 h de CPU por día completo. Por
+eso **el prefiltro deja de ser la puerta de la red y pasa a ser la puerta del LLM**, evaluándose
+sobre el texto íntegro; sobre el título solo prioriza la cola, nunca descarta. El `sha256` hace
+idempotente la descarga. Números y método en el ADR 0011 y `scripts/medir_fase2.py`.
 
 ### 7.2 Estados del prefiltro
 
@@ -475,39 +458,32 @@ reprocesar no duplica.
 | `descartada` | descartada **tras** ver el texto completo | fin |
 | `ilegible` | hay cuerpo archivado y **el pipeline no puede parsearlo** (ADR 0020) | fuera de todas las colas automáticas; trabajo para una persona |
 
-**Ojo, esto cambió con el ADR 0011 y es fácil leerlo mal:** ningún estado del prefiltro decide
-ya qué se descarga —se descarga todo— sino qué entra en el LLM y en qué orden. `sospecha` no
-es "descárgalo para mirar", es "ya está descargado y mirado, y merece un puesto en la cola".
+**Ojo, esto cambió con el ADR 0011 y es fácil leerlo mal:** ningún estado del prefiltro decide ya
+qué se descarga —se descarga todo— sino qué entra en el LLM y en qué orden. `sospecha` no es
+«descárgalo para mirar», es «ya está descargado y mirado, y merece un puesto en la cola».
 
-`pendiente` ≠ `descartada` sigue siendo regla (ya está así). Se guarda además **qué eje
-disparó** cada evaluación, no solo los términos: sin eso no se puede afinar un eje sin tocar
-los otros.
+`pendiente` ≠ `descartada` es regla. Se guarda además **qué eje disparó** cada evaluación, no solo
+los términos: sin eso no se puede afinar un eje sin tocar los otros.
 
-**`ilegible` es el único estado que no habla de la norma sino de nosotros** (ADR 0020), y las
-tres reglas que lo acompañan no son detalles de implementación:
+**`ilegible` es el único estado que no habla de la norma sino de nosotros** (ADR 0020), y sus
+tres reglas no son detalles de implementación:
 
-- **Manda por encima de cualquier señal del título**, incluso de un título lleno de vocabulario.
-  Un cuerpo ilegible apaga los **dos** ejes: el léxico queda reducido al título —que 7.1 dice
-  que no sirve para decidir— y el referencial desaparece, porque el `<analisis>` vive dentro del
-  documento que no se ha podido parsear.
-- **No es un descarte y no es fin de trayecto.** Se reintenta en cada pasada (el prefiltro deja
-  `prefiltro_version_texto` a NULL a propósito), que es lo único que recupera la norma sola si su
-  cuerpo pasa a ser legible. Y se conservan los términos del título, que son la pista para
-  priorizar la recuperación a mano.
-- **El embudo lo cuenta aparte y no se omite aunque sea cero.** Mientras vivió mezclado con
-  `pendiente`, 172 normas del DOGC —el 65 % de esa fuente— se leían como «esperando su texto
-  íntegro» con el texto ya descargado. Cualquier cifra de cobertura de una fuente va acompañada
-  de cuántas de sus normas son ilegibles, o afirma una vigilancia que no existe.
+- **Manda por encima de cualquier señal del título.** Un cuerpo ilegible apaga los **dos** ejes:
+  el léxico queda reducido al título —que 7.1 dice que no sirve para decidir— y el referencial
+  desaparece, porque el `<analisis>` vive dentro del documento que no se pudo parsear.
+- **No es un descarte ni fin de trayecto.** Se reintenta en cada pasada (`prefiltro_version_texto`
+  se deja a NULL a propósito): es lo único que recupera la norma sola si su cuerpo pasa a ser
+  legible. Se conservan los términos del título, que son la pista para priorizar el rescate a mano.
+- **El embudo lo cuenta aparte y no se omite aunque sea cero.** Cualquier cifra de cobertura de
+  una fuente va acompañada de cuántas de sus normas son ilegibles, o afirma una vigilancia que no
+  existe. Mezclado con `pendiente`, el 65 % del DOGC se leyó dos días como «esperando su texto».
 
-**Que exista este estado no autoriza a relajar `xml_safe`** (6.1). En el caso que lo motivó, el
-control es lo único que impidió que 172 páginas de error entraran en el pipeline como si fueran
-normas: el prefiltro las habría descartado todas por falta de vocabulario y nada habría fallado
-visiblemente.
+**Que exista este estado no autoriza a relajar `xml_safe`** (6.1): en el caso que lo motivó, ese
+control es lo único que impidió que 172 páginas de error entraran como si fueran normas.
 
-**Aviso de migración (quinta vez, ver sección 11):** al añadir el valor a la CHECK, el
-autogenerate de alembic propondrá borrar CHECKs ajenas. Revisar SIEMPRE antes de aplicar y
-comprobar después: `SELECT conrelid::regclass, conname FROM pg_constraint WHERE contype='c'`.
-Hoy son **14** y la de `estadoprefiltro` se sustituye, no se suma.
+**Aviso de migración (ha pasado cinco veces):** al tocar una CHECK, el autogenerate de alembic
+propone borrar CHECKs ajenas. Revisar SIEMPRE antes de aplicar y comprobar después con el
+`SELECT ... FROM pg_constraint` de la sección 10.
 
 ### 7.3 Prefiltro de tres ejes (OR, no AND)
 
@@ -520,54 +496,33 @@ decisión. No se toca su lógica; solo se le añade el estado `sospecha` para t�
 
 **Dos decisiones distintas gobiernan este eje sobre texto íntegro, y confundirlas es fácil:**
 
-1. **Al menos un término `DIRECTO`, o no se entra en la cola** (ADR 0021, 2026-08-19). Los
-   términos de `CONTEXTO` por sí solos ya no bastan **sobre el texto íntegro**; sobre el título
-   siguen bastando y ahí no ha cambiado nada. Medido antes del cambio: de 140 normas en cola,
-   **100 (71 %) entraban solo por términos de contexto**, sobre documentos de 54.000 caracteres
-   de mediana, y los responsables eran «igualdad de trato», «plan de igualdad», «no
-   discriminación» y «registro civil» — fórmulas de cualquier documento administrativo largo.
-   Aplicado sobre los datos reales, la cola pasó de **140 a 40**. Esta regla **sí produce
-   descartes**, así que el ADR lleva el recuento de lo que se pierde: 3 de 13 detecciones, las 3
-   de `R-SUP-002`, que es la regla que el gate humano descartó 10 de 10 veces. Reproducir la
-   medición: `backend/scripts/medir_ruido_lexico.py`.
+1. **Al menos un término `DIRECTO`, o no se entra en la cola** (ADR 0021). Los de `CONTEXTO` por
+   sí solos ya no bastan **sobre el texto íntegro**; sobre el título siguen bastando. Sin esto, el
+   71 % de la cola entraba por «igualdad de trato», «plan de igualdad» o «registro civil» —
+   fórmulas de cualquier documento administrativo largo. Es la única regla del eje que **produce
+   descartes**, así que el ADR 0021 lleva el recuento de lo que se pierde.
 2. **`UMBRAL_DIRECTOS_RELEVANTE` separa `relevante` de `sospecha` y NO decide ningún descarte.**
-   Sigue **sin validar**, y con 22 casos de gold set sigue sin poder validarse: no publiques un
-   umbral numérico como si estuviera comprobado. Los números que lo enseñan, del ADR 0011: Ley
-   4/2023 → **43** términos; Ley Orgánica 1/2023 (el negativo difícil) → **11**; Ley 3/2023 de
-   Empleo → **9**; una resolución de Sanidad → **3** (ojo: son *todos* los términos, no solo los
-   directos, así que no son comparables con el umbral tal cual).
+   Sigue **sin validar** y el gold set actual no da para validarlo: no publiques ese umbral como
+   si estuviera comprobado.
 
 **Antes de tocar este eje, mira los dos casos del gold set que lo sujetan por los dos lados**:
-`dogc-24310119` es el falso positivo que cae con la regla 1 —105.000 caracteres de currículo de
-arte floral cuya única coincidencia es «plan de igualdad» en un temario— y `dogc-24198092` entra
-por **un solo término directo** en 28.000 caracteres con señal buena. Cualquier cambio que
-recupere el primero o pierda el segundo está mal.
+`dogc-24310119` es un falso positivo de 105.000 caracteres cuya única coincidencia es «plan de
+igualdad» en un temario, y `dogc-24198092` entra por **un solo término directo** con señal buena.
+Cualquier cambio que recupere el primero o pierda el segundo está mal.
 
-**Eje 2 — referencial. Dos fuentes de evidencia desde el ADR 0022, y hay que saber por qué:**
-el bloque `<analisis>` del BOE **y las citas dentro del texto** (`pipeline/citas.py`). La segunda
-existe porque la primera no vale fuera del BOE: medido el 2026-08-19, el eje dispara en **0 de
-los 92** cuerpos legibles del DOGC frente a 211 de 2.968 en el BOE, porque esa fuente no publica
-a quién afecta la norma en ningún metadato — solo en el texto. Reglas que **no** se relajan: solo
-la forma larga de la cita (número **y** fecha; la corta produjo 4 falsos positivos de 4 sobre el
-DOGC), el verbo se busca 200 caracteres hacia atrás, y sin verbo la referencia es `CITA`, que no
-dispara nada.
+**Eje 2 — referencial. Dos fuentes de evidencia desde el ADR 0022:** el bloque `<analisis>` del
+BOE **y las citas dentro del texto** (`pipeline/citas.py`). La segunda existe porque la primera no
+vale fuera del BOE — esa fuente no publica en ningún metadato a quién afecta la norma, solo en el
+texto. Reglas que **no** se relajan: solo la forma larga de la cita (número **y** fecha; la corta
+produjo 4 falsos positivos de 4), el verbo se busca 200 caracteres hacia atrás, y sin verbo la
+referencia es `CITA`, que no dispara nada.
 
-`config/watchlist.json` con normas objetivo por
-identificador: Ley 4/2023, leyes trans autonómicas, reales decretos de cartera común de
-servicios del SNS, currículos educativos, normativa de documentación e identidad. **Cualquier
-disposición que modifique una norma de la watchlist pasa el filtro por definición, diga lo que
-diga su texto.**
+`config/watchlist.json` lleva las normas objetivo por identificador. **Cualquier disposición que
+modifique una norma de la watchlist pasa el filtro por definición, diga lo que diga su texto.**
+Este eje cubre el agujero estructural del diccionario: una instrucción que elimina un derecho no
+dice «identidad de género», dice «se modifica el epígrafe 4.3 del anexo II».
 
-Este eje es el que cubre el agujero estructural del diccionario: una instrucción que elimina
-un derecho no dice "identidad de género", dice "se modifica el epígrafe 4.3 del anexo II". Y
-tiene una fuente de datos que ya conocemos: **el bloque `<analisis>` del XML de texto íntegro
-del BOE, que trae las referencias a normas relacionadas.** Es el mismo bloque que se
-despriorizó en `_texto_plano` por ruido para el LLM (sección 11) — ruido para el extractor,
-señal para este eje. En fase 1 el sumario no lo trae, así que el eje referencial es **por
-construcción un eje de fase 2**: habría que descargar el documento para saber si hay que
-descargarlo. Con el ADR 0011 eso deja de ser un problema, porque se descarga todo.
-
-**Estructura real del bloque, ya verificada (medición del ADR 0011), no la deduzcas otra vez:**
+**Estructura del bloque, verificada; no la deduzcas otra vez:**
 
 ```
 analisis > referencias > anteriores > anterior[@referencia="BOE-A-2015-11431"]
@@ -576,21 +531,22 @@ analisis > referencias > anteriores > anterior[@referencia="BOE-A-2015-11431"]
                                     > posteriores > posterior[@referencia]
 ```
 
-Es mejor materia prima de lo que esta sección suponía: **no dice solo "menciona esta norma",
-trae el verbo** (`MODIFICA`, `DEROGA`, `AÑADE`, `SUSTITUYE`) y qué artículos toca. `posteriores`
-son las normas que modificaron a esta *después*, así que no sirven para decidir en el día.
-Números medidos sobre 436 normas: el 100 % de los documentos traen `<analisis>`, pero solo
-**43 (9,9 %)** traen referencias anteriores y **13 modifican o derogan algo**. De esas 13, el
-eje léxico sobre el título detecta **1**. El eje referencial no duplica al léxico: cubre lo que
-el léxico no ve, y es barato porque afecta a una de cada diez normas.
+**No dice solo «menciona esta norma»: trae el verbo** (`MODIFICA`, `DEROGA`, `AÑADE`,
+`SUSTITUYE`) y qué artículos toca. `posteriores` son las que modificaron a esta *después*, así que
+no sirven para decidir en el día. El sumario de fase 1 no trae `<analisis>`, así que este eje es
+**por construcción de fase 2**; con el ADR 0011 eso deja de importar porque se descarga todo.
 
-`VERSION_WATCHLIST` con la misma mecánica que `VERSION_VOCABULARIO`: subirla obliga a
-reevaluar lo anterior (`worker.run --reprefiltrar`).
+**Su alcance está medido y es limitado (ADR 0027):** solo el 7 % de las disposiciones modifican
+algo, y ampliar la watchlist rinde ~5 casos al año. El sistema ve el retroceso que **deja rastro
+referencial**; los mecanismos silenciosos —no convocar, dejar caducar, vaciar por ausencia— no lo
+dejan por definición. No prometas más cobertura que esa.
 
-**Eje 3 — semántico (hueco reservado, NO implementar ahora).** Similitud por embeddings
-locales contra corpus de normas ya etiquetadas, para capturar perífrasis que esquive tanto el
-diccionario como la watchlist. Depende del gold set y no cabe en el plazo. Dejar la interfaz
-preparada y documentarlo como hoja de ruta. Ver sección 8.
+`VERSION_WATCHLIST` con la misma mecánica que `VERSION_VOCABULARIO`: subirla obliga a reevaluar
+lo anterior (`worker.run --reprefiltrar`).
+
+**Eje 3 — semántico (hueco reservado, NO implementar ahora).** Similitud por embeddings locales
+contra corpus etiquetado, para capturar perífrasis que esquiven diccionario y watchlist. Depende
+del gold set y no cabe en el plazo (sección 8): interfaz preparada y hoja de ruta.
 
 ### 7.4 Extractor LLM
 
@@ -619,9 +575,8 @@ Las reglas, y el porqué de cada una está en el ADR 0013:
   búsqueda **es** el control: habría que buscar el texto igualmente para validar lo que dijera.
 - **No hay una segunda normalización.** Se ancla sobre el mismo texto que usan las reglas
   (`pipeline/texto.texto_plano`, con `VERSION_TEXTO_PLANO`): dos derivaciones del mismo documento
-  son dos sistemas de coordenadas, y entonces un span del clasificador y un offset de la
-  extracción dejan de poder contrastarse. `pipeline/normalizacion.py` **no existe y no hace
-  falta**.
+  son dos sistemas de coordenadas, y un span del clasificador dejaría de poder contrastarse con un
+  offset de la extracción. `pipeline/normalizacion.py` **no existe y no hace falta**.
 - Los offsets son **absolutos sobre el documento entero**, no relativos a la ventana enviada
   al modelo. Con truncado o ventana deslizante (6.9.7) hay que sumar el desplazamiento de la
   ventana antes de persistir. Test explícito de esto: es el error fácil.
@@ -650,22 +605,21 @@ Ninguna regla puede consultar al modelo ni depender de un campo que venga de su 
 regla necesita algo que el extractor no da como hecho objetivo, la regla está mal planteada.
 
 **El catálogo vive en `pipeline/reglas.py` (`VERSION_REGLAS`) y lee el texto archivado, no la
-salida del modelo** (ADR 0016). La primera familia escrita es la **supresión**, y es la primera
-por una razón que conviene no olvidar: el BOE modificativo publica la redacción *nueva*, no la
-vieja, así que hasta el ADR 0018 **el diff de una modificación no se podía construir**: la
-supresión y la derogación son los dos únicos cambios que no necesitan texto anterior.
-
-**Ese muro lo tira el ADR 0018**, que trae el texto anterior desde la legislación consolidada del
-BOE y puebla `version_norma`. Sobre él se escribió R-MOD-001, que **sigue sin afirmar signo**: el
-ADR 0018 establece el hecho (antes decía esto, ahora dice esto otro), no el veredicto.
+salida del modelo** (ADR 0016). La primera familia fue la **supresión** por un motivo que conviene
+no olvidar: el BOE modificativo publica la redacción *nueva*, no la vieja, así que hasta el ADR
+0018 el diff de una modificación no se podía construir — supresión y derogación son los dos únicos
+cambios que no necesitan texto anterior. El ADR 0018 tira ese muro trayendo el texto consolidado, y
+sobre él se escribió R-MOD-001, que **sigue sin afirmar signo**: establece el hecho, no el veredicto.
 
 **Regla que costó 2 falsos positivos de 4 y que no se relaja (ADR 0023): el verbo tiene que ir
 pegado a la norma vigilada.** No basta con que el documento contenga una supresión *y* toque una
 norma de la watchlist; hace falta que **la propia referencia declare** que la supresión es de esa
-norma. Las dos cosas comprobadas por separado se cumplen a la vez en cualquier ley extensa sin
-tener nada que ver entre sí, y así fue como una ley cuyo título es «de los derechos de las
-personas LGBTI y la erradicación de la LGBTI-fobia» acabó clasificada como **retroceso** con
-severidad 4, por una cláusula sobre finanzas públicas escondida en una disposición final.
+norma. Comprobadas por separado, las dos cosas coinciden en cualquier ley extensa sin tener que
+ver: así fue como una ley «de los derechos de las personas LGBTI» acabó clasificada como
+**retroceso** severidad 4 por una cláusula sobre finanzas públicas en una disposición final.
+
+**Antes de escribir una familia nueva, mídela sobre el corpus archivado** (ADR 0027). No cuesta
+una sola petición de red y ya evitó escribir una regla que aportaba cero.
 
 Dos corolarios que valen para cualquier regla futura:
 
@@ -691,13 +645,10 @@ detalles de implementación:
   una norma vigilada concreta** (`evidencia_json.normas_vigiladas` no vacío). El centinela del
   extractor (ADR 0009) no es un veredicto, y pedirle a una persona que apruebe la ausencia de
   conclusión llena la cola de ruido hasta que deja de mirarse — que es como un gate humano se
-  vacía por dentro sin que nadie lo desactive.
-  **La segunda condición se añadió el 2026-08-17 con datos de revisiones reales**: las reglas que
-  identifican una norma de la watchlist iban 3 de 3 aprobadas y R-SUP-002 —supresión sin norma
-  vigilada— 10 de 10 **descartadas**, porque dispara con cualquier «se suprime el artículo 7» de
-  cualquier materia. **No se pierde recall**: la detección se sigue creando, con su regla y sus
-  spans; lo que no se hace es pedirle a una persona que valide algo que no señala nada vigilado.
-  Se comprueba por el contenido de la evidencia y no por una lista de reglas, para que una regla
+  vacía por dentro sin que nadie lo desactive. La segunda condición salió de revisiones reales:
+  las reglas que identifican norma vigilada iban 3 de 3 aprobadas y R-SUP-002 **10 de 10
+  descartadas**. **No se pierde recall** —la detección se sigue creando con su regla y sus spans—
+  y se comprueba por el contenido de la evidencia, no por una lista de reglas, para que una regla
   futura entre o se quede fuera sola.
 - **Un ítem resuelto no se reabre.** Reabrirlo permite emitir dos veces la misma alerta o retirar
   una emitida sin dejar constancia.
@@ -728,8 +679,37 @@ del recurso más caro del proyecto, que es el tiempo humano de anotación.
 
 Si te encuentras haciendo cualquiera de estas, para:
 
-- **OCR** de PDFs escaneados. Agujero negro. Esas fuentes se documentan como hoja de ruta.
-- **Monitorización de prensa o redes sociales.** No.
+- ~~**OCR** de PDFs escaneados~~ — **prohibición levantada el 2026-08-22**, pero sigue sin hacer
+  falta (la capa de texto del DOGC existe y se lee). **Antes de escribir una línea de OCR hay que
+  demostrar con un documento real que su PDF no tiene capa de texto**, y llevarlo a un ADR. Lo que
+  esta sección protege no es la técnica, es el plazo.
+- ~~**Monitorización de prensa o redes sociales.** No.~~ — **relajado por el humano el
+  2026-08-30**, con un motivo de plazo dicho tal cual: la entrega es el 10 de septiembre y
+  construir a mano la configuración del proyecto es trabajo muy arduo. **En fase de construcción
+  la IA puede ayudar a investigar**, prensa y fuentes secundarias incluidas; en fase de
+  mantenimiento se volverá a revisar una a una.
+
+  **Lo que esto autoriza y lo que no, porque la diferencia es todo el proyecto:**
+
+  - **SÍ**: usar búsqueda web, prensa y fuentes de referencia (ILGA-Europe, FELGTBI+, Amnistía)
+    para **construir y contrastar la configuración** — la watchlist, `docs/fuentes.md`, candidatos
+    del gold set. Ya se hizo así una vez y salió bien: el `jurista-lgtbi` encontró contrastando
+    con esas fuentes que a Aragón le faltaba una de sus dos leyes.
+  - **SÍ, con una condición que no se negocia**: todo lo que entre en la configuración **se ancla
+    a un identificador oficial verificado** (`BOE-A-…`) y se anota con su fecha de comprobación en
+    el campo `nota`. La prensa sirve para **encontrar** una norma, nunca para afirmarla. Una
+    entrada sin identificador comprobado no entra.
+  - **NO**: que nada procedente de prensa o redes sea **entrada del pipeline** ni contenido
+    publicado. Ni se ingiere, ni se archiva, ni se clasifica, ni alimenta una alerta. El archivo
+    de la 6.5 solo contiene boletines oficiales.
+  - **NO**: que un modelo emita «esta comunidad va a peor» y eso llegue a una pantalla. Sigue
+    intacta la **regla de oro 2** —la clasificación avance/retroceso se deriva del diff con reglas
+    auditables— y la **3** —el LLM extrae hechos, no dicta veredictos—. La CHECK
+    `origenclasificacion` lo hace cumplir, y no se toca.
+
+  Dicho corto: **la IA ayuda a construir la lista de lo que hay que vigilar; no ayuda a decidir
+  qué ha pasado.** Lo primero es investigación con verificación humana detrás; lo segundo es el
+  veredicto que este proyecto existe para no delegar.
 - **Publicación totalmente automática** sin gate humano. No.
 - **Almacenar el veredicto del LLM como si fuera la clasificación.** La clasificación se deriva
   del diff.
@@ -750,29 +730,14 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Conventional commits**: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `sec:`.
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
-- **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas, consecuencias.
-  Primeros ADRs esperados: 0001 arquitectura conocimiento-cero de suscriptores, 0002 el LLM
-  extrae no juzga, 0003 gate humano obligatorio, 0004 no persistir veredicto del LLM,
-  0005 archivo con sellado de tiempo.
-  ADRs nuevos que exige esta revisión: ~~0010 canal pull primero~~ (6.4) — **escrito e
-  implementado el 2026-08-14**, ~~0011 ingesta en dos
-  fases con umbral asimétrico~~ (7.1) — **escrito el 2026-08-07**, con el título ajustado a lo
-  que la medición decidió: `0011-ingesta-en-dos-fases-y-umbral-de-la-fase-2.md`,
-  **0012 prefiltro de tres ejes y watchlist** (7.3), ~~**0013 trazabilidad por offsets**~~ (7.5)
-  — **escrito e implementado el 2026-08-16**.
-  Añadidos después: 0014 la capa local entra en alcance vía BOP, **0015 dónde vive el texto
-  íntegro archivado** (tarea 0.c, escrito el 2026-08-09), **0016 cómo se representa una
-  supresión sin texto** (escrito e implementado el 2026-08-09) y **0017 autenticación del panel
-  de revisión** (escrito e implementado el 2026-08-14) y **0018 de dónde sale el texto anterior**
-  (escrito e implementado el 2026-08-15), **0019 el DOGC como segunda fuente** (escrito el
-  2026-08-17) y **0020 el estado `ilegible` del prefiltro** (escrito e implementado el
-  2026-08-18) y **0021 el eje léxico exige un término directo sobre texto íntegro** (escrito e
-  implementado el 2026-08-19), **0022 el eje referencial lee también las citas del texto**
-  (escrito e implementado el 2026-08-19) y **0023 el verbo tiene que ir pegado a la norma
-  vigilada** (escrito e implementado el 2026-08-20) y **0024 la segunda puerta del gate humano**
-  (escrito e implementado el 2026-08-20) y **0025 el informe de apoyo y el hallazgo histórico**
-  (escrito el 2026-08-20, implementado a medias: falta la interfaz). Con el 0013 escrito **ya no
-  queda ningún número reservado**: el siguiente libre es el **0026**.
+- **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
+  consecuencias. **Están todos escritos del 0001 al 0027** y su título dice de qué van: `ls
+  docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
+  **El siguiente número libre es el 0028.** No queda ninguno reservado.
+  Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
+  (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada) y **0027** (el
+  límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
+  interfaz.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
   entrada hostil (6.7) y salida del modelo como vector de acción (6.10).
@@ -843,19 +808,14 @@ cd frontend && npm run dev -- --host 127.0.0.1
 
 ## 11. Estado actual del proyecto → **[`ESTADO.md`](ESTADO.md)**
 
-El estado vive en un fichero aparte desde el 2026-08-09. **No es una reorganización estética**:
-este fichero entra entero en el contexto de cada subagente, y el historial de estado era el
-54 % de sus 124 KB. Sacarlo baja el coste de arrancar un agente de ~31.000 a ~14.000 tokens.
+El estado vive en un fichero aparte desde el 2026-08-09, porque este entra entero en el contexto
+de cada subagente y el historial era más de la mitad.
 
-- **Al retomar el proyecto**, `ESTADO.md` es lo primero que hay que leer: qué se hizo, qué toca
-  y cuánto contexto cuesta cada tarea pendiente.
+- **Al retomar el proyecto**, `ESTADO.md` es lo primero que hay que leer.
 - **Al cerrar un trabajo**, se actualiza `ESTADO.md`, no este fichero. Aquí solo se toca lo que
-  cambia de verdad las reglas: el modelo de dominio, los requisitos de seguridad, el pipeline.
-- **Las referencias a "sección 11" repartidas por el repositorio siguen siendo válidas**: la
-  sección conserva su número, solo cambia de fichero.
-
-Este fichero es **las reglas**. `ESTADO.md` es **dónde estamos**. Mezclarlos fue lo que lo hizo
-crecer hasta ser caro de leer para todo el mundo, personas incluidas.
+  cambia de verdad las reglas: el modelo de dominio, la seguridad, el pipeline.
+- **Las referencias a «sección 11» del repositorio siguen siendo válidas**: conserva su número,
+  solo cambia de fichero.
 
 ---
 
@@ -863,12 +823,8 @@ crecer hasta ser caro de leer para todo el mundo, personas incluidas.
 
 > Pedido tal cual al cierre de S0. No reordenar por criterio propio sin comentarlo primero;
 > si alguno de estos puntos ya no aplica o contradice algo de este archivo, **para y pregunta**
-> antes de tocarlo.
->
-> **El resto del backlog de producto —contenido, mapa, navegación— se movió a
-> [`ESTADO.md`](ESTADO.md) el 2026-08-19**, y no por estética: es una lista de trabajo
-> pendiente, o sea estado, y aquí costaba 1,5 KB del arranque de cada subagente para decirles
-> algo que ninguno usa. Aquí se queda solo lo que es una **regla**: las acciones externas.
+> antes de tocarlo. El resto del backlog de producto vive en [`ESTADO.md`](ESTADO.md): aquí solo
+> se queda lo que es una **regla**, o sea las acciones externas.
 
 ### Difusión (acciones externas — confirmar con el humano antes de ejecutar cada una, no encadenarlas)
 
@@ -891,20 +847,17 @@ humano de revisión**.
 
 ### 13.1 Límites de uso, en corto
 
-La suscripción tiene dos límites solapados: una ventana móvil de 5 horas y **un tope
-semanal**, y la cuota es compartida con el chat web. El tope semanal es el límite real: una
-sesión larga con mucho contexto arrastrado se lo come rápido.
+Dos límites solapados: ventana móvil de 5 horas y **tope semanal**, con la cuota compartida con
+el chat web. El semanal es el límite real: una sesión larga con mucho contexto arrastrado se lo
+come rápido. Consecuencias, y son reglas:
 
-Consecuencias prácticas, y son reglas:
-- **Una tarea = una sesión limpia.** Nada de arrastrar contexto entre tareas distintas. El
-  estado del proyecto vive en la sección 11 de este archivo, no en la conversación.
-- **`/clear` al cambiar de tarea.** Cambiar de modelo a mitad de una conversación larga es
-  caro (se pierde la caché de prompt); si hay que cambiar, se cambia al empezar.
+- **Una tarea = una sesión limpia**, con `/clear` al cambiar. El estado vive en `ESTADO.md`, no en
+  la conversación. Cambiar de modelo a mitad de conversación larga pierde la caché de prompt: si
+  hay que cambiar, al empezar.
 - Trabajo rutinario contra un criterio de aceptación claro: modelo rápido. Diseño, ADRs y
-  decisiones de seguridad: el modelo bueno.
-- `/usage` para ver el consumo antes de arrancar algo grande.
-- Las estimaciones de contexto de la sección 11 sirven justamente para decidir si una tarea
-  cabe en la sesión que empieza.
+  seguridad: el modelo bueno.
+- `/usage` antes de arrancar algo grande. Las estimaciones de contexto de `ESTADO.md` sirven para
+  decidir si una tarea cabe en la sesión que empieza.
 
 ### 13.2 Backlog de tareas (`tasks/backlog/`)
 
@@ -928,12 +881,8 @@ Ejecuta tareas del backlog en modo headless, una sesión limpia por tarea. **Aut
 tecleo, no el criterio**: cada tarea va a su rama y el merge lo hace el humano tras mirar el
 diff. Es el mismo principio que el gate humano del producto (regla 4) aplicado al código.
 
-El script vive en **[`run_agent.sh`](../run_agent.sh)**, en la raíz del repositorio, que es
-donde la sección 4 dice que está. Estuvo copiado aquí dentro hasta el 2026-08-19; sacarlo quita
-2 KB del coste fijo de arrancar cualquier subagente y, sobre todo, deja de haber dos versiones
-del mismo script que se pueden desincronizar sin que nadie lo note.
-
-**Lo que no se va de aquí son sus reglas**, porque son de criterio y no de implementación:
+El script vive en **[`run_agent.sh`](../run_agent.sh)**, en la raíz del repositorio. **Lo que no
+se va de aquí son sus reglas**, porque son de criterio y no de implementación:
 
 - **Nunca `--dangerously-skip-permissions`.** La allowlist de herramientas es la que lleva el
   script: escribir código y correr las comprobaciones del CI, nada más.
@@ -966,34 +915,27 @@ abierta, hay que reiniciarla.
 - **`evaluador`** — corre el gold set y reporta recall **desglosado por eje** (7.3),
   enumerando los falsos negativos uno a uno. Un número agregado no sirve: lo que importa es
   qué se escapó y por qué eje debería haber entrado.
-- **`jurista-lgtbi`** — analiza normas de los tres niveles (estatal, autonómico,
-  provincial/local) desde el derecho antidiscriminatorio. Produce **reglas candidatas para el
-  clasificador (7.6)** en el formato que 7.6 necesita, e informes de apoyo al etiquetado y al
-  gate humano. Aporta el conocimiento de dominio que no estaba escrito en ningún sitio: los
-  instrumentos por nivel (con las **bases de subvención** como vector local), diez vectores de
-  retroceso ordenados por lo silenciosos que son, y la lista de **lo que parece cambio y no lo
-  es** — que es de donde saldrían los falsos positivos del clasificador.
+- **`jurista-lgtbi`** — analiza normas de los tres niveles desde el derecho antidiscriminatorio.
+  Produce **reglas candidatas para el clasificador (7.6)** e informes de apoyo al etiquetado y al
+  gate humano. Aporta el conocimiento de dominio que no está escrito en ningún sitio: los
+  instrumentos por nivel (con las **bases de subvención** como vector local), los vectores de
+  retroceso ordenados por lo silenciosos que son, y **lo que parece cambio y no lo es** — de
+  donde saldrían los falsos positivos del clasificador.
 
-  **Sí señala "posible retroceso, a verificar"; no emite veredictos.** La diferencia no es de
+  **Sí señala «posible retroceso, a verificar»; no emite veredictos.** La diferencia no es de
   grado, es de naturaleza: una hipótesis va dirigida a una persona y **muere cuando esa persona
   decide**; un veredicto se persiste, se publica y hay que poder defenderlo ante un tercero sin
-  ejecutar nuestro código. El proyecto ya tenía ese concepto en dos sitios —el estado
-  `sospecha` (7.2) y el umbral de recall alto de 7.6—, así que señalar para que alguien mire
-  encaja; lo que no cabe es que eso llegue a `deteccion` o a la API, y la CHECK
-  `origenclasificacion` lo hace cumplir.
+  ejecutar nuestro código. Que eso no llegue a `deteccion` ni a la API lo hace cumplir la CHECK
+  `origenclasificacion`.
 
-  **El riesgo que se diseñó en contra es el anclaje.** Si quien revisa lee "posible retroceso"
-  antes que el artículo, ya no lo juzga: lo confirma, y el gate humano (regla 4) se vacía. Por
-  eso el orden del informe es fijo —**texto citado → pregunta → hipótesis → qué la refutaría**—
-  y el último punto es obligatorio siempre. Eso convierte la señal de ancla en lista de
-  comprobación. También tiene prohibido etiquetar el gold set: si lo etiquetara él, el sistema
-  se mediría contra sí mismo.
+  **El riesgo que se diseñó en contra es el anclaje.** Si quien revisa lee «posible retroceso»
+  antes que el artículo, ya no lo juzga: lo confirma, y el gate humano (regla 4) se vacía. Por eso
+  el orden del informe es fijo —**texto citado → pregunta → hipótesis → qué la refutaría**— y el
+  último punto es obligatorio siempre. Y tiene prohibido etiquetar el gold set: si lo etiquetara
+  él, el sistema se mediría contra sí mismo.
 
-Ninguno de los cuatro escribe código. Su salida es un informe para la sesión principal o para
-el humano.
-
-**Estado: los cuatro creados el 2026-08-08 y ejecutados por primera vez el 2026-08-09.** Hasta
-esa fecha eran especificación sin probar. Lo que dio la ejecución está en la sección 11.
+Ninguno de los cuatro escribe código. Su salida es un informe para la sesión principal o para el
+humano.
 
 **Ojo con dos cosas que costaron una tanda entera de cuota:**
 

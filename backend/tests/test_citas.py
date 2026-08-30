@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.pipeline.citas import extraer_referencias_citadas, forma_larga
+from app.pipeline.citas import cita_esperable, extraer_referencias_citadas, forma_larga
 from app.pipeline.watchlist import NormaVigilada, Watchlist, watchlist
 
 LISTA = Watchlist(
@@ -172,7 +172,7 @@ class TestFormaDelTexto:
         assert extraer_referencias_citadas("", LISTA) == ()
 
 
-def test_todas_las_normas_vigiladas_se_pueden_citar() -> None:
+def test_toda_norma_vigilada_de_rango_numerado_se_puede_citar() -> None:
     """Una entrada de la watchlist cuyo título no empiece por su forma de cita **queda fuera del
     eje referencial en texto sin que nada lo diga**, y ese es justo el fallo mudo que el proyecto
     no se permite.
@@ -181,11 +181,48 @@ def test_todas_las_normas_vigiladas_se_pueden_citar() -> None:
     que alguien añada mañana una norma vigilada con el título escrito de otra forma y se quede a
     medio vigilar. Si esto se pone rojo, la solución es arreglar el título del fichero, no
     relajar el patrón — la forma corta ya se midió y no vale (ver `TestLasTrampasMedidas`).
-    """
-    sin_forma = [n.identificador for n in watchlist().normas if forma_larga(n.titulo) is None]
 
-    assert not sin_forma, (
-        f"estas normas vigiladas no se pueden buscar como cita en el texto: {sin_forma}. "
-        "El título tiene que empezar por «Ley N/AAAA, de D de mes» (o Real Decreto, Decreto, "
-        "Ley Orgánica, Ley Foral)."
+    **El test se acotó a los rangos numerados el 2026-08-23, y no es una relajación.** Hasta
+    entonces exigía forma de cita a *todas* las entradas, lo cual se pudo sostener mientras la
+    watchlist fueron 24 leyes y reales decretos. Al entrar las dos Instrucciones de la DGSJFP —una
+    de ellas la entrada que mejor encaja con la sección 1 de `CLAUDE.md`, porque una instrucción
+    se cambia con otra instrucción y sin ruido— apareció la distinción que faltaba: una
+    instrucción **no tiene número `N/AAAA` y por tanto no se cita así**, en ninguna redacción. No
+    hay título que arreglar.
+
+    Lo que el test sigue cazando es exactamente lo de antes: una norma que **sí lleva número** y
+    aun así no encaja, que es la que está mal escrita. Lo que ya no hace es exigir lo imposible.
+    """
+    mal_escritas = [
+        n.identificador
+        for n in watchlist().normas
+        if cita_esperable(n.titulo) and forma_larga(n.titulo) is None
+    ]
+
+    assert not mal_escritas, (
+        f"estas normas vigiladas llevan número de norma y aun así no se pueden buscar como cita "
+        f"en el texto: {mal_escritas}. El título tiene que EMPEZAR por «Ley N/AAAA, de D de mes» "
+        "(o Real Decreto, Decreto, Ley Orgánica, Ley Foral)."
+    )
+
+
+def test_las_vigiladas_sin_forma_de_cita_estan_declaradas_y_contadas() -> None:
+    """Las que quedan fuera del eje de citas se enumeran, para que el hueco no sea invisible.
+
+    Es el mismo criterio que el estado `ilegible` del prefiltro (ADR 0020): lo que el sistema no
+    puede hacer se cuenta aparte en vez de confundirse con lo que sí hace. Estas entradas **siguen
+    disparando por el `<analisis>` del BOE**, que es donde viven sus modificaciones; lo que no
+    pueden es detectarse por cita en el texto, y eso las hace invisibles para el DOGC y para
+    cualquier fuente futura sin `<analisis>` — que es justo el agujero que el ADR 0022 abrió este
+    eje para tapar.
+
+    El test no fija **cuáles** son ni **cuántas**: fija que todas las que no se pueden citar sean
+    de rango no numerado. Si algún día una con número acaba aquí, el test de arriba se pone rojo,
+    que es donde tiene que doler.
+    """
+    sin_cita = [n for n in watchlist().normas if forma_larga(n.titulo) is None]
+
+    assert all(not cita_esperable(n.titulo) for n in sin_cita), (
+        "hay normas vigiladas sin forma de cita que sí llevan número: eso es un título mal "
+        "escrito, no una limitación de rango"
     )

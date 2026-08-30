@@ -11,6 +11,7 @@ un proyecto de vigilancia tiene la obligación de hacer verificable sobre sí mi
 
 from __future__ import annotations
 
+import datetime
 from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends
@@ -21,7 +22,8 @@ from app.database import SessionLocal
 from app.models.documento import Documento, TipoDocumento
 from app.models.fuente import Fuente
 from app.models.norma import EstadoPrefiltro, Norma
-from app.schemas.cobertura import Cobertura, CoberturaCcaa, CoberturaNivel
+from app.pipeline import watchlist
+from app.schemas.cobertura import Cobertura, CoberturaCcaa, CoberturaNivel, LeyVigente
 
 router = APIRouter(prefix="/api", tags=["cobertura"])
 
@@ -60,6 +62,29 @@ def _legibilidad(session: Session) -> dict[str | None, tuple[int, int]]:
         .group_by(Fuente.ccaa_codigo)
     ).all()
     return {codigo: (normas, ilegibles) for codigo, normas, ilegibles in filas}
+
+
+def _ultima_publicacion(session: Session) -> dict[str | None, datetime.date]:
+    """La fecha del boletín más reciente archivado de cada comunidad.
+
+    Es lo que convierte «vigilada, sin alertas» de promesa en medición. La trama del mapa dice
+    que ahí se mira; sin fecha no dice desde cuándo, y «lo leímos ayer y no había nada» se pinta
+    igual que «lo leímos en marzo y desde entonces nadie ha vuelto».
+
+    Se agrega en SQL por lo mismo que `_legibilidad`, y se toma de **sumarios**: son los
+    boletines, y contar cuerpos o consolidados daría la fecha de un texto que puede ser de hace
+    años (una norma de 2014 se descarga hoy, ADR 0015).
+
+    La clave `None` es el BOE, que no pertenece a ninguna comunidad.
+    """
+    filas = session.execute(
+        select(Fuente.ccaa_codigo, func.max(Documento.fecha_publicacion))
+        .select_from(Documento)
+        .join(Fuente, Fuente.id == Documento.fuente_id)
+        .where(Documento.tipo == TipoDocumento.SUMARIO)
+        .group_by(Fuente.ccaa_codigo)
+    ).all()
+    return {codigo: fecha for codigo, fecha in filas if fecha is not None}
 
 
 @router.get("/cobertura", response_model=Cobertura)
@@ -127,8 +152,60 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
         entrada_ccaa.normas += normas
         entrada_ccaa.ilegibles += ilegibles
 
-    for entrada in por_ccaa.values():
+    for codigo, fecha in _ultima_publicacion(session).items():
+        if codigo is None:
+            continue
+        entrada_fecha = por_ccaa.get(codigo)
+        if entrada_fecha is not None:
+            entrada_fecha.ultima_publicacion = fecha
+
+    # Qué comunidades no tienen ley autonómica que vigilar. El dato ya estaba verificado en la
+    # watchlist y no llegaba a ninguna pantalla; ver la nota del campo en el esquema.
+    lista = watchlist.watchlist()
+    sin_ley = lista.sin_ley
+
+    # Línea base por comunidad: las leyes autonómicas **en vigor**. Las derogadas se siguen
+    # vigilando —no se pierde el rastro histórico— pero no son marco vigente.
+    leyes: dict[str, list[LeyVigente]] = {}
+    for norma in lista.normas:
+        if norma.ambito in ("", "estatal") or not norma.vigente:
+            continue
+        leyes.setdefault(norma.ambito, []).append(
+            LeyVigente(identificador=norma.identificador, titulo=norma.titulo, tipo=norma.tipo)
+        )
+
+    # **Una comunidad sin ley autonómica tiene que salir aunque no tenga ninguna fuente
+    # registrada.** `por_ccaa` se construye desde las filas de `fuente`, y las uniprovinciales no
+    # tienen BOP propio, así que Asturias —una de las dos sin ley, con Castilla y León— no
+    # aparecía en la respuesta y su ausencia de marco no habría llegado a ninguna pantalla.
+    # Justo la mitad del dato, y la mitad que menos se ve.
+    #
+    # No altera los totales: `conocidas_total` y `vigiladas_total` se suman de la consulta, no
+    # de este diccionario.
+    # Una comunidad con ley pero sin fuente registrada tampoco puede faltar: su marco es un
+    # hecho, lo vigilemos o no. Mismo motivo que la vuelta de `sin_ley` de abajo.
+    for codigo in list(sin_ley) + list(leyes):
+        por_ccaa.setdefault(
+            codigo,
+            CoberturaCcaa(
+                ccaa_codigo=codigo,
+                # El código, no un nombre. `frontend/src/lib/territorio.ts` deriva los nombres
+                # de la geometría del mapa precisamente para no mantener dos listas de
+                # comunidades —«Euskadi» aquí y «País Vasco» allí es como se cruzan sin que
+                # nada falle—, así que el backend no inventa una segunda tabla para dos filas.
+                ccaa=codigo,
+                niveles=[],
+                conocidas=0,
+                vigiladas=0,
+                normas=0,
+                ilegibles=0,
+            ),
+        )
+
+    for codigo, entrada in por_ccaa.items():
         entrada.niveles.sort(key=lambda nivel: nivel.ambito)
+        entrada.sin_ley_autonomica = sin_ley.get(codigo)
+        entrada.leyes_vigentes = sorted(leyes.get(codigo, []), key=lambda ley: ley.identificador)
 
     # Los sumarios, que es lo que `GET /api/documentos` lista y lo que la portada llama
     # «documentos archivados». Los cuerpos y los consolidados no se cuentan aquí por lo mismo que

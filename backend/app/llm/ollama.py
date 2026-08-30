@@ -66,6 +66,29 @@ class ProveedorOllama(ProveedorLLM):
                 # entre ejecuciones sobre el mismo documento, o deja de ser reproducible.
                 "temperature": 0,
                 "seed": 1,
+                # **Tope de generación. Sin esto la generación es ILIMITADA**, y eso fue lo que
+                # dejó al extractor cinco días quemando tres núcleos para tirar el 100 % de los
+                # resultados: el modelo no terminaba el JSON dentro del timeout, la petición se
+                # cortaba, la norma volvía a la cola y vuelta a empezar. Un fallo que no rompe
+                # nada visiblemente es el peor de todos (6.9.6).
+                #
+                # **Dimensionado con las 22 extracciones que sí se completaron**, no a ojo: su
+                # JSON mide 430 caracteres de mediana, 939 en el p90 y **2.086 el mayor**, o sea
+                # unos 835 tokens en el peor caso observado. 1536 deja casi el doble de margen.
+                #
+                # El riesgo de quedarse corto está acotado y es ruidoso: un JSON truncado no
+                # valida contra el esquema Pydantic y la extracción se descarta (6.9.3), que es
+                # exactamente lo que debe pasar. Si algún día se ve descartar por esquema
+                # documentos con muchos artículos, este número es el primer sitio donde mirar.
+                #
+                # **Y NO SE PUEDE SUBIR LIBREMENTE: este tope y `llm_timeout_segundos` están
+                # atados.** El tiempo de una extracción lo manda lo que el modelo GENERA, no el
+                # documento de entrada: medido el 2026-08-28 en esta máquina (i5-10310U, CPU),
+                # unos **3,2 tokens/s**. Con eso, 1536 tokens son ~480 s y caben en el timeout de
+                # 600 s; **2048 serían ~640 s y volverían a caducar todas las peticiones**, que es
+                # justo el bucle que este parámetro vino a romper. Al tocar uno de los dos hay que
+                # recalcular el otro: num_predict / tokens_por_segundo < timeout.
+                "num_predict": 1536,
             },
         }
 

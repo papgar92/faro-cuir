@@ -17,10 +17,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models.deteccion import Alerta, Deteccion
+from app.models.deteccion import Alerta, ColaRevision, Deteccion
 from app.models.documento import Documento
 from app.schemas.alerta import AlertaPublica
 from app.services import alertas as servicio
@@ -51,9 +52,25 @@ def listar_alertas(
     """
     consulta = servicio.consulta()
     if clasificacion is not None:
-        # Comparación contra la columna, sin interpolar: el valor viene de fuera y el enum de la
-        # base de datos rechaza cualquier cosa que no sea uno de los cuatro.
-        consulta = consulta.where(Deteccion.clasificacion == clasificacion)
+        # **Se filtra por el signo QUE SE VE, no por el que derivó la regla.** Son dos columnas
+        # distintas a propósito (ADR 0004: la regla y la persona son dos fuentes de autoridad), y
+        # la tarjeta enseña `clasificacion_humana` cuando existe. Filtrar solo por la de la regla
+        # hacía que el filtro y la pantalla no hablaran de lo mismo: con tres alertas cuya regla
+        # se abstuvo (`indeterminado`) y a las que una persona puso «avance», el botón «Avances»
+        # no devolvía ninguna y el botón «Sin signo» las devolvía a las tres — enseñando tarjetas
+        # que ponen «Avance» bajo el filtro de las que no tienen signo. Encontrado usando la web
+        # el 2026-08-22.
+        #
+        # `coalesce` y no un `or_`: es la MISMA regla de precedencia que aplica `AlertCard`
+        # (`clasificacion_humana ?? clasificacion`), escrita una vez en cada lado. Si algún día
+        # cambia la precedencia, tienen que cambiar las dos y el test de abajo lo nota.
+        #
+        # Comparación contra las columnas, sin interpolar: el valor viene de fuera y el enum de
+        # la base rechaza cualquier cosa que no sea uno de los cuatro.
+        consulta = consulta.where(
+            func.coalesce(ColaRevision.clasificacion_humana, Deteccion.clasificacion)
+            == clasificacion
+        )
     filas = session.execute(
         consulta.order_by(Documento.fecha_publicacion.desc(), Alerta.id.desc())
         .limit(limite)

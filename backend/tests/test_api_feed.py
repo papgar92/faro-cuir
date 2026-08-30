@@ -247,3 +247,43 @@ def test_ordena_por_fecha_del_boletin(client: TestClient, sesion_db: Session) ->
 
     assert "2024-05-29" in contenidos[0]
     assert "2023-03-01" in contenidos[1]
+
+
+def test_el_feed_de_hallazgos_avisa_en_el_titulo_de_cada_entrada(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """El aviso va en el título, no en una categoría, y ese es todo el diseño de este feed.
+
+    Un hallazgo no lo ha revisado nadie. En la web eso se dice con una banda de color arriba de la
+    tarjeta, pero **un feed se lee en un agregador**: colores, categorías y etiquetas se pierden
+    por el camino, y lo único que sobrevive a cualquier lector es el título. Si el aviso viviera
+    solo en `<category>`, un hallazgo llegaría al lector indistinguible de una alerta revisada.
+
+    Por eso este test comprueba el título y no la categoría: la categoría es un extra, el título
+    es el control.
+    """
+    respuesta = client.get("/api/hallazgos.xml")
+
+    assert respuesta.status_code == 200
+    assert respuesta.headers["content-type"].startswith("application/atom+xml")
+    cuerpo = respuesta.text
+    # El subtítulo del feed lo dice también, para quien mire la cabecera del canal.
+    assert "SIN revisar" in cuerpo
+    assert "NO los ha revisado ninguna persona" in cuerpo
+    # Y cada entrada que haya lo lleva delante del título de la norma.
+    for titulo in _titulos(cuerpo):
+        assert titulo.startswith("SIN REVISAR · "), (
+            f"Una entrada del feed de hallazgos no avisa en su título: {titulo!r}. En un "
+            "agregador, el título es lo único que no se pierde."
+        )
+
+
+def _titulos(cuerpo: str) -> list[str]:
+    """Los títulos de las `<entry>`, sin el del propio feed."""
+    from xml.etree.ElementTree import fromstring
+
+    ATOM_NS = "{http://www.w3.org/2005/Atom}"
+    raiz = fromstring(cuerpo)
+    return [
+        (entrada.findtext(f"{ATOM_NS}title") or "") for entrada in raiz.findall(f"{ATOM_NS}entry")
+    ]

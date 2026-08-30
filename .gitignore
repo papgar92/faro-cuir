@@ -48,3 +48,10 @@ Mejoras.txt
 
 # Informes de apoyo importados a mano (ADR 0025): no son codigo ni archivo.
 backend/data/informes-*.json
+
+# Sondeos de usar y tirar. El compose monta `./backend:/app`, asi que un `docker compose cp` a
+# /app deja el fichero DENTRO DEL REPOSITORIO, y eso ya ha metido basura tres veces (probe.py,
+# dbg.py, ver_gay.py) que ademas rompe `ruff` en la puerta de CI. Convencion: cualquier script
+# temporal va con este prefijo y se ignora solo.
+backend/scripts/_sondeo_*.py
+backend/_sondeo_*.py

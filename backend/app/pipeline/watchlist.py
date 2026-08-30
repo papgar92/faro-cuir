@@ -64,6 +64,32 @@ class NormaVigilada:
     # cobertura por comunidad, que es lo que convierte esta lista en algo auditable: sin él, que
     # falte la ley de una CCAA entera no se distingue de que esa CCAA no tenga ley.
     ambito: str = ""
+    # --- Qué clase de norma es, y esto SÍ lo mira el clasificador (ADR 0030) --------------------
+    # `lgtbi`: norma protectora, toda ella sobre derechos del colectivo. `vehiculo`: norma de
+    # materia ajena donde el derecho vive en dos o tres preceptos —la Ley del SNS, el Registro
+    # Civil, la LOE—.
+    #
+    # **La distinción existe porque R-SUP-001 asume que todo lo vigilado es protector** y afirma
+    # «retroceso» severidad 4 cuando algo suprime un precepto de una norma vigilada. Sobre una
+    # norma-vehículo eso es falso: suprimir el art. 33 de la Ley 16/2003 (formación sanitaria
+    # especializada) no es un retroceso LGTBI. Es el error del ADR 0023 un nivel más arriba —allí
+    # la supresión y la norma vigilada coexistían en el DOCUMENTO sin tener que ver, aquí
+    # coexistirían DENTRO de la norma vigilada—.
+    #
+    # Vacío = `lgtbi`, porque las 27 entradas anteriores a este campo lo son todas. Que el valor
+    # por defecto sea el protector es deliberado: equivocarse hacia `vehiculo` apagaría el signo
+    # de una norma que sí lo merece, y eso se nota menos que lo contrario.
+    especificidad: str = "lgtbi"
+    # --- Solo para la LÍNEA BASE del mapa; nada del pipeline los mira ---------------------------
+    # `tipo`: "trans" (ley específica de identidad/expresión de género) o "lgtbi" (ley LGTBI
+    # integral). Vacío en las estatales, que no se pintan en el mapa.
+    tipo: str = ""
+    # ¿Sigue en vigor? **`False` no quiere decir «dejar de vigilarla»**: una norma derogada sigue
+    # apareciendo en las referencias de las que la citan, y perder ese rastro sería perder el
+    # histórico. Quiere decir que **no cuenta como marco vigente**. Hoy es una: la Ley 14/2012
+    # vasca, derogada por la 4/2024. Sin esta distinción la línea base diría que Euskadi tiene una
+    # ley que ya no existe.
+    vigente: bool = True
 
 
 @dataclass(frozen=True)
@@ -146,6 +172,11 @@ def cargar(ruta: Path | None = None) -> Watchlist:
                 titulo=entrada.get("titulo", ""),
                 nota=entrada.get("nota", ""),
                 ambito=entrada.get("ambito", ""),
+                especificidad=entrada.get("especificidad", "lgtbi"),
+                tipo=entrada.get("tipo", ""),
+                # Ausente = vigente. Lo excepcional es la derogación, y hacerla explícita en el
+                # fichero deja la anomalía a la vista de quien lo lee.
+                vigente=entrada.get("vigente", True),
             )
         )
 

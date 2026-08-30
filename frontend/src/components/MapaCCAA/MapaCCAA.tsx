@@ -1,5 +1,11 @@
 import { useRef } from "react";
-import type { RegionMapa } from "../../lib/mapa";
+import {
+  categoriaMarco,
+  deudaCobertura,
+  MARCO_ETIQUETA,
+  type RegionMapa,
+  type VistaMapa,
+} from "../../lib/mapa";
 import { ESTADO_MAPA_META, type ColorClasificacion } from "../../lib/classification";
 import { CCAA_PATHS, INSET_CANARIAS, MAPA_VIEWBOX, type CcaaPath } from "./ccaa-paths";
 
@@ -9,7 +15,25 @@ interface MapaCCAAProps {
   onEnter: (code: string) => void;
   onLeave: () => void;
   onPick: (code: string) => void;
+  /** Qué pinta el mapa: el movimiento (alertas) o el estado (marco normativo vigente). */
+  vista: VistaMapa;
 }
+
+/**
+ * Relleno de la línea base. Tono propio y **fuera de la paleta de alertas**: en verde o rojo se
+ * leería como avance/retroceso, que es el veredicto que la regla de oro 2 reserva al clasificador
+ * por reglas. Aquí no se juzga, se enumera lo que hay.
+ *
+ * `trans` y `lgtbi` comparten claridad a propósito: son **dos ámbitos distintos**, no dos peldaños
+ * de una escala, y se distinguen por trama —no por intensidad— para que no se lean como «más» y
+ * «menos». `ambas` sí es más intenso porque ahí hay las dos cosas, que es un recuento, no una nota.
+ */
+const FILL_MARCO: Record<string, string> = {
+  ambas: "var(--color-marco-2)",
+  lgtbi: "var(--color-marco-1)",
+  trans: "url(#marco-trans)",
+  ninguna: "url(#sin-ley)",
+};
 
 const FILL_VAR: Record<ColorClasificacion, string> = {
   adv: "var(--color-adv-bg)",
@@ -46,14 +70,38 @@ const INSULARES = CCAA_PATHS.filter((p) => p.inset);
  * Accesibilidad: cada entidad es `role="button"` con `aria-label` legible sin
  * depender del color, y Enter/Espacio la seleccionan.
  */
-export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: MapaCCAAProps) {
+export function MapaCCAA({
+  regions,
+  activeCode,
+  onEnter,
+  onLeave,
+  onPick,
+  vista,
+}: MapaCCAAProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const activePath = activeCode ? CCAA_PATHS.find((p) => p.code === activeCode) : undefined;
 
   const etiqueta = (path: CcaaPath) => {
     const region = regions[path.code];
+    if (vista === "marco") {
+      const categoria = categoriaMarco(region);
+      // Sin dato no se inventa una categoría: se dice que no se sabe. Es la misma regla que
+      // impide pintar de "estable" lo que nadie ha mirado.
+      if (!categoria) return `${path.name}: marco normativo sin determinar`;
+      return `${region?.name ?? path.name}: ${MARCO_ETIQUETA[categoria].toLowerCase()}`;
+    }
     if (!region || (!region.vigilada && region.alerts === 0)) {
-      return `${path.name}: sin fuente vigilada todavía`;
+      // La deuda va también en el texto: la gradación de la trama es información, y una
+      // información que solo existe en el color no existe para quien no lo ve.
+      const deuda = region ? deudaCobertura(region) : 0;
+      return deuda > 0
+        ? `${path.name}: sin fuente vigilada todavía, ${deuda} boletín${deuda === 1 ? "" : "es"} oficial${deuda === 1 ? "" : "es"} conocido${deuda === 1 ? "" : "s"} sin integrar`
+        : `${path.name}: sin fuente vigilada todavía`;
+    }
+    if (region.sinLeyAutonomica) {
+      // El hecho, no su valoración (regla de oro 2). Va el primero de los silencios porque es
+      // el único que no habla de nuestra cobertura sino del territorio.
+      return `${region.name}: no tiene ley autonómica LGTBI que vigilar`;
     }
     if (region.state === null) {
       // La distinción que este mapa no puede perder: aquí SÍ se mira, y no ha salido nada
@@ -69,6 +117,10 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
 
   const relleno = (path: CcaaPath) => {
     const region = regions[path.code];
+    if (vista === "marco") {
+      const categoria = categoriaMarco(region);
+      return categoria ? FILL_MARCO[categoria] : "url(#sin-vigilar-1)";
+    }
     // Sin fila no hay estado: se pinta como territorio sin vigilar, no como
     // "estable". Pintar de estable lo que nadie mira es afirmar un resultado.
     //
@@ -80,7 +132,28 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
     // Vigilada y sin conclusión: trama **clara**. Sin fuente: trama densa. Son dos silencios
     // distintos —"todavía no ha salido nada" y "aquí no estamos mirando"— y confundirlos sería
     // tan malo como pintarlos de gris "estable".
-    return region?.vigilada ? "url(#sin-alertas)" : "url(#sin-vigilar)";
+    // **Sin ley autonómica: su propio relleno, y va ANTES que "vigilada sin alertas".** Son dos
+    // silencios que se pintaban igual y significan lo contrario: en Aragón «hay dos leyes
+    // vigiladas y nadie las ha tocado», en Castilla y León «no hay ninguna ley que tocar».
+    // Con el mismo blanco, el segundo se leía como tranquilidad.
+    //
+    // Es un hecho verificado, no un juicio: el mapa dice que no hay marco, no dice si eso está
+    // bien o mal. Por eso el relleno **no es rojo** ni ningún color de estado — eso sería emitir
+    // el veredicto que la regla de oro 2 prohíbe.
+    if (region?.sinLeyAutonomica) return "url(#sin-ley)";
+    if (region?.vigilada) return "url(#sin-alertas)";
+    // **Tres densidades y no una.** Las quince comunidades sin vigilar se pintaban todas igual, y
+    // no son iguales: Andalucía tiene 8 boletines provinciales conocidos sin integrar y La Rioja
+    // 1. Esa diferencia está medida desde el ADR 0014 y no se veía, así que el mapa era una
+    // mancha uniforme que solo sabía decir "no".
+    //
+    // Ojo con qué variable es esta, porque es la única que aquí se puede graduar sin mentir: **no
+    // habla del territorio ni de sus derechos, habla de nosotros**. La trama más densa es donde
+    // más se nos escapa. Cualquier degradado sobre el estado del territorio estaría prohibido.
+    const deuda = region ? deudaCobertura(region) : 0;
+    if (deuda >= 6) return "url(#sin-vigilar-3)";
+    if (deuda >= 3) return "url(#sin-vigilar-2)";
+    return "url(#sin-vigilar-1)";
   };
 
   /**
@@ -172,8 +245,23 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
         className="block w-full rounded border border-line bg-inset"
       >
         <defs>
+          {/* Las tres densidades de "sin vigilar", por deuda de cobertura. Mismo par de tokens
+              en las tres —solo cambian separación y grosor— para que se lean como una sola
+              categoría con intensidad, y no como tres categorías distintas. Verificado en claro
+              y en oscuro: en oscuro el contraste de `line-2` sobre `surface-2` es menor, así que
+              los tres pasos se separan más de lo que harían falta en claro. */}
           <pattern
-            id="sin-vigilar"
+            id="sin-vigilar-1"
+            patternUnits="userSpaceOnUse"
+            width={7}
+            height={7}
+            patternTransform="rotate(45)"
+          >
+            <rect width={7} height={7} fill="var(--color-surface-2)" />
+            <line x1={0} y1={0} x2={0} y2={7} stroke="var(--color-line-2)" strokeWidth={1} />
+          </pattern>
+          <pattern
+            id="sin-vigilar-2"
             patternUnits="userSpaceOnUse"
             width={5}
             height={5}
@@ -181,6 +269,16 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
           >
             <rect width={5} height={5} fill="var(--color-surface-2)" />
             <line x1={0} y1={0} x2={0} y2={5} stroke="var(--color-line-2)" strokeWidth={1.4} />
+          </pattern>
+          <pattern
+            id="sin-vigilar-3"
+            patternUnits="userSpaceOnUse"
+            width={3.4}
+            height={3.4}
+            patternTransform="rotate(45)"
+          >
+            <rect width={3.4} height={3.4} fill="var(--color-surface-2)" />
+            <line x1={0} y1={0} x2={0} y2={3.4} stroke="var(--color-line-2)" strokeWidth={1.6} />
           </pattern>
           {/* Vigilada sin alertas: misma trama, más separada y más tenue. Se lee como "aquí hay
               alguien mirando y todavía no hay nada que contar", no como un color de estado. */}
@@ -193,6 +291,26 @@ export function MapaCCAA({ regions, activeCode, onEnter, onLeave, onPick }: Mapa
           >
             <rect width={9} height={9} fill="var(--color-surface)" />
             <line x1={0} y1={0} x2={0} y2={9} stroke="var(--color-line-2)" strokeWidth={1} />
+          </pattern>
+          {/* Sin ley autonómica que vigilar. Puntos y no rayas: las tres tramas rayadas hablan
+              de NUESTRA cobertura —cuánto se nos escapa—, y esta habla del territorio. Que se
+              distinga de un vistazo es el punto de que exista. Sin color de estado, porque el
+              hecho no lleva veredicto (regla de oro 2). */}
+          {/* Solo ley de identidad de género: trama del mismo tono que `ambas`, no un tinte más
+              claro. La diferencia con «solo ley LGTBI» es de ÁMBITO, no de grado. */}
+          <pattern
+            id="marco-trans"
+            patternUnits="userSpaceOnUse"
+            width={6}
+            height={6}
+            patternTransform="rotate(45)"
+          >
+            <rect width={6} height={6} fill="var(--color-marco-1)" />
+            <line x1={0} y1={0} x2={0} y2={6} stroke="var(--color-marco-linea)" strokeWidth={1.6} />
+          </pattern>
+          <pattern id="sin-ley" patternUnits="userSpaceOnUse" width={6} height={6}>
+            <rect width={6} height={6} fill="var(--color-surface-2)" />
+            <circle cx={3} cy={3} r={1} fill="var(--color-line-2)" />
           </pattern>
         </defs>
 

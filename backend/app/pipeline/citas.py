@@ -143,12 +143,45 @@ def _normalizar(texto: str) -> str:
     return texto.translate(_TILDES)
 
 
+# Si el título trae un número de norma `N/AAAA`, es de un rango **numerado** y entonces tiene que
+# poder citarse: que no encaje en `_FORMA_LARGA` significa que está mal escrito. Si no lo trae, su
+# rango no se cita así y quedar fuera del eje no es un fallo sino una limitación estructural.
+#
+# El corte es por el número y no por una lista de tipos a propósito: «Decreto de 14 de noviembre de
+# 1958» empieza por un tipo que normalmente sí va numerado y aun así no lleva número, y una lista
+# de tipos lo daría por mal escrito cuando su título es exactamente el oficial.
+_LLEVA_NUMERO = re.compile(r"^[^,]{0,60}?\b\d{1,4}/\d{4}\b", re.IGNORECASE)
+
+
+def cita_esperable(titulo: str) -> bool:
+    """¿Debería esta norma poder citarse en el texto de otra?
+
+    Separa las dos razones por las que `forma_larga` puede devolver `None`, que hasta el
+    2026-08-23 estaban confundidas y solo podían estarlo mientras la watchlist fueron 24 leyes:
+
+    - **El título está mal escrito** → hay que arreglarlo, y el test lo pone rojo.
+    - **El rango no lleva número** (una instrucción, una orden, el Reglamento del Registro Civil
+      de 1958) → no hay nada que arreglar. Esa entrada dispara por el `<analisis>` del BOE, que es
+      donde de verdad viven sus modificaciones, pero **es invisible para el eje de citas** y por
+      tanto para el DOGC y para cualquier fuente futura que no publique `<analisis>`.
+
+    Lo segundo no se puede tapar ni se puede llamar fallo: se declara. Ver ADR 0022.
+    """
+    return _LLEVA_NUMERO.match(_normalizar(titulo)) is not None
+
+
 def forma_larga(titulo: str) -> str | None:
     """La forma con la que se cita una norma en el texto de otra, o `None`.
 
-    Se **deriva del título** de la watchlist en vez de guardarse como campo aparte: el título ya
-    empieza por esa forma en las 21 entradas (verificado el 2026-08-19), y un campo nuevo sería
-    otro dato que mantener sincronizado con el que ya está al lado.
+    Se **deriva del título** de la watchlist en vez de guardarse como campo aparte: un campo nuevo
+    sería otro dato que mantener sincronizado con el que ya está al lado.
+
+    **Devuelve `None` para las entradas de rango no numerado**, y eso es correcto — ver
+    `cita_esperable`. El comentario que había aquí decía «el título ya empieza por esa forma en las
+    21 entradas (verificado el 2026-08-19)» y dejó de ser cierto el 2026-08-23, al entrar las dos
+    Instrucciones de la DGSJFP. Se sustituye en vez de actualizar la cifra: una invariante que hay
+    que recontar a mano cada vez que alguien toca un JSON no es una invariante, es una nota que
+    caduca sin avisar. Quien la comprueba ahora es `cita_esperable` y el test que la usa.
     """
     coincidencia = _FORMA_LARGA.match(_normalizar(titulo))
     return coincidencia.group(1) if coincidencia else None

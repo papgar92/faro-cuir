@@ -2,6 +2,7 @@ import { useState } from "react";
 import { type AlertaApi, listarAlertas } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
 import { AlertCard } from "../components/AlertCard/AlertCard";
+import { DatosYCita } from "../components/DatosYCita/DatosYCita";
 import { nombreTerritorio } from "../lib/territorio";
 
 interface AlertasPageProps {
@@ -140,6 +141,19 @@ export function AlertasPage({ comunidadInicial, onGoArchivo }: AlertasPageProps)
                   <AlertCard key={alerta.id} alerta={alerta} />
                 ))}
               </div>
+              {/* Al pie del listado y no en la cabecera: quien llega aquí abajo ya ha leído las
+                  alertas y es cuando quiere los datos. Arriba competiría con ellas. */}
+              <DatosYCita
+                json="/api/alertas"
+                atom="/api/alertas.xml"
+                ejemplo={
+                  alertas[0] && {
+                    identificador: alertas[0].norma.identificador_oficial,
+                    sha256: alertas[0].texto_archivado?.sha256 ?? null,
+                    fecha: alertas[0].fecha_publicacion,
+                  }
+                }
+              />
             </>
           );
         })()}

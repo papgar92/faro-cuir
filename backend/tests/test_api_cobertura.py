@@ -186,3 +186,100 @@ def test_cuenta_los_boletines_archivados_y_no_los_cuerpos(
     sesion_db.commit()
 
     assert client.get("/api/cobertura").json()["documentos"] == 1
+
+
+def test_publica_que_comunidades_no_tienen_ley_autonomica(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """El dato estaba verificado en la watchlist y no llegaba a ninguna pantalla.
+
+    Sin él, el mapa pintaba igual dos silencios opuestos: Aragón sin alertas es «hay dos leyes
+    vigiladas y nadie las ha tocado», y Castilla y León sin alertas es «no hay ninguna ley que
+    tocar». Con el mismo relleno, el segundo se lee como tranquilidad — que es exactamente lo
+    que este mapa existe para no hacer.
+
+    Es un hecho verificado con su fecha, no una valoración (regla de oro 2).
+    """
+    _fuente(sesion_db, codigo="CL")
+    sesion_db.commit()
+
+    por_ccaa = {c["ccaa_codigo"]: c for c in client.get("/api/cobertura").json()["por_ccaa"]}
+
+    assert "no tiene ley autonomica LGTBI" in por_ccaa["CL"]["sin_ley_autonomica"]
+
+
+def test_una_comunidad_sin_ley_sale_aunque_no_tenga_ninguna_fuente_registrada(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """Asturias es uniprovincial: no tiene BOP propio, así que no tiene ninguna fila en `fuente`.
+
+    `por_ccaa` se construye agrupando esa tabla, de modo que Asturias no aparecía en la respuesta
+    y su ausencia de marco no habría llegado nunca al mapa. Es la mitad del dato, y la mitad que
+    menos se ve.
+    """
+    respuesta = client.get("/api/cobertura").json()
+    por_ccaa = {c["ccaa_codigo"]: c for c in respuesta["por_ccaa"]}
+
+    assert "AS" in por_ccaa
+    assert por_ccaa["AS"]["conocidas"] == 0
+    assert "no tiene ley autonomica LGTBI" in por_ccaa["AS"]["sin_ley_autonomica"]
+    # Añadir la fila no puede inflar los totales, que se suman de la consulta y no del diccionario.
+    assert respuesta["conocidas"] == 0
+
+
+def test_una_comunidad_con_ley_no_lleva_el_campo(client: TestClient, sesion_db: Session) -> None:
+    """`None` significa «sí tiene ley», no «no lo sabemos»: la watchlist lo tiene verificado."""
+    _fuente(sesion_db, codigo="AR")
+    sesion_db.commit()
+
+    por_ccaa = {c["ccaa_codigo"]: c for c in client.get("/api/cobertura").json()["por_ccaa"]}
+
+    assert por_ccaa["AR"]["sin_ley_autonomica"] is None
+
+
+def test_publica_la_linea_base_de_leyes_vigentes(client: TestClient, sesion_db: Session) -> None:
+    """La línea base: qué marco protector EXISTE hoy, sobre el que las alertas son el delta.
+
+    El mapa solo sabía pintar *cambios*, y el ADR 0027 midió que eso son ~5 casos al año: quince
+    comunidades en blanco no porque no pase nada, sino porque el mapa no sabía decir qué hay.
+    """
+    _fuente(sesion_db, codigo="AR")
+    sesion_db.commit()
+
+    por_ccaa = {c["ccaa_codigo"]: c for c in client.get("/api/cobertura").json()["por_ccaa"]}
+
+    tipos = {ley["tipo"] for ley in por_ccaa["AR"]["leyes_vigentes"]}
+    assert tipos == {"trans", "lgtbi"}
+    assert all(
+        ley["identificador"].startswith("BOE-A-") for ley in por_ccaa["AR"]["leyes_vigentes"]
+    )
+
+
+def test_una_ley_derogada_no_cuenta_como_marco_vigente(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """Euskadi tiene DOS entradas en la watchlist y una está derogada (Ley 14/2012).
+
+    Se sigue vigilando a propósito —una norma derogada aparece en las referencias de las que la
+    citan, y perder ese rastro sería perder el histórico—, pero **no es marco vigente**. Sin esta
+    distinción la línea base diría que Euskadi tiene una ley que ya no existe.
+    """
+    por_ccaa = {c["ccaa_codigo"]: c for c in client.get("/api/cobertura").json()["por_ccaa"]}
+
+    identificadores = {ley["identificador"] for ley in por_ccaa["PV"]["leyes_vigentes"]}
+
+    assert "BOE-A-2024-4867" in identificadores
+    assert "BOE-A-2012-9664" not in identificadores
+
+
+def test_la_linea_base_cubre_las_diecisiete_comunidades(client: TestClient) -> None:
+    """Sin huecos: o hay leyes vigentes, o está verificado que no hay ley. Nunca silencio.
+
+    Es la misma exigencia que el embudo del prefiltro (7.2): lo que el sistema no puede decir se
+    cuenta, no se omite. Una comunidad que no apareciera aquí se pintaría igual que una sin ley.
+    """
+    por_ccaa = client.get("/api/cobertura").json()["por_ccaa"]
+
+    con_marco = [c for c in por_ccaa if c["leyes_vigentes"] or c["sin_ley_autonomica"]]
+
+    assert len(con_marco) == 17

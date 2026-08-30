@@ -63,7 +63,7 @@ from app.pipeline.watchlist import Watchlist
 # descartó" deja de ser comprobable. La versión cubre el eje entero, no solo la lista de
 # palabras — es lo que hace que `--reprefiltrar` recoja un cambio como el del ADR 0021, donde no
 # se tocó ni un término y sin embargo cambió el resultado de 100 normas.
-VERSION_VOCABULARIO = "2026.08.20"
+VERSION_VOCABULARIO = "2026.08.23"
 
 # Cuántos términos DIRECTOS distintos hacen falta, sobre el texto íntegro, para que una norma
 # entre como RELEVANTE en vez de como SOSPECHA.
@@ -128,6 +128,15 @@ _VOCABULARIO: dict[str, Categoria] = {
     "lesbiana": Categoria.DIRECTO,
     "lesbianas": Categoria.DIRECTO,
     "gais": Categoria.DIRECTO,
+    # `gays` es la forma que usan los TÍTULOS de varias leyes de la propia watchlist («lesbianas,
+    # gays, trans, bisexuales e intersexuales»), y `gais` no la encuentra porque `_contiene` exige
+    # límites de palabra. Lo detectó el `jurista-lgtbi` el 2026-08-23 leyendo el diccionario, y se
+    # midió antes de añadirlo: 0 apariciones en 1.500 disposiciones descartadas, o sea coste cero.
+    "gays": Categoria.DIRECTO,
+    # `gay` en singular NO se añade, y esto está medido, no supuesto. Sobre las mismas 1.500
+    # disposiciones aparece 2 veces y **las dos son apellidos de personas**: «M. Eugenia Gay
+    # Rosell» y «Daniel Araujo Gay». Un 100 % de falsos positivos. (El jurista había avisado de
+    # «ley de Gay-Lussac»; el falso positivo real resultó ser más común todavía.)
     "transexual": Categoria.DIRECTO,
     "transexuales": Categoria.DIRECTO,
     "transexualidad": Categoria.DIRECTO,
@@ -216,6 +225,31 @@ _VOCABULARIO: dict[str, Categoria] = {
     "rectificacion registral": Categoria.DIRECTO,
     "rectificacion registral del sexo": Categoria.DIRECTO,
     "mencion registral del sexo": Categoria.DIRECTO,
+    # --- El acceso definido por sexo REGISTRAL (mecanismo M-4 del informe de puntos ciegos) ----
+    #
+    # Ninguna norma dice «las mujeres trans no acceden». Dice cómo se acredita la condición de
+    # mujer, y con eso se regula el acceso a casas de acogida, a plazas de recursos de violencia,
+    # a la clasificación penitenciaria y a la competición deportiva femenina.
+    #
+    # Van como DIRECTO y no como CONTEXTO porque son fórmulas que casi solo se escriben cuando
+    # alguien está decidiendo a quién se le aplica un régimen por su sexo. Y resuelven, sin
+    # tocarlas, el problema de `categoria femenina` y `competicion femenina`: esas son CONTEXTO
+    # con razón —cualquier convocatoria deportiva las lleva— y desde el ADR 0021 no disparan
+    # solas, así que un reglamento que restrinja por sexo registral no entraba en la cola. Ahora
+    # entra por el término que de verdad decide, no por el que describe la materia.
+    #
+    # **Coste medido antes de añadirlos** (`scripts/medir_terminos_candidatos.py`, 2026-08-23):
+    # 0 apariciones en 1.500 disposiciones descartadas. Cero falsos positivos. Lo que NO se puede
+    # afirmar es que mejoren el recall: en este corpus no aparecen, y esa frecuencia mide la
+    # composición del corpus —BOE y DOGC traen poca normativa deportiva o penitenciaria— tanto
+    # como el término. Se añaden porque no cuestan nada y cubren un hueco identificado, no porque
+    # esté demostrado que rescaten algo.
+    "sexo registral": Categoria.DIRECTO,
+    "sexo inscrito": Categoria.DIRECTO,
+    "sexo al nacer": Categoria.DIRECTO,
+    "sexo de nacimiento": Categoria.DIRECTO,
+    "sexo asignado al nacer": Categoria.DIRECTO,
+    "mencion registral relativa al sexo": Categoria.DIRECTO,
     "mencion del sexo": Categoria.DIRECTO,
     "cambio de nombre": Categoria.CONTEXTO,
     "registro civil": Categoria.CONTEXTO,

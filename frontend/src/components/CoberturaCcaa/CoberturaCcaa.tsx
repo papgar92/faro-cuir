@@ -1,3 +1,4 @@
+import { formatearFecha } from "../../lib/formato";
 import type { CoberturaCcaaApi, CoberturaNivelApi } from "../../api/client";
 
 const ETIQUETA_AMBITO: Record<string, string> = {
@@ -56,6 +57,21 @@ function Barra({ nivel }: { nivel: CoberturaNivelApi }) {
  * propia cobertura en silencio. Cuando el ADR 0014 se implemente entero, estos números suben
  * solos sin tocar esta pantalla.
  */
+/**
+ * Cuántos días de silencio hacen que una fuente deje de estar «al día».
+ *
+ * 30 y no 1: los boletines autonómicos no publican a diario ni en agosto, así que un umbral
+ * corto marcaría en rojo una cadencia normal. 30 días es lo bastante ancho para no dar falsos
+ * avisos y lo bastante corto para que veinte meses de silencio —el caso real del DOGC— salte.
+ */
+const DIAS_PARA_RANCIA = 30;
+
+function estaRancia(ultima: string | null): boolean {
+  if (!ultima) return false;
+  const dias = (Date.now() - new Date(ultima).getTime()) / 86_400_000;
+  return dias > DIAS_PARA_RANCIA;
+}
+
 export function CoberturaCcaa({ cobertura }: { cobertura: CoberturaCcaaApi | undefined }) {
   if (!cobertura) {
     return (
@@ -98,6 +114,49 @@ export function CoberturaCcaa({ cobertura }: { cobertura: CoberturaCcaaApi | und
           están descargadas y archivadas, pero su texto llegó en un formato que el sistema no
           puede leer, así que <strong className="font-semibold text-ink">no se han analizado</strong>.
           El boletín se está vigilando; esa parte de su contenido, no.
+        </p>
+      )}
+
+      {/*
+        HASTA CUÁNDO LLEGA LO QUE SABEMOS. «Vigilada» sin fecha es una promesa, no una medición:
+        no distingue «lo leímos ayer» de «lo leímos hace veinte meses». Y no es hipotético — es lo
+        primero que apareció al publicar el dato: el DOGC se ingirió como una tanda de 2024 y su
+        boletín más reciente es del 31 de diciembre de 2024, con el mapa pintando Catalunya como
+        vigilada todo este tiempo.
+
+        El umbral de rancidez son 30 días y va en el color de AVISO, no en el de retroceso: que
+        no hayamos leído no dice nada del territorio, dice algo de nosotros.
+      */}
+      {cobertura.vigiladas > 0 && (
+        <p
+          className={`mt-2.5 rounded border p-2.5 text-xs leading-relaxed ${
+            estaRancia(cobertura.ultima_publicacion)
+              ? "border-alr bg-alr-soft text-ink-2"
+              : "border-line bg-inset text-ink-2"
+          }`}
+        >
+          {cobertura.ultima_publicacion ? (
+            <>
+              El boletín más reciente que tenemos archivado de aquí es del{" "}
+              <strong className="font-semibold text-ink">
+                {formatearFecha(cobertura.ultima_publicacion)}
+              </strong>
+              .{" "}
+              {estaRancia(cobertura.ultima_publicacion) && (
+                <>
+                  Desde entonces{" "}
+                  <strong className="font-semibold text-ink">no hemos leído nada más</strong> de
+                  esta fuente, así que lo de aquí abajo no está al día.
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              La fuente figura como vigilada y{" "}
+              <strong className="font-semibold text-ink">no hay ni un boletín archivado</strong>
+              {" "}todavía.
+            </>
+          )}
         </p>
       )}
 

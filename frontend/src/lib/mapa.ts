@@ -1,4 +1,4 @@
-import type { AlertaApi, CoberturaApi } from "../api/client";
+import type { AlertaApi, CoberturaApi, LeyVigenteApi } from "../api/client";
 import { CCAA_PATHS } from "../components/MapaCCAA/ccaa-paths";
 import type { EstadoMapa } from "./classification";
 import { nombreTerritorio } from "./territorio";
@@ -45,6 +45,21 @@ export interface RegionMapa {
   vigilada: boolean;
   fuentesVigiladas: number;
   fuentesConocidas: number;
+  /**
+   * Motivo verificado por el que esta comunidad **no tiene ley autonómica LGTBI**, o `null`.
+   *
+   * Es la distinción que faltaba y que hacía mentir al mapa en el caso que menos se ve: Aragón
+   * sin alertas significa «hay dos leyes vigiladas y nadie las ha tocado», y Castilla y León sin
+   * alertas significa «no hay ninguna ley que tocar». Con el mismo relleno, la segunda se leía
+   * como tranquilidad.
+   *
+   * **No es un juicio, es un hecho verificado** (`_sin_ley_autonomica` de la watchlist, con su
+   * fecha de comprobación). El mapa dice que no hay marco; no dice si eso está bien o mal, que
+   * es lo que prohíbe la regla de oro 2.
+   */
+  sinLeyAutonomica: string | null;
+  /** Leyes autonómicas **en vigor** de esta comunidad. La línea base del mapa. */
+  leyesVigentes: LeyVigenteApi[];
   /** Titular y fecha de la alerta más reciente, si la hay. */
   title?: string;
   date?: string;
@@ -68,6 +83,22 @@ const ESTADO_POR_CLASIFICACION: Record<AlertaApi["clasificacion"], EstadoMapa> =
 /** Orden de gravedad: si una comunidad tiene varias alertas, manda la peor. */
 const GRAVEDAD: EstadoMapa[] = ["estable", "avance", "alerta", "retroceso"];
 
+/**
+ * El signo **que se le enseña a quien lee**: el que fijó una persona si lo fijó, y si no el que
+ * derivó la regla.
+ *
+ * Es la misma precedencia que aplican `AlertCard` y el filtro de `GET /api/alertas`, y está aquí
+ * porque el mapa la tenía mal: pintaba con `clasificacion` a secas. Con Catalunya —cuya regla se
+ * abstuvo (`indeterminado`) y a la que una persona puso «avance»— el mapa la teñía de «sin
+ * signo» mientras su tarjeta ponía «Avance». Dos superficies del mismo dato diciendo cosas
+ * distintas. Encontrado el 2026-08-22, el mismo dia y por el mismo motivo que en el filtro.
+ *
+ * Si algún día cambia la precedencia, tiene que cambiar en los tres sitios.
+ */
+export function signoVisible(alerta: AlertaApi): AlertaApi["clasificacion"] {
+  return alerta.clasificacion_humana ?? alerta.clasificacion;
+}
+
 export function construirRegiones(
   alertas: AlertaApi[] | undefined,
   cobertura: CoberturaApi | undefined,
@@ -88,6 +119,8 @@ export function construirRegiones(
       vigilada: false,
       fuentesVigiladas: 0,
       fuentesConocidas: 0,
+      sinLeyAutonomica: null,
+      leyesVigentes: [],
     };
   }
 
@@ -101,8 +134,12 @@ export function construirRegiones(
       vigilada: false,
       fuentesVigiladas: 0,
       fuentesConocidas: 0,
+      sinLeyAutonomica: null,
+      leyesVigentes: [],
     });
     region.vigilada = ccaa.vigiladas > 0;
+    region.sinLeyAutonomica = ccaa.sin_ley_autonomica ?? null;
+    region.leyesVigentes = ccaa.leyes_vigentes ?? [];
     region.fuentesVigiladas = ccaa.vigiladas;
     region.fuentesConocidas = ccaa.conocidas;
   }
@@ -125,10 +162,12 @@ export function construirRegiones(
         vigilada: false,
         fuentesVigiladas: 0,
         fuentesConocidas: 0,
+        sinLeyAutonomica: null,
+        leyesVigentes: [],
       });
 
       region.alerts += 1;
-      const estado = ESTADO_POR_CLASIFICACION[alerta.clasificacion];
+      const estado = ESTADO_POR_CLASIFICACION[signoVisible(alerta)];
       if (region.state === null || GRAVEDAD.indexOf(estado) > GRAVEDAD.indexOf(region.state)) {
         region.state = estado;
       }
@@ -168,3 +207,89 @@ export function regionesConAlertas(regiones: Record<string, RegionMapa>): Region
     .filter((region) => region.alerts > 0)
     .sort((a, b) => b.alerts - a.alerts || a.name.localeCompare(b.name, "es"));
 }
+
+/**
+ * Cuántas alertas estatales hay **de cada signo**. Un recuento, nunca un estado agregado.
+ *
+ * La diferencia no es de matiz y es la razón de que esta función devuelva un objeto y no un
+ * `EstadoMapa`. Resumir 4 avances y 1 retroceso en un solo valor obligaría a elegir uno, y la
+ * regla de `GRAVEDAD` de aquí arriba elegiría `retroceso`: la pantalla afirmaría «España:
+ * retroceso» teniendo el 80 % de sus alertas en avance. Eso es un veredicto que ninguna regla
+ * emitió y que nadie aprobó — regla de oro 2 — y encima en el sitio más visible de la interfaz.
+ *
+ * Por eso la banda estatal pinta **una marca por alerta** y no una silueta de España coloreada:
+ * a esta escala la unidad es legible, y es lo más honesto que se puede dibujar.
+ */
+export interface ResumenEstatal {
+  total: number;
+  /** Recuento por signo visible, en el orden en que se pinta. */
+  porSigno: Array<{ signo: AlertaApi["clasificacion"]; alertas: AlertaApi[] }>;
+}
+
+const ORDEN_SIGNO: AlertaApi["clasificacion"][] = ["retroceso", "avance", "neutro", "indeterminado"];
+
+export function resumenEstatal(alertas: AlertaApi[] | undefined): ResumenEstatal {
+  const estatales = alertasEstatales(alertas);
+  const porSigno = ORDEN_SIGNO.map((signo) => ({
+    signo,
+    alertas: estatales.filter((alerta) => signoVisible(alerta) === signo),
+  })).filter((grupo) => grupo.alertas.length > 0);
+  return { total: estatales.length, porSigno };
+}
+
+/**
+ * Cuántos boletines oficiales de esta comunidad se conocen y **no** se están vigilando.
+ *
+ * Es lo que permite que la trama del mapa deje de ser una mancha uniforme: hoy las quince
+ * comunidades sin vigilar se pintan igual, y no son iguales — Andalucía tiene 8 boletines
+ * provinciales conocidos sin integrar y La Rioja 1. Esa diferencia está medida desde el ADR 0014
+ * y no se veía.
+ *
+ * Ojo con lo que este número NO dice: no habla del territorio ni de sus derechos, habla **de
+ * nosotros**. Es la única variable sobre la que este mapa tiene derecho a hacer un degradado.
+ */
+export function deudaCobertura(region: RegionMapa): number {
+  return Math.max(0, region.fuentesConocidas - region.fuentesVigiladas);
+}
+
+
+/**
+ * Las dos vistas del mapa, y por qué hacen falta las dos.
+ *
+ * `cambios` es lo que había: pinta **movimiento** —las alertas aprobadas—. Es lo que el sistema
+ * afirma y solo después del gate humano. Su problema es que el ADR 0027 midió que el eje
+ * referencial rinde ~5 casos al año, así que casi todo el mapa está en silencio casi siempre, y
+ * un mapa en blanco se lee como «no pasa nada» cuando lo que dice es «no ha cambiado nada».
+ *
+ * `marco` pinta **estado**: qué ley protectora existe hoy en cada comunidad, de la watchlist,
+ * auditada una a una contra boe.es. Es la línea base sobre la que `cambios` es el delta, y es el
+ * «Rainbow Map por comunidad autónoma» del pitch (CLAUDE.md sección 1).
+ *
+ * **Ninguna de las dos puntúa.** `marco` enumera lo que hay, con su identificador del BOE
+ * enlazable; decir qué comunidad está «mejor» sería el juicio propio que prohíbe la regla de
+ * oro 2, y por eso su paleta es de un tono propio y no la de avance/retroceso.
+ */
+export type VistaMapa = "cambios" | "marco";
+
+/** Qué marco tiene una comunidad. `null` = no lo sabemos (aún no ha llegado la cobertura). */
+export type CategoriaMarco = "ambas" | "lgtbi" | "trans" | "ninguna" | null;
+
+export function categoriaMarco(region: RegionMapa | undefined): CategoriaMarco {
+  if (!region) return null;
+  // El hecho verificado manda sobre la lista vacía: «no tiene ley» y «todavía no hemos cargado
+  // sus leyes» son cosas distintas y solo la primera se puede afirmar.
+  if (region.sinLeyAutonomica) return "ninguna";
+  if (region.leyesVigentes.length === 0) return null;
+  const trans = region.leyesVigentes.some((ley) => ley.tipo === "trans");
+  const lgtbi = region.leyesVigentes.some((ley) => ley.tipo === "lgtbi");
+  if (trans && lgtbi) return "ambas";
+  return trans ? "trans" : "lgtbi";
+}
+
+/** Etiqueta de cada categoría: dice **qué existe**, nunca cuánto vale. */
+export const MARCO_ETIQUETA: Record<Exclude<CategoriaMarco, null>, string> = {
+  ambas: "Ley trans y ley LGTBI",
+  trans: "Solo ley de identidad de género",
+  lgtbi: "Solo ley LGTBI integral",
+  ninguna: "Sin ley autonómica",
+};

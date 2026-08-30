@@ -768,3 +768,112 @@ class TestSupresionDeOrgano:
         veredicto = reglas.clasificar(texto, referencias=referencias, lista=LEY_2_2016)
 
         assert veredicto is not None and veredicto.regla == reglas.R_SUP_NORMA_VIGILADA
+
+
+class TestModificacionEnFuturo:
+    """El futuro de «quedar redactado», que faltaba hasta el 2026-08-30.
+
+    No es una forma exótica: es **como redactan sus modificaciones las leyes de presupuestos y de
+    acompañamiento**, que son justo el vehículo por el que una ley LGTBI autonómica se reforma sin
+    titular. La Ley Foral 18/2021 de Presupuestos de Navarra modifica la Ley Foral 8/2017 con 19
+    cláusulas en futuro y **ni una en presente**: sin esta forma verbal el catálogo entero era
+    ciego a esa reforma, y el `<analisis>` del BOE decía MODIFICA mientras el clasificador no
+    encontraba una sola cláusula en 161.000 caracteres.
+    """
+
+    def test_reconoce_quedara_redactado(self) -> None:
+        texto = (
+            "Se modifica el apartado 1 de la disposición transitoria cuarta, que quedará "
+            "redactado en los siguientes términos: «1. Las y los profesionales.»"
+        )
+
+        assert len(reglas.modificaciones(texto)) == 1
+
+    def test_reconoce_quedaran_redactados(self) -> None:
+        texto = "Se modifican los artículos 3 y 4, que quedarán redactados como sigue: «...»"
+
+        assert len(reglas.modificaciones(texto)) == 1
+
+    def test_sigue_reconociendo_el_presente(self) -> None:
+        """La forma que ya funcionaba no se pierde al ampliar el patrón."""
+        texto = "El artículo 12 queda redactado en los siguientes términos: «...»"
+
+        assert len(reglas.modificaciones(texto)) == 1
+
+    def test_sin_precepto_no_es_modificacion(self) -> None:
+        """La condición que evita los falsos positivos no se relaja: hace falta un precepto.
+
+        Sin ella, cualquier «quedará redactado» del preámbulo o de una cita valdría como cambio
+        normativo, que es exactamente lo que `_PRECEPTO` existe para impedir.
+        """
+        assert reglas.modificaciones("El texto quedará redactado por la comisión.") == ()
+
+
+class TestEspecificidadDeLaNormaVigilada:
+    """R-SUP-001 solo afirma signo si lo suprimido es una norma PROTECTORA (ADR 0030).
+
+    Es el error del ADR 0023 un nivel más arriba. Allí la supresión y la norma vigilada
+    coexistían en el **documento** sin tener que ver; aquí coexistirían **dentro de la norma
+    vigilada**: en la Ley del SNS o en el Registro Civil el derecho del colectivo vive en dos o
+    tres preceptos y el resto es materia ajena, así que suprimir su artículo 33 —formación
+    sanitaria especializada— no es un retroceso LGTBI.
+
+    **Perder el signo no es perder la vigilancia** (ADR 0023): cae a `indeterminado`, conserva
+    regla y evidencia, y sigue entrando en la cola porque identifica una norma vigilada.
+    """
+
+    LISTA = Watchlist(
+        version="test",
+        normas=(
+            NormaVigilada(
+                identificador="BOE-A-2016-6728",
+                titulo="Ley 2/2016, de 29 de marzo, de Identidad y Expresion de Genero",
+                nota="",
+                ambito="MD",
+                especificidad="lgtbi",
+            ),
+            NormaVigilada(
+                identificador="BOE-A-2003-10715",
+                titulo="Ley 16/2003, de 28 de mayo, de cohesion y calidad del SNS",
+                nota="",
+                ambito="estatal",
+                especificidad="vehiculo",
+            ),
+        ),
+    )
+
+    def _veredicto(self, identificador: str):  # type: ignore[no-untyped-def]
+        texto = "Se suprime el artículo 8 de la norma citada."
+        referencia = ReferenciaAnterior(
+            identificador=identificador,
+            verbo="MODIFICA",
+            texto=f"SUPRIME el art. 8 de la norma {identificador}",
+        )
+        return reglas.clasificar(texto, referencias=(referencia,), lista=self.LISTA)
+
+    def test_una_norma_protectora_si_afirma_retroceso(self) -> None:
+        veredicto = self._veredicto("BOE-A-2016-6728")
+
+        assert veredicto is not None
+        assert veredicto.regla == reglas.R_SUP_NORMA_VIGILADA
+        assert veredicto.clasificacion == Clasificacion.RETROCESO
+        assert veredicto.severidad == 4
+
+    def test_una_norma_vehiculo_no_afirma_signo(self) -> None:
+        veredicto = self._veredicto("BOE-A-2003-10715")
+
+        assert veredicto is not None
+        # Misma regla y misma evidencia: lo que cambia es que no se afirma hacia dónde.
+        assert veredicto.regla == reglas.R_SUP_NORMA_VIGILADA
+        assert veredicto.clasificacion == Clasificacion.INDETERMINADO
+        assert veredicto.normas_vigiladas == ("BOE-A-2003-10715",)
+
+    def test_sin_el_campo_una_norma_se_considera_protectora(self) -> None:
+        """El valor por defecto protege el caso que más importa.
+
+        Equivocarse hacia `vehiculo` apagaría el signo de una norma que sí lo merece, y eso se
+        nota mucho menos que lo contrario.
+        """
+        norma = NormaVigilada(identificador="BOE-A-2016-6728", titulo="x", nota="", ambito="MD")
+
+        assert norma.especificidad == "lgtbi"

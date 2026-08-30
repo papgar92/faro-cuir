@@ -14,6 +14,7 @@ import datetime
 import logging
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from sqlalchemy import select
@@ -31,13 +32,25 @@ from app.security.xml_safe import XmlSafeError
 from app.services import clasificacion as servicio_clasificacion
 from app.services import extraccion as servicio_extraccion
 from app.services import informes as servicio_informes
-from app.services import ingesta, texto_integro, versionado
+from app.services import ingesta, recuperacion_pdf, texto_integro, versionado
 from app.services import prefiltro as servicio_prefiltro
 from app.services import revision as servicio_revision
 
 logger = logging.getLogger("worker")
 
-FUENTES_SOPORTADAS = ("boe", "dogc")
+# Qué sabe ingerir el worker. La tabla existe porque hasta el ADR 0028 esto era un `if
+# fuente != "boe"` con el código de comunidad escrito a mano en la consulta: con dos fuentes
+# colaba, con tres deja de colar y la cuarta se añadiría por copia. Cada fila dice las tres
+# cosas que distinguen una fuente: qué tipo es, qué comunidad la publica (None = estatal) y
+# quién sabe leerla.
+FUENTES: dict[str, tuple[TipoFuente, str | None, Callable[..., ingesta.ResultadoIngesta]]] = {
+    "boe": (TipoFuente.BOE, None, ingesta.ingerir_sumario_boe),
+    "dogc": (TipoFuente.BOLETIN_AUTONOMICO, "CT", ingesta.ingerir_sumario_dogc),
+    "boa": (TipoFuente.BOLETIN_AUTONOMICO, "AR", ingesta.ingerir_sumario_boa),
+    "bocyl": (TipoFuente.BOLETIN_AUTONOMICO, "CL", ingesta.ingerir_sumario_bocyl),
+}
+
+FUENTES_SOPORTADAS = tuple(FUENTES)
 
 
 def _fecha(valor: str) -> datetime.date:
@@ -118,6 +131,17 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--limite",
+        type=int,
+        metavar="N",
+        help=(
+            "Con --extraer: procesa como mucho N normas y para. Una extracción cuesta ~318 s "
+            "medidos, así que vaciar la cola entera son decenas de horas de CPU; esto es lo que "
+            "permite lanzar una tanda acotada. Lo que se deja fuera no se pierde: la cola es una "
+            "consulta y la pasada siguiente lo recoge."
+        ),
+    )
+    parser.add_argument(
         "--importar-informes",
         type=Path,
         metavar="FICHERO.json",
@@ -134,6 +158,16 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         help=(
             "Quién ha escrito los informes que se importan. Se enseña en el panel junto a cada "
             "uno: «esto lo preparó X y no lo ha revisado nadie» es parte de lo que hay que decir."
+        ),
+    )
+    parser.add_argument(
+        "--recuperar-pdf",
+        action="store_true",
+        help=(
+            "No ingiere nada: reintenta por PDF las normas marcadas `ilegible` (ADR 0026). El "
+            "DOGC publica muchas solo en PDF y su endpoint XML devuelve la pagina de error del "
+            "portal. Sale a la red. NO sustituye el documento anterior: archiva el PDF aparte, "
+            "con su propia huella, y reapunta la norma."
         ),
     )
     parser.add_argument(
@@ -155,6 +189,7 @@ def _parsear_argumentos(argv: list[str] | None) -> argparse.Namespace:
         or args.reclasificar
         or args.versionar
         or args.extraer
+        or args.recuperar_pdf
         or args.importar_informes is not None
     )
     if not mantenimiento and args.fuente is None:
@@ -359,6 +394,28 @@ def main(argv: list[str] | None = None) -> int:
         _registrar_embudo(resumen, reaplicado=True)
         return 0
 
+    if args.recuperar_pdf:
+        # Recupera y reevalua en la misma pasada, por lo mismo que `--fase2`: dejar cuerpos
+        # archivados que nadie ha mirado es la ventana que este worker se cuida de no abrir.
+        with SessionLocal() as session:
+            resumen_pdf = recuperacion_pdf.recuperar(
+                session,
+                almacen_root=settings.almacen_root,
+                pausa=settings.fase2_pausa_segundos,
+                limite=settings.fase2_max_por_ejecucion,
+            )
+            resumen = servicio_prefiltro.aplicar(session, almacen_root=settings.almacen_root)
+        logger.info(
+            "Recuperacion por PDF (ADR 0026): %d intentadas -> %d recuperadas, %d SIN CAPA DE "
+            "TEXTO (serian el caso de un OCR), %d fallidas.",
+            resumen_pdf.intentadas,
+            resumen_pdf.recuperadas,
+            resumen_pdf.sin_texto,
+            resumen_pdf.fallidas,
+        )
+        _registrar_embudo(resumen, reaplicado=True)
+        return 0
+
     if args.versionar:
         with SessionLocal() as session:
             resumen_versionado = _versionar(session)
@@ -371,7 +428,10 @@ def main(argv: list[str] | None = None) -> int:
         # —o `--reclasificar`— sin volver a llamar al modelo.
         with SessionLocal() as session:
             resumen_extraccion = servicio_extraccion.aplicar(
-                session, ProveedorOllama(), almacen_root=settings.almacen_root
+                session,
+                ProveedorOllama(),
+                almacen_root=settings.almacen_root,
+                limite=args.limite,
             )
         logger.info(
             "Extracción (prompt %s): %s pendientes, %s extraídas, %s fallidas, %s punteros. "
@@ -444,11 +504,12 @@ def _ingerir_dia(  # noqa: C901
 ) -> int:
     """Una pasada completa del pipeline sobre un día de boletín."""
     with SessionLocal() as session:
-        tipo = TipoFuente.BOE if fuente_pedida == "boe" else TipoFuente.BOLETIN_AUTONOMICO
+        tipo, ccaa_codigo, ingerir = FUENTES[fuente_pedida]
         consulta = select(Fuente).where(Fuente.tipo == tipo)
-        if fuente_pedida != "boe":
-            # Hay 17 boletines autonómicos posibles en el modelo; hoy solo uno integrado.
-            consulta = consulta.where(Fuente.ccaa_codigo == "CT")
+        if ccaa_codigo is not None:
+            # Hay 17 boletines autonómicos posibles en el modelo; sin acotar la comunidad, la
+            # consulta devolvería el primero que hubiera y se archivaría el BOA bajo el DOGC.
+            consulta = consulta.where(Fuente.ccaa_codigo == ccaa_codigo)
         fuente = session.scalar(consulta)
         if fuente is None:
             logger.error(
@@ -461,9 +522,6 @@ def _ingerir_dia(  # noqa: C901
             logger.error("La fuente %r está marcada como inactiva; no se ingiere.", fuente.nombre)
             return 2
 
-        ingerir = (
-            ingesta.ingerir_sumario_boe if fuente_pedida == "boe" else ingesta.ingerir_sumario_dogc
-        )
         try:
             resultado = ingerir(
                 session,

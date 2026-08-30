@@ -76,6 +76,26 @@ def texto_plano(raiz: Element) -> str:
             "./{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}act/"
             "{http://docs.oasis-open.org/legaldocml/ns/akn/3.0}body"
         )
+    if cuerpo is None:
+        # BOA (ADR 0028): la respuesta es `documento > registro > texto`, con el articulado en
+        # un nodo de texto normal. Sin esta rama caeria al arbol completo y el texto se llenaria
+        # de metadatos del registro —titulo, emisor, seccion—, que para el prefiltro lexico son
+        # falsos positivos del mismo tipo que el `<analisis>` del BOE.
+        #
+        # **`VERSION_TEXTO_PLANO` NO sube por esto, y es deliberado.** Esa version gobierna las
+        # colas de reproceso del prefiltro y del clasificador (`!=` en `services/prefiltro.py` y
+        # `services/clasificacion.py`): subirla reprocesaria las decenas de miles de normas ya
+        # archivadas del BOE y del DOGC, cuya derivacion esta rama no toca porque solo dispara
+        # sobre una estructura que ningun documento suyo tiene. Se sube cuando cambie como se
+        # deriva algo YA archivado, no cuando se aprenda a leer una forma nueva.
+        cuerpo = raiz.find("./registro/texto")
+    if cuerpo is None:
+        # BOCYL (ADR 0029): `disposicion > contenido > texto`, con el articulado en <p>. El
+        # <titulo> es hermano de <texto> dentro de <contenido>, así que apuntar a <contenido>
+        # metería el título en el articulado; se apunta a <texto>.
+        #
+        # `VERSION_TEXTO_PLANO` tampoco sube por esto, por lo mismo que en el caso del BOA.
+        cuerpo = raiz.find("./contenido/texto")
     objetivo = cuerpo if cuerpo is not None else raiz
     fragmentos = (fragmento.strip() for fragmento in objetivo.itertext())
     return " ".join(f for f in fragmentos if f)

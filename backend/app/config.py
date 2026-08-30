@@ -76,8 +76,17 @@ class Settings(BaseSettings):
     # no debe tocar código. Un modelo pequeño basta porque el esquema Pydantic descarta lo
     # que no cumpla el contrato (ADR 0002); la calidad se medirá con el gold set, no a ojo.
     llm_modelo: str = "qwen2.5:3b-instruct"
-    # Generoso: en CPU sin GPU dedicada una extracción tarda bastante más que contra una API.
-    llm_timeout_segundos: float = 180.0
+    # **Recalibrado el 2026-08-28 de 180 a 600 con datos de una tanda real, y el 180 era un
+    # error de calibración, no una elección conservadora.** La extracción medida son 133,9 s de
+    # media (ADR 0011), así que un timeout de 180 s deja fuera cualquier documento por encima de
+    # la media: en la primera tanda larga del extractor, **22 de 43 extracciones (el 51 %) se
+    # descartaron con «Error hablando con Ollama: timed out»**.
+    #
+    # Lo peor de ese fallo es que **no rompe nada visiblemente**: sin fila, la norma vuelve sola
+    # a la cola (6.9.3), así que el worker parecía avanzar mientras reintentaba en bucle las
+    # mismas normas. Un margen del 34 % sobre una media medida no es margen; 600 s son 4,5 veces
+    # la media y absorben la cola larga de documentos grandes.
+    llm_timeout_segundos: float = 600.0
 
     @field_validator("llm_base_url")
     @classmethod

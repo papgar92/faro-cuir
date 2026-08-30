@@ -194,12 +194,29 @@ export interface CoberturaNivelApi {
   vigiladas: number;
 }
 
+/** Una ley autonómica en vigor de la watchlist, auditada contra boe.es. */
+export interface LeyVigenteApi {
+  identificador: string;
+  titulo: string;
+  /** "trans" (identidad/expresión de género) o "lgtbi" (ley LGTBI integral). */
+  tipo: string;
+}
+
 export interface CoberturaCcaaApi {
   ccaa_codigo: string;
   ccaa: string;
   niveles: CoberturaNivelApi[];
   conocidas: number;
   vigiladas: number;
+  /**
+   * Fecha del boletín **más reciente** archivado de esta comunidad. `null` si no hay ninguno.
+   *
+   * Es lo que convierte «vigilada, sin alertas» de promesa en medición. Y lo primero que
+   * encontró al existir: el DOGC se ingirió como una tanda de 2024 y su boletín más nuevo es del
+   * **31 de diciembre de 2024**, mientras el mapa pintaba Catalunya como vigilada. «Aquí se
+   * mira» y «aquí se miró hace veinte meses» son cosas distintas y se pintaban igual.
+   */
+  ultima_publicacion: string | null;
   /**
    * Normas ingeridas de esta comunidad, y cuántas de ellas el pipeline **no puede leer**
    * (ADR 0020). Es la diferencia entre estar suscrito a un boletín y estarlo leyendo:
@@ -209,6 +226,13 @@ export interface CoberturaCcaaApi {
    */
   normas: number;
   ilegibles: number;
+  /**
+   * Motivo verificado por el que la comunidad NO tiene ley autonómica LGTBI, o `null`.
+   * Sale de `_sin_ley_autonomica` de la watchlist. Hoy son dos: Asturias y Castilla y León.
+   */
+  sin_ley_autonomica: string | null;
+  /** Leyes autonómicas **en vigor** de esta comunidad. Las derogadas no salen. */
+  leyes_vigentes: LeyVigenteApi[];
 }
 
 export interface CoberturaApi {
@@ -315,6 +339,82 @@ export function listarAlertas(
   }
   const sufijo = query.size > 0 ? `?${query}` : "";
   return pedir<AlertaApi[]>(`/api/alertas${sufijo}`, signal);
+}
+
+/**
+ * Un **hallazgo histórico** (ADR 0025, decisiones 3 y 4). NO es una alerta y no sale de la tabla
+ * `alerta`: es un cambio que el archivo prueba, que **nadie de este proyecto ha revisado**, y que
+ * solo es publicable porque una organización con nombre ya lo documentó.
+ *
+ * Lo que el tipo dice y conviene no deshacer:
+ *
+ * - **No hay `emitida_en`**, porque nadie lo emitió. Lleva `generado_en`, que es cuándo se
+ *   escribió el informe, y se llama distinto a propósito.
+ * - **No hay `clasificacion_humana`**, porque no ha decidido ninguna persona.
+ * - **No hay `recomendacion` ni `semaforo`** dentro de `informe`: son la opinión del asistente
+ *   («yo publicaría esto») y la regla de oro 2 dice que el sistema nunca emite un juicio propio.
+ *   Lo que se publica son dos hechos verificables y ninguno nuestro: que el cambio ocurrió —el
+ *   documento sellado— y que alguien ya lo denunció —el enlace—.
+ * - **`revisado_por_humano` es siempre `false`** y está tipado como tal: si algún día pudiera ser
+ *   `true`, esto sería una alerta y tendría que vivir en la otra ruta.
+ */
+export interface HallazgoApi {
+  id: number;
+  revisado_por_humano: false;
+  /** Cuándo se escribió el informe, no cuándo se emitió nada. */
+  generado_en: string;
+  /** Fecha del boletín. La cronología es de lo que pasó. */
+  fecha_publicacion: string;
+  /** La de las REGLAS (ADR 0004 y 0016), nunca la del asistente. Suele ser `indeterminado`. */
+  clasificacion: "avance" | "retroceso" | "neutro" | "indeterminado";
+  severidad: number;
+  confianza: number;
+  regla_aplicada: string | null;
+  version_reglas: string | null;
+  version_texto_plano: string | null;
+  normas_vigiladas: NormaVigiladaAfectadaApi[];
+  spans: SpanEvidenciaApi[];
+  preceptos_con_diff: number;
+  cambios: CambioPreceptoApi[];
+  norma: {
+    id: number;
+    identificador_oficial: string;
+    titulo: string;
+    organo_emisor: string | null;
+    url_texto: string | null;
+  };
+  texto_archivado: TextoArchivadoApi | null;
+  /** La proyección pública del informe. Más estrecha que `InformeApoyoApi` a propósito. */
+  informe: {
+    resumen: string;
+    a_quien_afecta: string | null;
+    refutacion: string;
+    citas: { texto: string; apartado: string | null; version: string | null }[];
+    /** **Nunca vacía aquí**: sin corroboración un informe no llega a ser hallazgo. */
+    corroboraciones: { organizacion: string; que_dice: string | null; url: string | null }[];
+    generado_por: string;
+    generado_en: string;
+  };
+}
+
+export interface ListarHallazgosParams {
+  clasificacion?: HallazgoApi["clasificacion"];
+  limite?: number;
+  desplazamiento?: number;
+}
+
+export function listarHallazgos(
+  params: ListarHallazgosParams = {},
+  signal?: AbortSignal,
+): Promise<HallazgoApi[]> {
+  const query = new URLSearchParams();
+  if (params.clasificacion) query.set("clasificacion", params.clasificacion);
+  if (params.limite !== undefined) query.set("limite", String(params.limite));
+  if (params.desplazamiento !== undefined) {
+    query.set("desplazamiento", String(params.desplazamiento));
+  }
+  const sufijo = query.size > 0 ? `?${query}` : "";
+  return pedir<HallazgoApi[]>(`/api/hallazgos${sufijo}`, signal);
 }
 
 /**
