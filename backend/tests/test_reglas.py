@@ -807,3 +807,73 @@ class TestModificacionEnFuturo:
         normativo, que es exactamente lo que `_PRECEPTO` existe para impedir.
         """
         assert reglas.modificaciones("El texto quedará redactado por la comisión.") == ()
+
+
+class TestEspecificidadDeLaNormaVigilada:
+    """R-SUP-001 solo afirma signo si lo suprimido es una norma PROTECTORA (ADR 0030).
+
+    Es el error del ADR 0023 un nivel más arriba. Allí la supresión y la norma vigilada
+    coexistían en el **documento** sin tener que ver; aquí coexistirían **dentro de la norma
+    vigilada**: en la Ley del SNS o en el Registro Civil el derecho del colectivo vive en dos o
+    tres preceptos y el resto es materia ajena, así que suprimir su artículo 33 —formación
+    sanitaria especializada— no es un retroceso LGTBI.
+
+    **Perder el signo no es perder la vigilancia** (ADR 0023): cae a `indeterminado`, conserva
+    regla y evidencia, y sigue entrando en la cola porque identifica una norma vigilada.
+    """
+
+    LISTA = Watchlist(
+        version="test",
+        normas=(
+            NormaVigilada(
+                identificador="BOE-A-2016-6728",
+                titulo="Ley 2/2016, de 29 de marzo, de Identidad y Expresion de Genero",
+                nota="",
+                ambito="MD",
+                especificidad="lgtbi",
+            ),
+            NormaVigilada(
+                identificador="BOE-A-2003-10715",
+                titulo="Ley 16/2003, de 28 de mayo, de cohesion y calidad del SNS",
+                nota="",
+                ambito="estatal",
+                especificidad="vehiculo",
+            ),
+        ),
+    )
+
+    def _veredicto(self, identificador: str):  # type: ignore[no-untyped-def]
+        texto = "Se suprime el artículo 8 de la norma citada."
+        referencia = ReferenciaAnterior(
+            identificador=identificador,
+            verbo="MODIFICA",
+            texto=f"SUPRIME el art. 8 de la norma {identificador}",
+        )
+        return reglas.clasificar(texto, referencias=(referencia,), lista=self.LISTA)
+
+    def test_una_norma_protectora_si_afirma_retroceso(self) -> None:
+        veredicto = self._veredicto("BOE-A-2016-6728")
+
+        assert veredicto is not None
+        assert veredicto.regla == reglas.R_SUP_NORMA_VIGILADA
+        assert veredicto.clasificacion == Clasificacion.RETROCESO
+        assert veredicto.severidad == 4
+
+    def test_una_norma_vehiculo_no_afirma_signo(self) -> None:
+        veredicto = self._veredicto("BOE-A-2003-10715")
+
+        assert veredicto is not None
+        # Misma regla y misma evidencia: lo que cambia es que no se afirma hacia dónde.
+        assert veredicto.regla == reglas.R_SUP_NORMA_VIGILADA
+        assert veredicto.clasificacion == Clasificacion.INDETERMINADO
+        assert veredicto.normas_vigiladas == ("BOE-A-2003-10715",)
+
+    def test_sin_el_campo_una_norma_se_considera_protectora(self) -> None:
+        """El valor por defecto protege el caso que más importa.
+
+        Equivocarse hacia `vehiculo` apagaría el signo de una norma que sí lo merece, y eso se
+        nota mucho menos que lo contrario.
+        """
+        norma = NormaVigilada(identificador="BOE-A-2016-6728", titulo="x", nota="", ambito="MD")
+
+        assert norma.especificidad == "lgtbi"

@@ -2441,3 +2441,73 @@ aparece sola en el mapa: la comunidad sale del blanco y toma el color de su clas
 | Nombran una vigilada | 17 | **21** |
 | Pendientes de revisión | **0** | **4** |
 | Comunidades vistas por el gate | 3 | **6** (AN, AR, CT, MD, NC, VC) |
+
+### ✅ Tanda 2 de la watchlist: de 27 a 42 normas, y R-SUP-001 deja de afirmar signo a ciegas — 2026-08-30
+
+Las 4 pendientes fueron **revisadas y aprobadas por el humano**: 12 alertas donde había 8, y el
+mapa pasa a **6 comunidades con alerta** — AN, AR, CT (avance), MD, **VC (retroceso)**, NC. El caso
+valenciano quedó confirmado como retroceso por una persona, que es la única forma en que este
+sistema afirma algo.
+
+Después, pedido: ampliar la lista.
+
+#### Estaba diseñada y bloqueada, no pendiente de investigar
+
+`_pendientes_de_verificar` describía desde el 2026-08-23 las **15 candidatas**, todas con
+identificador verificado, y **por qué no entraban**: son **norma-vehículo** —LOE, Registro Civil,
+Ley 16/2003 del SNS, Reglamento Penitenciario, Ley del Deporte— donde el derecho vive en dos o tres
+preceptos y el resto es materia ajena. R-SUP-001 asume que todo lo vigilado es protector, así que
+habría publicado «retroceso severidad 4» al suprimir el art. 33 de la Ley del SNS (formación
+sanitaria especializada).
+
+**Es el error del ADR 0023 un nivel más arriba**: allí la supresión y la norma vigilada coexistían
+en el *documento* sin tener que ver; aquí coexistirían *dentro de la norma vigilada*.
+
+#### Lo que se midió antes (ADR 0027), y lo que decidió
+
+| | protectoras autonómicas | las 15 vehículo |
+|---|---|---|
+| normas | 19 | 15 |
+| normas modificadoras históricas | **14** | **95** |
+
+La Ley del SNS sola lleva 21 y el Reglamento del RC de 1958, 16. Ese contraste es el argumento
+entero del campo nuevo. **Pero el 95 es el histórico de décadas: a la cola llega solo lo
+archivado**, y eso son los 5 casos por año que ya midió el censo del 2026-08-23. Ampliar la lista
+**no inunda el gate** mientras no afirme signo donde no puede.
+
+#### Qué se hizo (ADR 0030)
+
+- **`NormaVigilada.especificidad`**: `lgtbi` (27) | `vehiculo` (15). **Por defecto `lgtbi`**, y la
+  asimetría es deliberada: equivocarse hacia `vehiculo` apaga el signo de una norma que sí lo
+  merece, y eso se nota mucho menos que lo contrario.
+- **R-SUP-001 afirma signo solo si lo suprimido es protector.** Si no, cae a `indeterminado`
+  severidad 3 **conservando regla, evidencia, normas suprimidas y diff**, y sigue entrando en la
+  cola. Es literalmente el ADR 0023: *perder el signo no es perder la vigilancia*.
+- Las 15 entraron con su **título oficial traído de boe.es** el mismo día, no copiado de memoria
+  (regla de oro 8).
+- `VERSION_REGLAS` → `2026.08.30.2` y el catálogo publicado en la web con ella.
+
+#### La versión de la watchlist SÍ sube esta vez, y cuesta
+
+`2026.08.23` → `2026.08.30`, lo que devuelve las **~82.000 normas** a la cola del prefiltro. Es
+correcto: 15 vigiladas nuevas cambian de verdad lo que el eje referencial puede detectar, y lo
+evaluado antes se evaluó sin ellas. **Es lo contrario del caso de `tipo` y `vigente` de esa misma
+mañana**, que no subieron versión porque no cambiaban ningún resultado. La diferencia entre los dos
+casos es la regla: se sube cuando cambia **qué se vigila**, no cuando se añade una descripción de
+lo ya vigilado.
+
+Corriendo de fondo al cerrar:
+
+```bash
+docker compose exec -d worker sh -c "python -m worker.run --reprefiltrar && python -m worker.run --reclasificar"
+```
+
+#### Dos huecos que quedan dichos, no tapados
+
+- **El Reglamento del Registro Civil de 1958 es invisible para el eje de citas**: su rango no lleva
+  número, así que `cita_esperable()` es `False` (ADR 0022) y solo puede disparar por el `<analisis>`
+  del BOE.
+- **La continuación natural es vigilar preceptos y no normas enteras** (`preceptos: ["art. 33"]`).
+  Convertiría esas 95 candidatas históricas en un puñado. No se hizo porque exige investigación
+  jurídica norma a norma; queda anotada en el ADR 0030 y en la watchlist como lo siguiente, no
+  como descarte.

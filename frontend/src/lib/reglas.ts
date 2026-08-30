@@ -31,7 +31,7 @@
  */
 
 /** La del catálogo con la que se clasificaron las alertas. Debe coincidir con `reglas.py`. */
-export const VERSION_REGLAS_PUBLICADA = "2026.08.30.1";
+export const VERSION_REGLAS_PUBLICADA = "2026.08.30.2";
 
 export interface ReglaPublicada {
   id: string;
@@ -57,7 +57,7 @@ export const CATALOGO_REGLAS: ReglaPublicada[] = [
     evidencia:
       "La cláusula de supresión con sus offsets sobre el texto archivado, y el identificador de la norma a la que se le suprime.",
     signo:
-      "Retroceso. Es la única de las cinco que afirma signo, y puede hacerlo porque suprimir un precepto de una norma de derechos no tiene lectura buena: no hace falta saber qué ocupa su lugar, porque no lo ocupa nada.",
+      "Retroceso **solo si la norma suprimida es protectora** —una ley LGTBI o trans—, porque suprimir un precepto de una norma de derechos no tiene lectura buena: no hace falta saber qué ocupa su lugar, porque no lo ocupa nada. Si lo suprimido es una norma-vehículo —la Ley del SNS, el Registro Civil, la LOE— **no afirma signo y cae a indeterminado**: ahí el derecho vive en dos o tres preceptos y el resto es materia ajena, así que suprimir uno cualquiera no es un retroceso LGTBI. Sigue yendo a la cola de revisión con su evidencia.",
   },
   {
     id: "R-DER-001",
