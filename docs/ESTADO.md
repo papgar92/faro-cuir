@@ -2389,3 +2389,55 @@ backfill. Los otros 8 modificadores ya estaban archivados y el prefiltro los ten
 **no la convierte en un retroceso**. El signo lo deriva el catálogo de reglas y lo aprueba una
 persona (reglas de oro 2 y 4). El recuento de bloques mide el **tamaño** del cambio, no su
 dirección: una ley que amplía derechos también toca treinta bloques.
+
+### ✅ La cola de revisión pasa de 0 a 4, en 4 comunidades nuevas — 2026-08-30 (cierre)
+
+Resultado de la ingesta dirigida + el arreglo del catálogo. **Antes: 0 pendientes y 3 comunidades
+vistas alguna vez por el gate (MD, CT, VC). Ahora: 4 pendientes en 4 comunidades que no habían
+pasado nunca por revisión.**
+
+| cola | norma | regla | signo | preceptos con diff | vigilada |
+|---|---|---|---|---|---|
+| 30 | `BOE-A-2025-11959` Ley 5/2025 de medidas fiscales (VC) | **R-SUP-001** | **retroceso, sev. 4** | **31** | ley trans valenciana |
+| 28 | `BOE-A-2018-15239` Ley 9/2018 (AN) | R-MOD-001 | indeterminado, sev. 3 | 1 | ley LGTBI andaluza |
+| 29 | `BOE-A-2019-2712` Ley 18/2018 (AR) | R-MOD-001 | indeterminado, sev. 3 | 2 | ley trans aragonesa |
+| 31 | `BOE-A-2022-2066` Ley Foral 18/2021 de Presupuestos (NC) | R-MOD-001 | indeterminado, sev. 3 | 1 | ley LGTBI navarra |
+
+**Las cuatro esperan al gate humano. Ninguna es una alerta todavía** (regla de oro 4).
+
+#### El caso valenciano, verificado contra el falso positivo del ADR 0023
+
+Salta a la vista porque es R-SUP-001 severidad 4, la misma regla que las dos reformas madrileñas,
+y porque su forma es la del falso positivo que el ADR 0023 documenta: una ley extensa que contiene
+supresiones **y** toca una norma vigilada, sin que una cosa tenga que ver con la otra. De hecho
+sus primeros spans de evidencia son supresiones de la ley de régimen local y de una de medidas
+fiscales anterior.
+
+**Se comprobó, y no lo es.** El `<analisis>` del propio BOE dice literalmente:
+
+> «el preámbulo, determinados preceptos y **SUPRIME el art. 46 de la Ley 8/2017, de 7 de abril**»
+
+O sea que la supresión está **declarada contra la norma vigilada**, que es exactamente la
+condición que el ADR 0023 exige y lo que separa este caso de aquel. Además `terminos_perdidos`
+—diagnóstico, nunca criterio— señala once términos que estaban en la redacción anterior de los 31
+preceptos y ya no están: *personas trans, expresión de género, identidad sexual, terapias de
+aversión, disforia de género, lesbianas, gais, bisexuales, intersexuales, homosexuales,
+homosexualidad*.
+
+**Sigue sin ser un veredicto del sistema hasta que una persona lo apruebe.** Lo que hay es un
+candidato fuerte con su evidencia archivada y sus 31 pares de redacciones.
+
+#### Cómo revisarlo
+
+Panel de revisión de la web (autenticado, `PANEL_PASSWORD_HASH` en `.env`). Al aprobar, la alerta
+aparece sola en el mapa: la comunidad sale del blanco y toma el color de su clasificación.
+
+#### Estado del embudo
+
+| | antes | ahora |
+|---|---|---|
+| Normas | 80.693 | 82.264 |
+| Con veredicto | 50 | 50 |
+| Nombran una vigilada | 17 | **21** |
+| Pendientes de revisión | **0** | **4** |
+| Comunidades vistas por el gate | 3 | **6** (AN, AR, CT, MD, NC, VC) |
