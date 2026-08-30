@@ -95,6 +95,34 @@ def _ya_etiquetados() -> set[str]:
     }
 
 
+def _ya_propuestos() -> set[str]:
+    """Borradores que ya existen, para no volver a proponerlos.
+
+    **La semilla fija hace reproducible el barajado, no la muestra**, y la diferencia se vio el
+    2026-08-30: entre dos ejecuciones el backfill del BOA siguió ingiriendo, así que la población
+    de partida creció y el mismo `random.Random` eligió otros documentos. Resultado: 16 borradores
+    del BOA donde debían ser 8.
+
+    No es dañino —más cobertura de una fuente que tenía cero— pero **la reproducibilidad hay que
+    enunciarla como lo que es**: repetir la selección exige el mismo corpus, no solo la misma
+    semilla. Saltando lo ya propuesto, reejecutar completa en vez de duplicar.
+    """
+    return {
+        json.loads(f.read_text(encoding="utf-8"))["identificador_oficial"]
+        for f in BORRADORES.glob("*.json")
+    }
+
+
+def _propuestos_en(prefijo: str, estrato: str) -> int:
+    """Cuántos borradores hay ya de esta fuente y este estrato. El estrato viaja en el borrador."""
+    total = 0
+    for fichero in BORRADORES.glob(f"{prefijo.lower()}-*.json"):
+        datos = json.loads(fichero.read_text(encoding="utf-8"))
+        if datos.get("_estrato") == estrato:
+            total += 1
+    return total
+
+
 def _muestra(session, prefijo: str, estados, cantidad: int, excluir: set[str]):  # type: ignore[no-untyped-def]
     """Documentos de una fuente y un estrato, elegidos con semilla fija.
 
@@ -117,6 +145,88 @@ def _muestra(session, prefijo: str, estados, cantidad: int, excluir: set[str]): 
     generador = random.Random(f"{SEMILLA}:{prefijo}:{'-'.join(sorted(e.value for e in estados))}")
     generador.shuffle(filas)
     return filas[:cantidad]
+
+
+def _texto_derivado(norma: Norma, almacen_root: Path) -> str | None:
+    """El texto tal y como lo lee el pipeline. Lo mismo que mide `_caracteres`."""
+    cuerpo = norma.documento_texto
+    if cuerpo is None:
+        return None
+    try:
+        return texto_plano(xml_safe.parse((almacen_root / cuerpo.ruta_almacen).read_bytes()))
+    except (OSError, XmlSafeError):
+        return None
+
+
+def _cuaderno(session, almacen_root: Path) -> int:  # type: ignore[no-untyped-def]
+    """Un cuaderno de lectura por fuente, con el texto ENTERO de cada borrador dentro.
+
+    Existe porque el coste real de etiquetar no es decidir, es **abrir 32 pestañas**. Con el
+    cuaderno se lee del tirón, sin salir del editor y sin conexión.
+
+    **Va el texto completo, no un extracto, y eso no es comodidad: es la validez de la medida.**
+    Un resumen o unos párrafos escogidos harían imposible detectar un falso negativo —lo que se
+    escapa está, por definición, en la parte que nadie mira— y el estrato `descartada` existe
+    justamente para encontrarlos (7.1).
+
+    **Y no lleva nada de lo que opina el sistema**: ni estado, ni términos, ni ejes. Misma
+    disciplina anti-anclaje que el borrador.
+
+    Se ordena de menor a mayor. Sobre la muestra del 2026-08-30, cinco documentos son el 64 % de
+    los 906.641 caracteres: leyendo de corto a largo se etiquetan 27 de 32 con un tercio del
+    esfuerzo, y los cinco grandes quedan para su propio rato.
+    """
+    escritos = 0
+    for prefijo in ("BOE", "DOGC", "BOA", "BOCYL"):
+        entradas = []
+        for fichero in sorted(BORRADORES.glob(f"{prefijo.lower()}-*.json")):
+            datos = json.loads(fichero.read_text(encoding="utf-8"))
+            norma = session.scalar(
+                select(Norma).where(Norma.identificador_oficial == datos["identificador_oficial"])
+            )
+            if norma is not None:
+                entradas.append((datos.get("_caracteres") or 0, datos, norma))
+        if not entradas:
+            continue
+        entradas.sort(key=lambda entrada: entrada[0])
+
+        total = sum(caracteres for caracteres, _, _ in entradas)
+        partes = [
+            f"# Cuaderno de etiquetado — {prefijo}",
+            "",
+            f"{len(entradas)} documentos, {total:,} caracteres. De más corto a más largo.",
+            "",
+            "Tras leer uno **entero**, completa su JSON en `borradores/` con `prefiltro_esperado`,",
+            "`ejes_esperados` y `notas`, borra los campos con guion bajo y muévelo a `casos/`.",
+            "La guía de cada valor está en `gold_set/esquema.py`; la regla que más importa es",
+            "**ante la duda, `sospecha`**.",
+            "",
+            "---",
+            "",
+        ]
+        for caracteres, datos, norma in entradas:
+            texto = _texto_derivado(norma, almacen_root) or "(no se pudo derivar el texto)"
+            organo = datos.get("organo_emisor") or "—"
+            partes += [
+                f"## {datos['identificador_oficial']}",
+                "",
+                f"**{datos['titulo']}**",
+                "",
+                f"- Fecha: {datos['fecha_publicacion']} · Órgano: {organo}",
+                f"- {caracteres:,} caracteres · Oficial: {datos.get('_leer_en') or '—'}",
+                "",
+                "```text",
+                texto,
+                "```",
+                "",
+                "---",
+                "",
+            ]
+        destino = BORRADORES / f"cuaderno-{prefijo.lower()}.md"
+        destino.write_text("\n".join(partes), encoding="utf-8")
+        print(f"  {destino.name}: {len(entradas)} documentos, {total:,} caracteres")
+        escritos += 1
+    return escritos
 
 
 def _caracteres(norma: Norma, almacen_root: Path) -> int | None:
@@ -166,11 +276,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--descartadas", type=int, default=4, help="por fuente, del estrato descartada"
     )
+    parser.add_argument(
+        "--cuaderno",
+        action="store_true",
+        help="además, un cuaderno de lectura por fuente con el texto entero de cada borrador",
+    )
     args = parser.parse_args(argv)
 
     BORRADORES.mkdir(exist_ok=True)
-    ya = _ya_etiquetados()
-    print(f"Ya etiquetados: {len(ya)} casos en casos/. No se vuelven a proponer.\n")
+    etiquetados, propuestos = _ya_etiquetados(), _ya_propuestos()
+    ya = etiquetados | propuestos
+    print(
+        f"Ya etiquetados: {len(etiquetados)} en casos/. "
+        f"Ya propuestos: {len(propuestos)} borradores. Ninguno se repite.\n"
+    )
 
     escritos = 0
     almacen_root = get_settings().almacen_root
@@ -178,8 +297,13 @@ def main(argv: list[str] | None = None) -> int:
         fuentes = {f.id: f for f in session.scalars(select(Fuente))}
         for prefijo in ("BOE", "DOGC", "BOA", "BOCYL"):
             for estrato, estados in ESTRATOS.items():
-                cantidad = args.senaladas if estrato == "senalada" else args.descartadas
-                filas = _muestra(session, prefijo, estados, cantidad, ya)
+                objetivo = args.senaladas if estrato == "senalada" else args.descartadas
+                # **Se completa HASTA el objetivo, no se suma.** La primera versión saltaba lo ya
+                # propuesto y pedía `objetivo` más, así que cada reejecución engordaba la muestra
+                # en vez de dejarla igual. Un script de muestreo que no es idempotente convierte
+                # «reproducible» en una palabra sin contenido.
+                cantidad = max(0, objetivo - _propuestos_en(prefijo, estrato))
+                filas = _muestra(session, prefijo, estados, cantidad, ya) if cantidad else []
                 total = session.scalar(
                     select(func.count())
                     .select_from(Norma)
@@ -198,6 +322,11 @@ def main(argv: list[str] | None = None) -> int:
                         json.dumps(datos, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
                     )
                     escritos += 1
+
+    if args.cuaderno:
+        print("\nCuadernos de lectura:")
+        with SessionLocal() as session:
+            _cuaderno(session, almacen_root)
 
     print(f"\n{escritos} borradores en {BORRADORES}.")
     print(
