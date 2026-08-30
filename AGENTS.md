@@ -141,6 +141,6 @@ psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
 
 - Los subagentes de `.claude/agents/` (`jurista-lgtbi`, `revisor-seguridad`, `auditor-reglas`,
   `evaluador`) **son específicos de Claude Code y no funcionan aquí**. Sus criterios están
-  documentados en la sección 13.4 de `docs/CLAUDE.md` si quieres replicarlos.
+  documentados en la sección 13.4, que desde el 2026-08-30 vive en `docs/TRABAJO.md`.
 - Si existe un `GEMINI.md` en la raíz, **tendrá precedencia sobre este fichero**. No crees uno sin
   saberlo: tener dos ficheros de reglas que se contradicen es peor que no tener ninguno.
