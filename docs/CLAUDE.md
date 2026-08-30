@@ -256,8 +256,13 @@ esa inmutabilidad es parte del valor: es el archivo de lo que realmente se publi
 
 ## 6. Requisitos de seguridad (esto es lo que puntúa)
 
-Estás ingiriendo XML y PDF de 18 fuentes externas que no controlas. Esa es la superficie de
+Estás ingiriendo XML, HTML y PDF de fuentes externas que no controlas. Esa es la superficie de
 ataque principal. Trátalo así.
+
+**Hoy son cuatro integradas de las 61 registradas** —BOE, DOGC, BOA y BOCYL (ADR 0019, 0028 y
+0029)—, y cada una ha traído su propia forma de romper: el DOGC mete el articulado dentro de un
+atributo XML, el BOA sirve su portada los días sin boletín y el BOCYL obliga a raspar HTML. **El
+número de fuentes importa menos que el hecho de que ninguna se comporta como la anterior.**
 
 ### 6.1 Parseo de contenido no confiable
 - **XXE:** `defusedxml` siempre. Prohibido `xml.etree` o `lxml` sin endurecer. Entidades
@@ -731,9 +736,9 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
 - **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
-  consecuencias. **Están todos escritos del 0001 al 0027** y su título dice de qué van: `ls
+  consecuencias. **Están todos escritos del 0001 al 0030** y su título dice de qué van: `ls
   docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
-  **El siguiente número libre es el 0028.** No queda ninguno reservado.
+  **El siguiente número libre es el 0031.** No queda ninguno reservado.
   Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
   (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada) y **0027** (el
   límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
@@ -765,8 +770,10 @@ psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
 # Calidad (lo que corre el CI)
 ruff check . && ruff format --check . && mypy backend/app && pytest --cov
 
-# Ingesta manual (una fecha concreta)
+# Ingesta manual (una fecha concreta). Las cuatro fuentes integradas:
+#   boe | dogc | boa | bocyl   (la tabla FUENTES de worker/run.py manda)
 python -m worker.run --fuente boe --fecha 2024-12-19
+python -m worker.run --fuente bocyl --fecha 2024-01-10
 
 # Backfill: un rango de días, sin llamar al LLM. Es lo que hace viable traer meses de boletín
 # (una extracción cuesta 133,9 s, ADR 0011). Lo que se salta NO se pierde: la cola del extractor
@@ -789,6 +796,24 @@ python -m worker.run --extraer
 
 # Repasar el catálogo de reglas tras subir VERSION_REGLAS (ni red ni LLM)
 python -m worker.run --reclasificar
+
+# --- Backfills de fondo, uno por fuente -----------------------------------------------------
+# REANUDABLES por marcas e IDEMPOTENTES por el sha256: relanzarlos salta en segundos lo hecho.
+# OJO: un `exec` NO sobrevive al cierre de la sesión ni al reinicio del contenedor. Hay que
+# relanzarlos a mano después de cada `docker compose up`; ha costado tiempo dos veces.
+docker compose exec -d worker sh //app/backfill.sh          # BOE
+docker compose exec -d worker sh //app/backfill_boa.sh      # BOA
+docker compose exec -d worker sh //app/backfill_bocyl.sh    # BOCYL
+
+# Quién ha reformado a cada norma vigilada, preguntándoselo al consolidado del BOE (ADR 0018).
+# UNA petición por ley vigilada da su historial completo de reformas, sin backfillear años. NO
+# ingiere ni clasifica: imprime qué días harían falta y el gasto lo decide una persona.
+docker compose exec -T backend python -m scripts.reformas_de_vigiladas
+
+# Elegir candidatos para el gold set y escribir sus borradores. NO los etiqueta (7.8): deja
+# rellenado lo que es un hecho y omite los tres campos de juicio, para que el esquema rechace
+# el fichero mientras nadie lo haya mirado. Muestreo estratificado con semilla fija.
+docker compose exec -T backend python -m scripts.preparar_gold_set
 
 # Ollama (local, sin clave, sin coste)
 ollama serve                        # normalmente ya corre como servicio

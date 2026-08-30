@@ -2511,3 +2511,79 @@ docker compose exec -d worker sh -c "python -m worker.run --reprefiltrar && pyth
   Convertiría esas 95 candidatas históricas en un puñado. No se hizo porque exige investigación
   jurídica norma a norma; queda anotada en el ADR 0030 y en la watchlist como lo siguiente, no
   como descarte.
+
+### 📊 El reprocesado de la tanda 2, medido — 2026-08-30 (tarde)
+
+Las 82.166 normas reevaluadas con la watchlist de 42. **~4 horas**, y el resultado confirma que
+el campo `especificidad` del ADR 0030 era la pieza que faltaba.
+
+| | antes | después |
+|---|---|---|
+| relevantes | — | 316 |
+| sospechas | — | 578 |
+| descartadas | — | 81.231 |
+| **ilegibles** | 1 | **2** |
+| cola del clasificador | 799 | **893** |
+| detecciones con veredicto | 50 | **65** |
+| **pendientes de revisión** | 0 | **13** |
+
+#### Las 13 nuevas son todas de normas-vehículo, y ninguna afirma signo
+
+| norma vigilada | pendientes |
+|---|---|
+| LOE | 7 |
+| LO 3/2007 de igualdad | 3 |
+| RD 243/2022 Bachillerato | 1 |
+| Ley 20/2011 del Registro Civil | 1 |
+| Ley 16/2003 del SNS | 1 |
+
+**Las 13 salen `R-MOD-001 / indeterminado / severidad 3`.** Esa línea es la validación del ADR
+0030 sobre datos reales: sin el campo, varias habrían salido «retroceso severidad 4» por tocar la
+LOE o la Ley del SNS, donde el derecho del colectivo vive en dos o tres preceptos. Llegan al gate
+como lo que son —*algo ha modificado una norma por la que pasan derechos, míralo*— y el signo lo
+pone una persona leyendo qué precepto se tocó.
+
+#### Aparece una segunda `ilegible`
+
+De 1 a 2 (ADR 0020). Se reintenta sola en cada pasada y **se cuenta aparte**: cualquier cifra de
+cobertura va con ella al lado o afirma una vigilancia que no existe.
+
+### ✅ Gold set: 32 borradores listos para etiquetar — 2026-08-30 (cierre)
+
+`scripts/preparar_gold_set.py` ejecutado con los estratos ya estables. **4 señaladas + 4
+descartadas por cada una de las cuatro fuentes.**
+
+| fuente | señaladas | descartadas | base del estrato descartada |
+|---|---|---|---|
+| BOE | 4 | 4 | 77.485 |
+| DOGC | 4 | 4 | 511 |
+| BOA | 4 | 4 | 2.376 |
+| BOCYL | 4 | 4 | 937 |
+
+**906.641 caracteres en total, mediana de 8.234.** El documento típico se lee en cinco minutos, no
+en cuarenta — importa saberlo antes de sentarse a etiquetar.
+
+Con esto **BOA y BOCYL pasan de 0 casos a 8 cada una**, que era el hueco que dejaba al gold set
+sin poder medir las dos fuentes nuevas. Si se etiquetan los 32, el corpus va de 32 a 64: dentro
+del rango 60-80 de la sección 7.8.
+
+**Los borradores están en `.gitignore`** y son regenerables con la semilla fija. Lo que se versiona
+es lo etiquetado.
+
+### ⚠️ `CLAUDE.md` lleva por encima de su propio límite desde antes de esta semana
+
+Su cabecera pide **por debajo de ~55 KB** porque entra entero en el contexto de cada subagente.
+Medido el 2026-08-30: **60 KB**. Y no es de hoy — el 2026-08-28 ya iba por 56 KB.
+
+Dónde está el peso: **sección 7 (pipeline) 16,6 KB y sección 6 (seguridad) 10,5 KB**, o sea el 46 %
+entre las dos. **No se podan a ojo**: son las reglas, no historial, y ahí es donde un recorte
+descuidado se lleva un guardarraíl por delante. Queda medido y **pendiente de decisión del
+humano**, no hecho a medias.
+
+Lo que sí se corrigió hoy, que era desfase y no tamaño:
+
+- **Decía que el siguiente ADR libre era el 0028** y vamos por el 0030. Era el desfase peligroso:
+  habría hecho que alguien escribiera un 0028 duplicado.
+- Decía «18 fuentes externas», anterior al ADR 0014 que subió el censo a 61.
+- La sección 10 no conocía ni `bocyl` ni `boa` como fuentes, ni los tres backfills, ni los dos
+  scripts nuevos.
