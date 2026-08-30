@@ -768,3 +768,42 @@ class TestSupresionDeOrgano:
         veredicto = reglas.clasificar(texto, referencias=referencias, lista=LEY_2_2016)
 
         assert veredicto is not None and veredicto.regla == reglas.R_SUP_NORMA_VIGILADA
+
+
+class TestModificacionEnFuturo:
+    """El futuro de «quedar redactado», que faltaba hasta el 2026-08-30.
+
+    No es una forma exótica: es **como redactan sus modificaciones las leyes de presupuestos y de
+    acompañamiento**, que son justo el vehículo por el que una ley LGTBI autonómica se reforma sin
+    titular. La Ley Foral 18/2021 de Presupuestos de Navarra modifica la Ley Foral 8/2017 con 19
+    cláusulas en futuro y **ni una en presente**: sin esta forma verbal el catálogo entero era
+    ciego a esa reforma, y el `<analisis>` del BOE decía MODIFICA mientras el clasificador no
+    encontraba una sola cláusula en 161.000 caracteres.
+    """
+
+    def test_reconoce_quedara_redactado(self) -> None:
+        texto = (
+            "Se modifica el apartado 1 de la disposición transitoria cuarta, que quedará "
+            "redactado en los siguientes términos: «1. Las y los profesionales.»"
+        )
+
+        assert len(reglas.modificaciones(texto)) == 1
+
+    def test_reconoce_quedaran_redactados(self) -> None:
+        texto = "Se modifican los artículos 3 y 4, que quedarán redactados como sigue: «...»"
+
+        assert len(reglas.modificaciones(texto)) == 1
+
+    def test_sigue_reconociendo_el_presente(self) -> None:
+        """La forma que ya funcionaba no se pierde al ampliar el patrón."""
+        texto = "El artículo 12 queda redactado en los siguientes términos: «...»"
+
+        assert len(reglas.modificaciones(texto)) == 1
+
+    def test_sin_precepto_no_es_modificacion(self) -> None:
+        """La condición que evita los falsos positivos no se relaja: hace falta un precepto.
+
+        Sin ella, cualquier «quedará redactado» del preámbulo o de una cita valdría como cambio
+        normativo, que es exactamente lo que `_PRECEPTO` existe para impedir.
+        """
+        assert reglas.modificaciones("El texto quedará redactado por la comisión.") == ()

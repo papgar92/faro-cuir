@@ -94,7 +94,7 @@ from app.pipeline.watchlist import Watchlist
 # cambios del catálogo el mismo día con la misma cadena de versión hacen que el segundo no
 # reevalúe nada, porque `--reclasificar` pregunta por la versión y la ve igual. No falla nada
 # visiblemente; simplemente el arreglo no llega a las filas ya escritas.
-VERSION_REGLAS = "2026.08.20.3"
+VERSION_REGLAS = "2026.08.30.1"
 
 # --- Identificadores estables de regla ---------------------------------------------------
 # Van a `deteccion.regla_aplicada` y son parte del contrato de auditoría: no se renombran. Si
@@ -237,7 +237,17 @@ _NORMA_CITADA = re.compile(
 # que se modifica el Real Decreto …» citando el título de otra norma. Lo que distingue a una
 # modificación operativa es que **anuncia el texto que viene detrás**.
 _MODIFICACION = re.compile(
-    r"\bqueda(?:n)?\s+redactad[oa]s?\b"
+    # **El futuro va aquí desde el 2026-08-30, y faltaba.** El patrón reconocía «queda redactado»
+    # y «quedan redactados» pero no «quedará redactado» ni «quedarán redactados», que es como
+    # redactan sus modificaciones las leyes de presupuestos y de acompañamiento —justo el vehículo
+    # por el que una ley LGTBI autonómica se reforma sin titular—.
+    #
+    # Medido antes de tocarlo (ADR 0027) sobre las 799 normas en cola del clasificador: añade
+    # cláusulas en 4 documentos y convierte **uno** en veredicto donde no había ninguno, la Ley
+    # Foral 18/2021 de Presupuestos de Navarra (`BOE-A-2022-2066`), que modifica la Ley Foral
+    # 8/2017 de igualdad social de las personas LGTBI+ con **19 cláusulas en futuro** y ni una en
+    # presente. Sin esta forma verbal, esa reforma era invisible para el catálogo entero.
+    r"\bqueda(?:n|r[áa]|r[áa]n)?\s+redactad[oa]s?\b"
     r"|\bcon\s+la\s+siguiente\s+redacci[óo]n\b"
     r"|\bpasa(?:n)?\s+a\s+tener\s+la\s+siguiente\s+redacci[óo]n\b"
     r"|\bqueda(?:n)?\s+modificad[oa]s?\s+(?:en\s+)?los?\s+siguientes\s+t[ée]rminos\b",

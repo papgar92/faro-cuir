@@ -31,7 +31,7 @@
  */
 
 /** La del catálogo con la que se clasificaron las alertas. Debe coincidir con `reglas.py`. */
-export const VERSION_REGLAS_PUBLICADA = "2026.08.20.3";
+export const VERSION_REGLAS_PUBLICADA = "2026.08.30.1";
 
 export interface ReglaPublicada {
   id: string;
@@ -69,7 +69,7 @@ export const CATALOGO_REGLAS: ReglaPublicada[] = [
   {
     id: "R-MOD-001",
     enunciado:
-      "El documento modifica una norma vigilada y el texto consolidado permite reconstruir qué decía antes y qué dice ahora.",
+      "El documento da nueva redacción a un precepto de una norma vigilada —en presente o en futuro: «queda» y «quedará redactado» cuentan igual— y el texto consolidado permite reconstruir qué decía antes y qué dice ahora.",
     evidencia:
       "Las cláusulas modificadoras con sus offsets, más los preceptos reescritos con su redacción anterior y la nueva, y la huella del consolidado del que salen.",
     signo:
