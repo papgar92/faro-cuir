@@ -2315,3 +2315,77 @@ entra en el pipeline, ni se archiva, ni se clasifica, ni llega a una pantalla**.
 
 Dicho corto: **la IA ayuda a construir la lista de lo que hay que vigilar; no ayuda a decidir qué
 ha pasado.**
+
+### 🔎 Preguntarle al consolidado quién te ha reformado: 6 comunidades donde había 2 — 2026-08-30
+
+Pedido por el humano: *«necesito que se revisen más comunidades»*. El diagnóstico llevó a un
+método nuevo y a **el hallazgo más grave que ha producido el proyecto**.
+
+#### Primero, el embudo medido, porque descarta las explicaciones fáciles
+
+| | |
+|---|---|
+| Normas archivadas | 80.693 |
+| Llegan al clasificador (`sospecha`/`relevante`) | 792 |
+| Detecciones | 72 · **50 con veredicto** |
+| Nombran una norma vigilada (2ª puerta, ADR 0024) | **17** |
+| En cola de revisión / alertas | 27 / 8 |
+
+**Nada estaba roto.** Se comprobó además que el eje de citas (ADR 0022) **sí corre** sobre las
+fuentes autonómicas vía `services/cuerpo.py`, y se midió sobre los 3.123 cuerpos de BOA y BOCYL:
+encuentra **48 citas de 5 normas vigiladas** —incluidas las dos leyes de Aragón— pero **todas con
+verbo `CITA`**. Menciones, no reformas. El sistema funcionaba; el corpus no tenía qué encontrar.
+
+#### La causa real: el archivo del BOE no es continuo
+
+| año | días con boletín |
+|---|---|
+| 2026 | 201 |
+| 2025 | 106 |
+| 2024 | **11** |
+| 2023 y anteriores | 1-4 por año (días sueltos del gold set) |
+
+O sea: **~un año de cobertura real**. Con ~5 casos referenciales al año (ADR 0027), dos comunidades
+es exactamente lo que cabía esperar.
+
+#### El método nuevo, que evita backfillear años
+
+**El texto consolidado de una ley ES su historial de reformas.** Cada versión de bloque que sirve
+el BOE lleva el `id_norma` que la introdujo (ADR 0018), así que **una petición por ley vigilada**
+da todas sus reformas desde su publicación hasta hoy. 19 peticiones frente a años de boletín a ~20
+minutos por día.
+
+Vive en `backend/scripts/reformas_de_vigiladas.py`. **No ingiere ni clasifica**, a propósito:
+imprime qué días haría falta ingerir, y el coste lo decide una persona.
+
+Resultado de la primera ejecución: **14 normas modificadoras en 6 comunidades** —AN, AR, CT, MD,
+NC, VC— frente a las 2 que el mapa podía pintar. **7 de las 14 caían en huecos del archivo.**
+
+#### El hallazgo, y es el que mejor explica para qué existe este proyecto
+
+> **`BOE-A-2025-11959` — «Ley 5/2025, de 30 de mayo, de medidas fiscales, de gestión administrativa
+> y financiera» — reescribió 31 bloques de la ley trans valenciana** (`BOE-A-2017-5118`).
+
+Treinta y un bloques es **el mismo tamaño que la reforma madrileña de 2023** (34), que es el caso
+insignia del proyecto y el que está en el gold set. Y su título **no contiene ni una sola palabra
+del vocabulario del prefiltro**: el eje léxico no la ve, y sin su día ingerido el eje referencial
+no tenía dónde mirar.
+
+Es la definición literal de la sección 1: *la instrucción de rango bajo publicada un martes de
+agosto que desmonta un derecho sin titulares* — aquí, dentro de una ley de acompañamiento
+presupuestario. **Ninguna búsqueda por vocabulario la habría encontrado nunca.**
+
+La Comunitat Valenciana tiene además otras dos de 2026 (`BOE-A-2026-9794`, `BOE-A-2026-16931`), ya
+en el archivo.
+
+#### Qué se lanzó
+
+`backend/ingesta_reformas.sh`: ingesta **dirigida** de los 6 días que faltaban —2018-11-07,
+2019-02-27, 2024-07-22, 2024-12-26, 2025-05-15, 2025-06-14—, reanudable por marcas como los otros
+backfill. Los otros 8 modificadores ya estaban archivados y el prefiltro los tenía en
+`relevante`.
+
+**Aviso para leer los resultados sin pasarse de frenada:** que una norma reforme una ley vigilada
+**no la convierte en un retroceso**. El signo lo deriva el catálogo de reglas y lo aprueba una
+persona (reglas de oro 2 y 4). El recuento de bloques mide el **tamaño** del cambio, no su
+dirección: una ley que amplía derechos también toca treinta bloques.
