@@ -32,6 +32,20 @@ LISTA = Watchlist(
             ambito="estatal",
         ),
         NormaVigilada(
+            identificador="BOE-A-2006-7899",
+            titulo="Ley Organica 2/2006, de 3 de mayo, de Educacion",
+            nota="fixture: la LOE, norma-vehiculo del ADR 0030",
+            ambito="estatal",
+            especificidad="vehiculo",
+        ),
+        NormaVigilada(
+            identificador="BOE-A-2006-16212",
+            titulo="Real Decreto 1030/2006, de 15 de septiembre, por el que se establece",
+            nota="fixture: la cartera de servicios del SNS",
+            ambito="estatal",
+            especificidad="vehiculo",
+        ),
+        NormaVigilada(
             identificador="BOE-A-2021-11382",
             titulo="Ley 2/2021, de 7 de junio, de igualdad social y no discriminacion (Canarias)",
             nota="fixture",
@@ -226,3 +240,99 @@ def test_las_vigiladas_sin_forma_de_cita_estan_declaradas_y_contadas() -> None:
         "hay normas vigiladas sin forma de cita que sí llevan número: eso es un título mal "
         "escrito, no una limitación de rango"
     )
+
+
+class TestElVerboDentroDeUnTituloAjeno:
+    """«…por la que se modifica X» es el NOMBRE de otra norma, no una cláusula de este documento.
+
+    El título oficial de la LOMLOE es literalmente «Ley Orgánica 3/2020, de 29 de diciembre, por
+    la que se modifica la Ley Orgánica 2/2006, de 3 de mayo, de Educación». Toda norma educativa
+    española la cita por su nombre completo, así que **todas parecían modificar la LOE** en cuanto
+    la LOE entró en la watchlist (ADR 0030).
+
+    Medido el 2026-08-30 sobre las 912 normas de la cola: **de 143 referencias modificativas a
+    normas vigiladas se pasó a 62**. Ochenta y una eran esto, y 2 de ellas apuntaban a las leyes
+    madrileñas, que son el caso insignia del proyecto.
+
+    Es el error del ADR 0023 un paso más atrás: allí el verbo estaba suelto en el documento y no
+    pegado a la norma; aquí está pegado, pero pertenece al nombre de otra.
+    """
+
+    TITULO_PROPIO = (
+        "Orden SND/454/2025, de 9 de mayo, por la que se modifican los anexos I, II, III y VI "
+        "del Real Decreto 1030/2006, de 15 de septiembre"
+    )
+
+    def test_el_verbo_del_nombre_de_otra_norma_no_cuenta(self) -> None:
+        texto = (
+            "El currículo derivado de la Ley Orgánica 3/2020, de 29 de diciembre, por la que se "
+            "modifica la Ley Orgánica 2/2006, de 3 de mayo, de Educación, privilegia estos ámbitos."
+        )
+
+        verbos = _referencias(texto)
+
+        assert verbos.get("BOE-A-2006-7899") == "CITA"
+
+    def test_una_clausula_de_verdad_sigue_contando(self) -> None:
+        """Lo que se quita es la construcción del nombre, no el verbo."""
+        texto = "Se modifica el artículo 5 de la Ley Orgánica 2/2006, de 3 de mayo, de Educación."
+
+        assert _referencias(texto).get("BOE-A-2006-7899") == "MODIFICA"
+
+    def test_el_titulo_del_propio_documento_si_declara_lo_que_hace(self) -> None:
+        """«Orden SND/454/2025, por la que se modifican los anexos del RD 1030/2006» es real.
+
+        Sin esta salvedad el arreglo se llevaría por delante 12 casos de los 81 medidos, y uno
+        toca el RD 1030/2006 —la cartera de servicios del SNS—, que está vigilado.
+        """
+        # El cuerpo archivado empieza por el título del propio documento, así que la
+        # construcción aparece pegada a la cita igual que en una ajena. Lo que las separa es de
+        # quién es el título.
+        texto = (
+            "Orden SND/454/2025, de 9 de mayo, por la que se modifican los anexos I, II, III y "
+            "VI del Real Decreto 1030/2006, de 15 de septiembre, por el que se establece la "
+            "cartera de servicios comunes del Sistema Nacional de Salud."
+        )
+
+        referencias = extraer_referencias_citadas(texto, LISTA, self.TITULO_PROPIO)
+
+        assert {r.identificador: r.verbo for r in referencias} == {"BOE-A-2006-16212": "MODIFICA"}
+
+    def test_el_mismo_texto_sin_su_titulo_no_cuenta(self) -> None:
+        """La prueba de que lo que decide es de quién es el título, no la construcción."""
+        texto = (
+            "Orden SND/454/2025, de 9 de mayo, por la que se modifican los anexos I, II, III y "
+            "VI del Real Decreto 1030/2006, de 15 de septiembre."
+        )
+
+        referencias = extraer_referencias_citadas(texto, LISTA, "Orden de otra cosa distinta")
+
+        assert all(r.verbo == "CITA" for r in referencias)
+
+    def test_el_titulo_propio_no_vale_para_una_norma_que_no_nombra(self) -> None:
+        """El ruido exacto que motivó el arreglo, y el que más costó ver.
+
+        «Orden EFD/998/2025, por la que se modifica la Orden EDU/2739/2009» lleva la construcción
+        en su propio título — pero lo que modifica es esa orden, no la LOE, que solo aparece más
+        abajo dentro del nombre de la LOMLOE.
+        """
+        titulo = (
+            "Orden EFD/998/2025, de 6 de septiembre, por la que se modifica la Orden EDU/2739/2009"
+        )
+        texto = (
+            "adaptación a los cambios derivados de la Ley Orgánica 3/2020, de 29 de diciembre, "
+            "por la que se modifica la Ley Orgánica 2/2006, de 3 de mayo, de Educación."
+        )
+
+        referencias = extraer_referencias_citadas(texto, LISTA, titulo)
+
+        assert all(r.verbo == "CITA" for r in referencias)
+
+    def test_sin_titulo_la_construccion_se_trata_como_ajena(self) -> None:
+        """Vacío es el lado conservador: sin título no se puede afirmar que sea propio."""
+        texto = (
+            "la Ley Orgánica 3/2020, de 29 de diciembre, por la que se modifica la Ley Orgánica "
+            "2/2006, de 3 de mayo, de Educación"
+        )
+
+        assert _referencias(texto).get("BOE-A-2006-7899") == "CITA"

@@ -97,8 +97,10 @@ _FORMAS: tuple[tuple[str, str], ...] = (
     ("se modifica", "MODIFICA"),
     ("se modifican", "MODIFICA"),
     ("de modificacion de", "MODIFICA"),
-    ("por la que se modifica", "MODIFICA"),
-    ("por el que se modifica", "MODIFICA"),
+    # «por la que se modifica» y «por el que se modifica» ESTUVIERON AQUI y se quitaron el
+    # 2026-08-30: son la construccion con la que una norma se NOMBRA, no una clausula de este
+    # documento. Quitarlas no pierde nada -- «se modifica» sigue casando dentro de la misma
+    # frase-- y es lo que permite que `_verbo_previo` vea el «por la que» que va delante.
     ("queda modificad", "MODIFICA"),
     ("queda redactad", "MODIFICA"),
     ("nueva redaccion", "MODIFICA"),
@@ -187,11 +189,58 @@ def forma_larga(titulo: str) -> str | None:
     return coincidencia.group(1) if coincidencia else None
 
 
-def _verbo_previo(texto_normalizado: str, inicio: int) -> str:
-    """El verbo modificativo más cercano por delante de la cita, o `CITA` si no hay ninguno."""
+# **«…por la que se modifica X» es el NOMBRE de otra norma, no una cláusula de este documento.**
+#
+# El título oficial de la LOMLOE es literalmente «Ley Orgánica 3/2020, de 29 de diciembre, por la
+# que se modifica la Ley Orgánica 2/2006, de 3 de mayo, de Educación». Toda norma educativa
+# española la cita por su nombre completo, así que **todas parecían modificar la LOE** en cuanto
+# la LOE entró en la watchlist (ADR 0030).
+#
+# Medido el 2026-08-30 sobre las 893 normas de la cola del clasificador: de 143 referencias
+# modificativas a normas vigiladas, **81 tenían el verbo dentro de un título**. Y no era solo cosa
+# de las norma-vehículo nuevas — 2 de esas 81 apuntaban a las leyes madrileñas, que son el caso
+# insignia del proyecto.
+#
+# Es el mismo error que el ADR 0023 un paso más atrás: allí el verbo estaba suelto en el documento
+# y no pegado a la norma; aquí está pegado, pero pertenece al nombre de otra.
+_TITULO_AJENO = re.compile(r"por\s+(?:la|el|las|los)\s+(?:que|cual|cuales)\s*$", re.IGNORECASE)
+
+
+def _es_titulo_propio(titulo: str, cita: str) -> bool:
+    """¿La construcción está en el título del PROPIO documento, que sí declara lo que hace?
+
+    «Orden SND/454/2025, de 9 de mayo, **por la que se modifican** los anexos I, II, III y VI del
+    Real Decreto 1030/2006» es una modificación de verdad: la anuncia el documento en su nombre.
+    Se reconoce porque **el título del propio documento lleva la construcción**; ahí no hace falta
+    comprobar qué norma nombra, porque el documento solo puede estar hablando de lo que él hace.
+
+    Sin esta salvedad el arreglo se llevaría por delante 12 casos reales de los 81 medidos, y uno
+    de ellos toca el RD 1030/2006 —la cartera de servicios del SNS—, que está vigilado.
+    """
+    if not titulo or not cita:
+        return False
+    del_titulo = _clave(titulo)
+    if "por la que se modific" not in del_titulo and "por el que se modific" not in del_titulo:
+        return False
+    # **Y la norma citada tiene que ser la que ese título nombra.** Sin esta segunda condición se
+    # cuela justo el ruido que motivó el arreglo: «Orden EFD/998/2025, por la que se modifica la
+    # Orden EDU/2739/2009» lleva la construcción en su propio título, pero lo que modifica es esa
+    # orden — la LOE solo aparece citada más abajo, dentro del nombre de la LOMLOE.
+    return _clave(cita) in del_titulo
+
+
+def _verbo_previo(texto_normalizado: str, inicio: int, titulo: str = "", cita: str = "") -> str:
+    """El verbo modificativo más cercano por delante de la cita, o `CITA` si no hay ninguno.
+
+    Un verbo precedido de «por la que» pertenece al **nombre de otra norma** y no cuenta, salvo
+    que ese nombre sea el del propio documento (ver `_TITULO_AJENO` y `_es_titulo_propio`).
+    """
     ventana = texto_normalizado[max(0, inicio - VENTANA_VERBO) : inicio]
     ultimo = None
     for coincidencia in _VERBOS.finditer(ventana):
+        anterior = ventana[: coincidencia.start()]
+        if _TITULO_AJENO.search(anterior) and not _es_titulo_propio(titulo, cita):
+            continue
         # `.lower()` porque el texto conserva sus mayúsculas —«Se modifica» al empezar frase— y
         # las claves de `_CANONICO` están en minúscula. Aquí sí se puede: es una cadena corta que
         # no vuelve a usarse para calcular ningún offset.
@@ -228,12 +277,19 @@ def _clave(cita: str) -> str:
     return _ESPACIOS.sub(" ", _normalizar(cita).lower()).strip()
 
 
-def extraer_referencias_citadas(texto: str, lista: Watchlist) -> tuple[ReferenciaAnterior, ...]:
+def extraer_referencias_citadas(
+    texto: str, lista: Watchlist, titulo: str = ""
+) -> tuple[ReferenciaAnterior, ...]:
     """Normas de la watchlist citadas en el texto, con el verbo que las acompaña.
 
     Una norma por identificador, con el verbo **más fuerte** encontrado: si aparece dos veces y
     solo una lleva «se modifica», la norma la modifica. Quedarse con la última coincidencia
     convertiría el resultado en una lotería de orden de aparición.
+
+    `titulo` es el del **propio documento** y sirve para una sola cosa: distinguir «…por la que se
+    modifica X» cuando forma parte del nombre de otra norma —que no es una modificación de este
+    documento— de cuando forma parte del suyo, que sí lo es. Vacío es seguro: sin título, toda
+    esa construcción se trata como ajena, que es el lado conservador.
     """
     if not texto:
         return ()
@@ -249,7 +305,7 @@ def extraer_referencias_citadas(texto: str, lista: Watchlist) -> tuple[Referenci
             # Inalcanzable: el patrón se construye desde las mismas claves. Se comprueba en vez
             # de suponerse porque un `KeyError` aquí tumbaría la lectura de un cuerpo entero.
             continue
-        verbo = _verbo_previo(normalizado, coincidencia.start())
+        verbo = _verbo_previo(normalizado, coincidencia.start(), titulo, coincidencia.group(0))
         previa = encontradas.get(identificador)
         if previa is None or (previa.verbo == "CITA" and verbo != "CITA"):
             encontradas[identificador] = ReferenciaAnterior(

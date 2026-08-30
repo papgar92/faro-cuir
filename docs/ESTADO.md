@@ -2587,3 +2587,88 @@ Lo que sí se corrigió hoy, que era desfase y no tamaño:
 - Decía «18 fuentes externas», anterior al ADR 0014 que subió el censo a 61.
 - La sección 10 no conocía ni `bocyl` ni `boa` como fuentes, ni los tres backfills, ni los dos
   scripts nuevos.
+
+### ✅ «Hay alertas que no tocan nada LGTBIQ+»: era un bug medible, y el sistema entero lo tenía — 2026-08-30 (noche)
+
+Lo dijo el humano mirando la cola. Tenía razón, y la causa no era ruido inevitable: era un fallo
+concreto de `pipeline/citas.py` que **afectaba a las 42 normas vigiladas, no solo a las nuevas**.
+
+#### El fallo
+
+El título oficial de la LOMLOE es literalmente:
+
+> «Ley Orgánica 3/2020, de 29 de diciembre, **por la que se modifica** la Ley Orgánica 2/2006, de
+> 3 de mayo, de Educación»
+
+Toda norma educativa española la cita por su nombre completo. Y `_FORMAS` tenía
+`("por la que se modifica", "MODIFICA")` como marca de modificación, así que **todas parecían
+modificar la LOE** en cuanto la LOE entró en la watchlist con el ADR 0030.
+
+Es el error del ADR 0023 **un paso más atrás**: allí el verbo estaba suelto en el documento y no
+pegado a la norma; aquí está pegado, pero pertenece **al nombre de otra**.
+
+#### Medido antes y después (912 normas de la cola)
+
+| | |
+|---|---|
+| Referencias modificativas a normas vigiladas, antes | **143** |
+| Después | **62** |
+| Falsos positivos eliminados | **81** |
+
+Y no era cosa solo de las norma-vehículo: 45 apuntaban a la LOE, 18 al Registro Civil y **2 a las
+leyes madrileñas**, que son el caso insignia del proyecto.
+
+#### El arreglo, y la salvedad que costó encontrar
+
+Se quitan las dos formas largas de `_FORMAS` —«se modifica» sigue casando dentro de la misma
+frase, así que no se pierde nada— y `_verbo_previo` ignora un verbo precedido de «por la que».
+
+**Con una salvedad, que son 12 casos reales de los 81:** cuando la construcción está en el título
+del **propio** documento sí declara lo que hace. «Orden SND/454/2025, por la que se modifican los
+anexos del Real Decreto 1030/2006» es una modificación de verdad.
+
+**Y la salvedad necesita su segunda condición**, que es lo que costó ver: la norma citada tiene que
+ser **la que ese título nombra**. Sin ella se colaba justo el ruido original — «Orden EFD/998/2025,
+por la que se modifica la Orden EDU/2739/2009» lleva la construcción en su propio título, pero lo
+que modifica es esa orden, no la LOE.
+
+Cinco casos de control verificados y **ninguno perdido**: las dos reformas madrileñas, la valenciana
+de 31 preceptos, la foral navarra y la catalana.
+
+#### Las que ya estaban en la cola NO se retiran solas, y es a propósito
+
+`services/clasificacion.py` lo dice: *«No se retira sola: revísala»*. Un cambio de catálogo no
+reescribe en silencio lo ya producido. Así que quedan **3 obsoletas para descartar a mano**:
+
+| cola | norma | ¿la sostiene el catálogo actual? |
+|---|---|---|
+| 38 | `BOE-A-2025-25279` | sí, R-MOD-001 |
+| **40** | `BOE-A-2025-19414` | **no — obsoleta** |
+| **41** | `BOE-A-2025-18077` | **no — obsoleta** |
+| 42 | `BOA-007957248` | sí, R-MOD-001 |
+| 43 | `BOA-007954477` | sí, R-MOD-001 |
+| **44** | `BOA-007957687` | **no — obsoleta** |
+| 45 | `BOE-A-2026-2622` | sí, R-DER-001 |
+
+**Lo importante no es descartar esas tres, es que no van a volver a aparecer.**
+
+#### Las tres que el catálogo sí sostiene siguen siendo ruido, y su causa es otra
+
+42, 43 y 38 modifican órdenes de educación autonómicas y el verbo se encuentra dentro de la
+ventana de 200 caracteres (`VENTANA_VERBO`) perteneciendo a otra frase. **Es un problema distinto
+y más difícil**: no hay una construcción que lo delate, solo distancia. Queda anotado y **no se
+toca a ojo** — estrechar la ventana sin medir perdería modificaciones reales.
+
+La solución de fondo sigue siendo la que el ADR 0030 dejó anotada: **vigilar preceptos y no normas
+enteras**. Con la LOE se ve por qué.
+
+#### Sobre sacar al `jurista-lgtbi` para vaciar la cola
+
+Se pidió y **no se hizo, porque no puede**: su propio fichero dice que no emite veredictos y que su
+salida es un informe; y la regla de oro 4 dice que ninguna alerta se emite sin que **una persona**
+la apruebe, sin flag que lo salte. Un agente que resolviera la cola sería exactamente el gate
+humano vaciado por dentro.
+
+Para lo que sí sirve —y sigue pendiente— es para la continuación del ADR 0030: **decir qué
+preceptos de cada norma-vehículo sostienen el derecho**. Eso es conocimiento de dominio que no
+está escrito en ningún sitio y es justo su encargo.

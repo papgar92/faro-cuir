@@ -94,7 +94,7 @@ from app.pipeline.watchlist import Watchlist
 # cambios del catálogo el mismo día con la misma cadena de versión hacen que el segundo no
 # reevalúe nada, porque `--reclasificar` pregunta por la versión y la ve igual. No falla nada
 # visiblemente; simplemente el arreglo no llega a las filas ya escritas.
-VERSION_REGLAS = "2026.08.30.2"
+VERSION_REGLAS = "2026.08.30.3"
 
 # --- Identificadores estables de regla ---------------------------------------------------
 # Van a `deteccion.regla_aplicada` y son parte del contrato de auditoría: no se renombran. Si
