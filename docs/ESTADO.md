@@ -2764,20 +2764,38 @@ derecho del colectivo. La solución de fondo sigue siendo la que dejó anotada e
 **vigilar preceptos y no normas enteras** (`preceptos: ["art. 33"]`). Exige investigación jurídica
 norma a norma —es el encargo del `jurista-lgtbi`— y no cabe antes de la entrega.
 
-#### Siguiente, por orden
+#### ⚠️ La lista de «Siguiente» llevaba semanas mandando a trabajo ya hecho
+
+Al ir a por la primera tarea de la lista resultó estar **hecha desde el 2026-08-22**. Y la
+siguiente. Y la siguiente. Se comprobó una a una **contra el código**, que es lo que nadie había
+hecho: cada cierre copiaba la lista del cierre anterior, y una entrada solo salía de ella si quien
+escribía se acordaba de tacharla.
+
+| lo que decía la lista | estado real, comprobado el 2026-09-03 |
+|---|---|
+| «que el signo sea difícil de errar en el panel» | **hecho**: `RevisionPage.tsx` lleva el identificador dentro del cuadro, botones separados con glifo y color, y aviso cuando la regla se abstiene |
+| «feed Atom de hallazgos» | **hecho**: `GET /api/hallazgos.xml` |
+| «bloque de descargar y citar» | **hecho**: `components/DatosYCita/` |
+| «fecha de última lectura por fuente» | **hecho y mejor planteado**: `ultima_publicacion` en `CoberturaCcaa`, con aviso de rancia — y es la fecha del **boletín**, no el sello de nuestra ingesta |
+| «ficha de comunidad enlazable (`?ccaa=AN`)» | **hecho** en `MapaPage.tsx` |
+| «Canarias, Ceuta y Melilla en el mapa» | **hecho** en `MapaCCAA.tsx` |
+| «las 172 ilegibles del DOGC por PDF» | **hecho**: ADR 0026, hoy quedan 2 ilegibles en todo el corpus |
+
+**La lección de método**: en este repositorio el estado de una tarea se comprueba en el código, no
+en la lista. Una lista de pendientes que solo se poda a mano acaba costando lo mismo que no
+tenerla, y aquí llegó a costar más — es lo primero que se lee al retomar.
+
+#### Siguiente, por orden (auditado contra el código, no copiado)
 
 1. **Etiquetar los 32 borradores del gold set** (tiempo humano, no de agente): sigue siendo el
-   cuello de botella del plazo. El cuaderno de lectura por fuente ya está hecho.
-2. **Fecha de última lectura por fuente** (~15k, necesita campo de backend). «Vigilada, sin
-   alertas» no está fechada, y sin fecha no es una medición sino una promesa. `ultima_lectura` en
-   `CoberturaCcaa`, pintada en `RegionDetailPanel` y `CoberturaTotal`. **No simularla en cliente**:
-   derivar la frescura del documento global afirmaría por Aragón algo medido en el BOE.
-
-   *(Lo que había aquí —«que el signo sea difícil de errar en el panel»— **ya está hecho** desde
-   el 2026-08-22 y se arrastraba de una lista escrita antes de hacerlo: el selector lleva el
-   identificador de la norma dentro, botones separados con glifo y color, y aviso cuando la regla
-   se abstiene. Comprobado hoy en `RevisionPage.tsx`. El feed de hallazgos y el bloque de datos y
-   cita también existen ya.)*
-3. **Decidir qué se hace con la alerta de `BOE-A-2026-16172`** (arriba). La cola está a **0
+   cuello de botella del plazo, y ahora sin nada por delante. El cuaderno de lectura ya está.
+2. **Decidir qué se hace con la alerta de `BOE-A-2026-16172`** (arriba). La cola está a **0
    pendientes** —13 aprobadas y 32 descartadas—, así que es lo único que queda del reprocesado.
+3. **Pantalla de Metodología con el catálogo de reglas entero.** Es la mitad que falta de aquella
+   tarea: el `<details>` por tarjeta existe (`lib/reglas.ts`, en `AlertCard` y `HallazgoCard`),
+   pero no hay una pantalla donde leer el catálogo completo con su versión. Lo pide 7.6 —«una
+   alerta publicada tiene que poder reconstruirla un tercero leyendo la regla y el texto
+   archivado»— y es de lo que más peso tiene ante el tribunal.
 4. **Preceptos por norma-vehículo** (ADR 0030 y 0031), con el `jurista-lgtbi`.
+5. **Que la ingesta diaria no dependa de que el portátil esté encendido con Docker Desktop.** Hoy
+   hay que arrancarlo a mano y los backfill lanzados con `exec -d` no sobreviven a un reinicio.
