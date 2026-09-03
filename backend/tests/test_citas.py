@@ -336,3 +336,114 @@ class TestElVerboDentroDeUnTituloAjeno:
         )
 
         assert _referencias(texto).get("BOE-A-2006-7899") == "CITA"
+
+
+class TestElVerboTieneQueGobernarLaCita:
+    """Tercer paso del ADR 0023: el verbo cae dentro de la ventana pero la cita no es su objeto.
+
+    ESTADO.md lo dejó anotado el 2026-08-30 como el ruido que quedaba —*«no hay una construcción
+    que lo delate, solo distancia»*, *«no se toca a ojo»*— y el ADR 0031 lo mide: de las **89**
+    referencias modificativas de la cola, **22 son estas cinco formas y las 22 son ruido**.
+
+    Cada test es una de ellas, con un fragmento **real** del corpus archivado detrás.
+    """
+
+    def test_dentro_de_la_redaccion_nueva_no_cuenta(self) -> None:
+        """C — lo que se cite tras «como sigue:» es del documento modificado, no de este.
+
+        Real: dos órdenes del BOA que insertan párrafos donde se menciona la LOE.
+        """
+        texto = (
+            'El artículo 5 queda redactado como sigue: "En el caso de los conciertos de carácter '
+            "singular, de conformidad con el artículo 117.9 de la Ley Orgánica 2/2006, de 3 de "
+            'mayo, de Educación, la Administración abonará…"'
+        )
+
+        assert _referencias(texto).get("BOE-A-2006-7899") == "CITA"
+
+    def test_la_cita_como_termino_de_una_referencia_no_cuenta(self) -> None:
+        """R — «…a que se refiere la LOE» la nombra para situar algo, no la toca.
+
+        Seis de los 22 descartes son esta forma, todos en convocatorias de oposiciones y en
+        conciertos educativos.
+        """
+        texto = (
+            "Se modifica el anexo III del Reglamento de ingreso, accesos y adquisición de nuevas "
+            "especialidades en los cuerpos docentes a que se refiere la Ley Orgánica 2/2006, de "
+            "3 de mayo, de Educación."
+        )
+
+        assert _referencias(texto).get("BOE-A-2006-7899") == "CITA"
+
+    def test_el_verbo_lo_reclama_la_norma_mas_cercana(self) -> None:
+        """N — con otra norma en medio, el verbo habla de esa. ADR 0023 entre dos candidatas."""
+        texto = (
+            "Se derogan la Ley Orgánica 3/2018, de 5 de diciembre, de Protección de Datos "
+            "Personales y garantía de los derechos digitales y la Ley 4/2023, de 28 de febrero, "
+            "para la igualdad real y efectiva de las personas."
+        )
+
+        assert _referencias(texto).get("BOE-A-2023-5366") == "CITA"
+
+    def test_un_verbo_de_la_frase_anterior_no_cuenta(self) -> None:
+        """F — real, y el caso es elocuente: el documento dice que NO cambia nada.
+
+        «…ningún cambio en la determinación de los sexos reconocidos hasta la fecha. Tampoco lo
+        hace la Ley 4/2023…».
+        """
+        texto = (
+            "Se modifica el anexo I, sin que ello suponga cambio alguno en la determinación de "
+            "los sexos reconocidos hasta la fecha. Tampoco lo hace la Ley 4/2023, de 28 de "
+            "febrero, para la igualdad real y efectiva de las personas."
+        )
+
+        assert _referencias(texto).get("BOE-A-2023-5366") == "CITA"
+
+    def test_el_preterito_narra_lo_que_hizo_otra_norma(self) -> None:
+        """P — «se modifica» casa dentro de «se modificaron», que es preámbulo, no articulado."""
+        texto = (
+            "En los años siguientes se modificaron varios artículos de la Ley 4/2023, de 28 de "
+            "febrero, para la igualdad real y efectiva de las personas."
+        )
+
+        assert _referencias(texto).get("BOE-A-2023-5366") == "CITA"
+
+    def test_el_plural_sigue_contando(self) -> None:
+        """El falso positivo evidente de la regla anterior, y lo primero que rompió al medir.
+
+        `_VERBOS` es una alternancia y casa la **primera** forma que encaja, así que sobre «se
+        modifican» casa «se modifica» y deja una «n» detrás. Sin completar la palabra antes de
+        juzgarla, la regla se habría llevado por delante todos los plurales — que son la mitad
+        del articulado real.
+        """
+        texto = (
+            "Se modifican los anexos I, II, III, VI y VII del Real Decreto 1030/2006, de 15 de "
+            "septiembre."
+        )
+
+        assert _referencias(texto).get("BOE-A-2006-16212") == "MODIFICA"
+
+    def test_una_modificacion_real_larga_sobrevive(self) -> None:
+        """**El test que prohíbe arreglar esto con la distancia**, que era la solución evidente.
+
+        Fragmento real de `BOE-A-2026-16931` sobre la ley trans valenciana: 105 caracteres entre
+        el verbo y la cita. Recortar `VENTANA_VERBO` a 60 deja el mismo total de referencias (67)
+        y sin embargo pierde esta y el apartado 5 del art. 8 de la ley LGTBI valenciana, a cambio
+        de conservar ruido de 4 caracteres. La misma cifra por fuera y lo contrario por dentro.
+        """
+        texto = (
+            "Se modifica el art. 16, apartado 2, modificando la letra b) y añadiendo una letra "
+            "c), y a los apartados 3 y 4 de la Ley 11/2014, de 10 de octubre, para garantizar "
+            "los derechos de lesbianas, gays, bisexuales, transgéneros e intersexuales."
+        )
+
+        assert _referencias(texto).get("BOE-A-2014-11990") == "MODIFICA"
+
+    def test_la_clausula_de_las_dos_reformas_madrilenas_sobrevive(self) -> None:
+        """Caso de control. La forma canónica del articulado: objeto y nada más."""
+        texto = (
+            "Se suprime el apartado 2 del artículo 8 de la Ley 4/2023, de 28 de febrero, para la "
+            "igualdad real y efectiva de las personas."
+        )
+
+        assert _referencias(texto).get("BOE-A-2023-5366") == "SUPRIME"

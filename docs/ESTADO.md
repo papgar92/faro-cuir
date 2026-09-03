@@ -2672,3 +2672,75 @@ humano vaciado por dentro.
 Para lo que sí sirve —y sigue pendiente— es para la continuación del ADR 0030: **decir qué
 preceptos de cada norma-vehículo sostienen el derecho**. Eso es conocimiento de dominio que no
 está escrito en ningún sitio y es justo su encargo.
+
+### ✅ El ruido que quedaba en la cola, medido y quitado — 2026-09-03 (ADR 0031)
+
+Era el punto que el 2026-08-30 quedó **anotado y no tapado**: *«es un problema distinto y más
+difícil: no hay una construcción que lo delate, solo distancia»*, *«no se toca a ojo — estrechar
+la ventana sin medir perdería modificaciones reales»*. Se ha medido, y las dos frases eran
+ciertas: hay construcciones que lo delatan, y la distancia era la solución equivocada.
+
+#### El fallo, que es el ADR 0023 un paso más allá
+
+El verbo cae dentro de los 200 caracteres de `VENTANA_VERBO`, pero **la cita no es su objeto**:
+
+> «Se modifica el anexo III del Reglamento de ingreso, accesos y adquisición de nuevas
+> especialidades en los cuerpos docentes **a que se refiere la** Ley Orgánica 2/2006…»
+
+Ahí no se toca la LOE: se toca un reglamento que la LOE menciona.
+
+#### Medido sobre las 925 normas de la cola (`scripts/medir_ventana_verbo.py`)
+
+De **89** referencias modificativas a normas vigiladas, **22 se descartan y las 22 son ruido**,
+leídas una a una. Quedan **67**.
+
+| | descarta | qué es |
+|---|---|---|
+| **R** | 15 | «a que se refiere», «regulado por», «dada por»: se la nombra, no se la toca |
+| **N** | 9 | otra norma citada en medio — **el verbo lo reclama la más cercana** |
+| **C** | 8 | empieza la redacción **nueva** («…como sigue: "…"»): lo de dentro es del documento modificado |
+| **F** | 5 | se cierra una frase en medio |
+| **P** | 1 | «se modifica» dentro de «se modific**aron**»: preámbulo en pasado, no articulado |
+
+#### Y la distancia, que era lo evidente, era lo malo
+
+Recortar `VENTANA_VERBO` a 60 deja **el mismo número, 67**. Por dentro es lo contrario: **pierde
+dos modificaciones reales** —el apartado 5 del art. 8 de la ley LGTBI valenciana (67 caracteres) y
+cinco preceptos de la ley trans valenciana en `BOE-A-2026-16931` (105)— **a cambio de conservar
+ruido de 4 caracteres**. La misma cifra por fuera y lo contrario por dentro; es exactamente para
+lo que existía la medición. Hay un test que lo deja clavado.
+
+#### El tropiezo propio, que queda como test
+
+La primera versión del criterio `P` miraba solo si tras el verbo seguía una letra. `_VERBOS` es
+una alternancia y casa la **primera** forma que encaja, así que sobre «se modifican» casa «se
+modifica» y deja una «n» detrás: el criterio se llevaba por delante **todos los plurales**, 15 de
+89, que son la mitad del articulado real. Lo cazó la propia medición al desglosar por criterio.
+
+#### Qué se tocó
+
+- `pipeline/citas.py`: `_gobierna()` y sus cinco criterios. **`VENTANA_VERBO` no se toca.**
+- `backend/scripts/medir_ventana_verbo.py` (nuevo). **Importa los predicados de producción y
+  comprueba en cada referencia que su desglose coincide con `citas._gobierna`**: un script de
+  medición con su propia copia de la regla mide su copia, y este ya divergió una vez.
+- `backend/tests/test_citas.py`: 8 tests nuevos, uno por criterio más los de control (34 en el
+  fichero). **754 tests en verde.**
+- `VERSION_REGLAS` → **`2026.09.03`**, y `VERSION_REGLAS_PUBLICADA` del frontend con ella.
+  `VERSION_WATCHLIST` **no** sube: cambia cómo se lee una cita, no qué se vigila (ADR 0030).
+- `docs/adr/0031-el-verbo-tiene-que-gobernar-la-cita.md`. **El siguiente ADR libre es el 0032.**
+
+#### Lo que esto NO arregla, y sigue siendo lo siguiente
+
+El ruido que apunta **de verdad** a una norma-vehículo pero a un precepto que no sostiene ningún
+derecho del colectivo. La solución de fondo sigue siendo la que dejó anotada el ADR 0030:
+**vigilar preceptos y no normas enteras** (`preceptos: ["art. 33"]`). Exige investigación jurídica
+norma a norma —es el encargo del `jurista-lgtbi`— y no cabe antes de la entrega.
+
+#### Siguiente, por orden
+
+1. **Etiquetar los 32 borradores del gold set** (tiempo humano, no de agente): sigue siendo el
+   cuello de botella del plazo. El cuaderno de lectura por fuente ya está hecho.
+2. **Que el signo sea difícil de errar en el panel** (~10k). Dos incidentes en dos días lo piden.
+3. **Descartar a mano las entradas de cola obsoletas** que este cambio y el del 30-08 dejan sin
+   sostener: no se retiran solas a propósito.
+4. **Preceptos por norma-vehículo** (ADR 0030 y 0031), con el `jurista-lgtbi`.

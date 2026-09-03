@@ -531,7 +531,12 @@ BOE **y las citas dentro del texto** (`pipeline/citas.py`). La segunda existe po
 vale fuera del BOE — esa fuente no publica en ningún metadato a quién afecta la norma, solo en el
 texto. Reglas que **no** se relajan: solo la forma larga de la cita (número **y** fecha; la corta
 produjo 4 falsos positivos de 4), el verbo se busca 200 caracteres hacia atrás, y sin verbo la
-referencia es `CITA`, que no dispara nada.
+referencia es `CITA`, que no dispara nada. **Y el verbo tiene que *gobernar* la cita, no solo caer
+cerca** (ADR 0031): no cuenta si en medio empieza la redacción nueva, si hay otra norma que lo
+reclame antes, si se cierra una frase, si la cita es el término de una referencia («a que se
+refiere») o si la forma casó dentro de otra palabra («se modific**aron**»). **La ventana no se
+recorta**: está medido que con 60 caracteres sale el mismo total y se pierden modificaciones
+reales.
 
 `config/watchlist.json` lleva las normas objetivo por identificador. **Cualquier disposición que
 modifique una norma de la watchlist pasa el filtro por definición, diga lo que diga su texto.**
@@ -743,12 +748,12 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
 - **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
-  consecuencias. **Están todos escritos del 0001 al 0030** y su título dice de qué van: `ls
+  consecuencias. **Están todos escritos del 0001 al 0031** y su título dice de qué van: `ls
   docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
-  **El siguiente número libre es el 0031.** No queda ninguno reservado.
+  **El siguiente número libre es el 0032.** No queda ninguno reservado.
   Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
-  (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada) y **0027** (el
-  límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
+  (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada, con el **0031** que
+  lo lleva un paso más allá) y **0027** (el límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
   interfaz.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como

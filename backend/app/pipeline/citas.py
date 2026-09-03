@@ -206,6 +206,107 @@ def forma_larga(titulo: str) -> str | None:
 _TITULO_AJENO = re.compile(r"por\s+(?:la|el|las|los)\s+(?:que|cual|cuales)\s*$", re.IGNORECASE)
 
 
+# **El verbo tiene que GOBERNAR la cita, no solo caer cerca de ella.**
+#
+# Tercer paso de la misma idea. El ADR 0023 exigió que el verbo fuera de la norma vigilada y no
+# de cualquier supresión del documento; el arreglo del 2026-08-30, que no perteneciera al nombre
+# de otra norma. Queda el resto: el verbo está suelto en el documento, dentro de la ventana, y
+# **la cita no es su objeto**. ESTADO.md lo dejó anotado como *«no hay una construcción que lo
+# delate, solo distancia»* y como *«no se toca a ojo»*.
+#
+# Medido el 2026-09-03 con `scripts/medir_ventana_verbo.py` sobre las 925 normas de la cola: de
+# las **89** referencias modificativas a normas vigiladas, **22 son de las de abajo y las 22 son
+# ruido**. Quedan 67, y entre ellas siguen enteras la valenciana de 31 preceptos, la madrileña,
+# la catalana y las cinco de la cartera del SNS.
+#
+# **Y la distancia, que era la solución evidente, es la mala**: recortar `VENTANA_VERBO` a 60
+# deja el mismo número (67) pero se lleva por delante dos modificaciones **reales** —el apartado
+# 5 del art. 8 de la ley LGTBI valenciana (67 caracteres) y cinco preceptos de la ley trans
+# valenciana en `BOE-A-2026-16931` (105)— a cambio de conservar ruido de 4 caracteres. La misma
+# cifra por fuera y lo contrario por dentro: es exactamente lo que la medición existía para ver.
+
+# 1. Empieza un texto citado. Lo que se nombre ahí dentro es del documento **modificado**, no de
+#    este: «…queda redactado como sigue: "…de conformidad con el art. 117.9 de la Ley 2/2006"».
+_ABRE_CITA = re.compile(r"[:«\"“]")
+
+# 2. La cita no es el objeto del verbo sino el término de una referencia: se la nombra para
+#    situar algo. «…los cuerpos docentes **a que se refiere la** Ley Orgánica 2/2006». Seis de
+#    los 22 descartes son esta forma sobre la LOE, y todos en oposiciones y conciertos.
+_CONECTOR_REFERENCIAL = re.compile(
+    r"\b(?:a\s+(?:que|los?\s+que|las?\s+que|la\s+que|el\s+que)\s+se\s+refiere"
+    r"|regulad[oa]s?\s+por|derivad[oa]s?\s+de|previst[oa]s?\s+en|establecid[oa]s?\s+en"
+    r"|contemplad[oa]s?\s+en|de\s+conformidad\s+con|dada\s+por|segun\s+lo\s+previsto\s+en"
+    r"|en\s+los\s+terminos)\b",
+    re.IGNORECASE,
+)
+
+# 3. Otra norma citada por su forma larga entre el verbo y la nuestra: **el verbo lo reclama la
+#    más cercana**. Es el criterio del ADR 0023 aplicado entre dos candidatas en vez de entre el
+#    documento y la norma.
+_OTRA_NORMA = re.compile(
+    r"\b(?:ley organica|ley foral|ley|real decreto|decreto|orden|resolucion|instruccion)"
+    r"\s+[\w./-]*\d[\w./-]*",
+    re.IGNORECASE,
+)
+
+# 4. Se cierra una frase en medio. Un punto de abreviatura no cierra nada, y en este corpus las
+#    que aparecen pegadas a una mayúscula son pocas y conocidas; lo que no esté aquí cuenta como
+#    frontera, que es el lado que **conserva** la referencia (perder una modificación real es el
+#    fallo caro, no al revés).
+_ABREVIATURAS = frozenset(
+    ("art", "arts", "num", "apdo", "apdos", "disp", "pag", "pags", "cap", "sr", "sra", "d", "f")
+)
+_FRONTERA = re.compile(r"(?<![\w.])(\w*)\.\s+(?=[A-ZÁÉÍÓÚÑ])")
+
+# 5. La forma casó dentro de una palabra más larga. `_VERBOS` es una alternancia y casa la
+#    primera que encaja, así que «se modifica» casa también dentro de «se modificaron», que
+#    **narra en pasado lo que hizo otra norma** y es preámbulo, no articulado. Las formas que
+#    acaban a media palabra a propósito —«queda modificad», para masculino y femenino— quedan
+#    fuera de la comprobación.
+_FORMAS_CERRADAS = frozenset(
+    forma for forma, _ in _FORMAS if not forma.endswith(("modificad", "redactad", "derogad"))
+)
+_TODAS_LAS_FORMAS = frozenset(forma for forma, _ in _FORMAS)
+_PALABRA = re.compile(r"\w*")
+
+
+def _cierra_frase(entre: str) -> bool:
+    for coincidencia in _FRONTERA.finditer(entre):
+        if coincidencia.group(1).lower() in _ABREVIATURAS:
+            continue
+        return True
+    return False
+
+
+def _flexion_ajena(forma: str, entre: str) -> bool:
+    if forma not in _FORMAS_CERRADAS:
+        return False
+    palabra = _PALABRA.match(entre)
+    resto = palabra.group(0) if palabra is not None else ""
+    return bool(resto) and (forma + resto) not in _TODAS_LAS_FORMAS
+
+
+def _gobierna(forma: str, entre: str) -> bool:
+    """¿Es la cita el objeto de este verbo, o solo cae detrás de él?
+
+    `entre` es el texto que va del final del verbo al principio de la cita. En una cláusula de
+    verdad ahí solo hay el objeto —«el apartado 2 del artículo 8 de la», «los anexos I, II y III
+    del»—; las cinco construcciones de arriba son las que aparecen cuando no lo es.
+
+    **Se comprueba con una lista de lo que descarta y no de lo que acepta**, a propósito: una
+    lista de formas admitidas convertiría cualquier redacción no prevista en un falso negativo, y
+    un falso negativo aquí es invisible (7.1). Estas cinco están medidas sobre el corpus; lo que
+    no esté en ellas sigue pasando.
+    """
+    return not (
+        _ABRE_CITA.search(entre)
+        or _CONECTOR_REFERENCIAL.search(entre)
+        or _OTRA_NORMA.search(entre)
+        or _cierra_frase(entre)
+        or _flexion_ajena(forma, entre)
+    )
+
+
 def _es_titulo_propio(titulo: str, cita: str) -> bool:
     """¿La construcción está en el título del PROPIO documento, que sí declara lo que hace?
 
@@ -233,13 +334,17 @@ def _verbo_previo(texto_normalizado: str, inicio: int, titulo: str = "", cita: s
     """El verbo modificativo más cercano por delante de la cita, o `CITA` si no hay ninguno.
 
     Un verbo precedido de «por la que» pertenece al **nombre de otra norma** y no cuenta, salvo
-    que ese nombre sea el del propio documento (ver `_TITULO_AJENO` y `_es_titulo_propio`).
+    que ese nombre sea el del propio documento (ver `_TITULO_AJENO` y `_es_titulo_propio`). Y un
+    verbo que no **gobierna** la cita tampoco cuenta, aunque caiga dentro de la ventana (ver
+    `_gobierna`).
     """
     ventana = texto_normalizado[max(0, inicio - VENTANA_VERBO) : inicio]
     ultimo = None
     for coincidencia in _VERBOS.finditer(ventana):
         anterior = ventana[: coincidencia.start()]
         if _TITULO_AJENO.search(anterior) and not _es_titulo_propio(titulo, cita):
+            continue
+        if not _gobierna(coincidencia.group(0).lower(), ventana[coincidencia.end() :]):
             continue
         # `.lower()` porque el texto conserva sus mayúsculas —«Se modifica» al empezar frase— y
         # las claves de `_CANONICO` están en minúscula. Aquí sí se puede: es una cadena corta que
