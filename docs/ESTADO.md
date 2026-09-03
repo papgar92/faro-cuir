@@ -2768,7 +2768,16 @@ norma a norma —es el encargo del `jurista-lgtbi`— y no cabe antes de la entr
 
 1. **Etiquetar los 32 borradores del gold set** (tiempo humano, no de agente): sigue siendo el
    cuello de botella del plazo. El cuaderno de lectura por fuente ya está hecho.
-2. **Que el signo sea difícil de errar en el panel** (~10k). Dos incidentes en dos días lo piden.
+2. **Fecha de última lectura por fuente** (~15k, necesita campo de backend). «Vigilada, sin
+   alertas» no está fechada, y sin fecha no es una medición sino una promesa. `ultima_lectura` en
+   `CoberturaCcaa`, pintada en `RegionDetailPanel` y `CoberturaTotal`. **No simularla en cliente**:
+   derivar la frescura del documento global afirmaría por Aragón algo medido en el BOE.
+
+   *(Lo que había aquí —«que el signo sea difícil de errar en el panel»— **ya está hecho** desde
+   el 2026-08-22 y se arrastraba de una lista escrita antes de hacerlo: el selector lleva el
+   identificador de la norma dentro, botones separados con glifo y color, y aviso cuando la regla
+   se abstiene. Comprobado hoy en `RevisionPage.tsx`. El feed de hallazgos y el bloque de datos y
+   cita también existen ya.)*
 3. **Decidir qué se hace con la alerta de `BOE-A-2026-16172`** (arriba). La cola está a **0
    pendientes** —13 aprobadas y 32 descartadas—, así que es lo único que queda del reprocesado.
 4. **Preceptos por norma-vehículo** (ADR 0030 y 0031), con el `jurista-lgtbi`.
