@@ -2729,6 +2729,34 @@ modifica» y deja una «n» detrás: el criterio se llevaba por delante **todos 
   `VERSION_WATCHLIST` **no** sube: cambia cómo se lee una cita, no qué se vigila (ADR 0030).
 - `docs/adr/0031-el-verbo-tiene-que-gobernar-la-cita.md`. **El siguiente ADR libre es el 0032.**
 
+#### El reprocesado, y lo que se encontró al mirarlo
+
+`--reclasificar` sobre las 925: **53 con veredicto** (eran 65) y **13 veredictos obsoletos**, que
+el sistema avisa y **no retira solos**, como debe.
+
+**De esos 13, doce ya los había descartado a mano el humano.** O sea que el filtro reproduce, sin
+haberlos mirado, doce de doce decisiones del gate. Es la mejor validación que puede tener una
+regla de este tipo: no coincide con lo que yo creo que es ruido, coincide con lo que una persona
+descartó.
+
+**Y el decimotercero está aprobado y con alerta emitida:** `BOE-A-2026-16172`, el Real Decreto
+606/2026 del Estatuto de la Autoridad Independiente para la Igualdad de Trato, aprobado como
+**avance** el 2026-08-30 a las 19:46.
+
+**Su obsolescencia NO viene del cambio de hoy, viene del arreglo del 30-08**, y las horas lo
+demuestran: se clasificó a las 18:51 y se aprobó a las 19:46, y el arreglo de «por la que se
+modifica» se commiteó a las 20:46 de ese mismo día. Comprobado además directamente: con el
+`citas.py` de ayer, la referencia a la LO 3/2007 en ese cuerpo ya salía `CITA` y no `MODIFICA`.
+Lo que pasa es que nadie volvió a pasar el catálogo por encima de lo ya aprobado, y hasta hoy no
+se vio.
+
+**No se toca.** Lo que dejó de sostenerse es **el motivo por el que la máquina se la puso delante
+a una persona**, no lo que esa persona leyó y decidió: el RD 606/2026 da entrada al Consejo de
+Participación LGTBI en varios órganos, y la clasificación de avance la puso un humano. Cambiar en
+silencio un dato ya publicado es exactamente la desindexación sin registro que este proyecto
+documenta para denunciarla, así que **lo decide el humano** y, si se cambia, va en un script con
+su porqué como `corregir_signos_20260822.sql`.
+
 #### Lo que esto NO arregla, y sigue siendo lo siguiente
 
 El ruido que apunta **de verdad** a una norma-vehículo pero a un precepto que no sostiene ningún
@@ -2741,6 +2769,6 @@ norma a norma —es el encargo del `jurista-lgtbi`— y no cabe antes de la entr
 1. **Etiquetar los 32 borradores del gold set** (tiempo humano, no de agente): sigue siendo el
    cuello de botella del plazo. El cuaderno de lectura por fuente ya está hecho.
 2. **Que el signo sea difícil de errar en el panel** (~10k). Dos incidentes en dos días lo piden.
-3. **Descartar a mano las entradas de cola obsoletas** que este cambio y el del 30-08 dejan sin
-   sostener: no se retiran solas a propósito.
+3. **Decidir qué se hace con la alerta de `BOE-A-2026-16172`** (arriba). La cola está a **0
+   pendientes** —13 aprobadas y 32 descartadas—, así que es lo único que queda del reprocesado.
 4. **Preceptos por norma-vehículo** (ADR 0030 y 0031), con el `jurista-lgtbi`.
