@@ -60,8 +60,41 @@ Al terminar una tarea: actualizar la sección 11, mover el fichero a `tasks/done
 ### 13.3 Driver de sesiones (`run_agent.sh`)
 
 Ejecuta tareas del backlog en modo headless, una sesión limpia por tarea. **Automatiza el
-tecleo, no el criterio**: cada tarea va a su rama y el merge lo hace el humano tras mirar el
-diff. Es el mismo principio que el gate humano del producto (regla 4) aplicado al código.
+tecleo, no el criterio**: cada tarea va a su rama y **el merge lo autoriza el humano**.
+
+#### Cómo se entra en `main` (regla cambiada el 2026-09-04, a petición del humano)
+
+Antes decía «ninguna rama entra en `main` sin que la mire el humano», o sea que había que leerse
+el diff. Ahora **el trabajo de comprobar es del agente y la autorización sigue siendo del
+humano**. La razón del cambio, dicha por él: leerse dieciocho commits para autorizar algo que las
+comprobaciones ya cubren es tiempo que no tiene, y el plazo es el 10 de septiembre.
+
+**Lo que el agente tiene que haber hecho antes de pedir permiso, y no vale a medias:**
+
+1. **Comprobar el RESULTADO DEL MERGE, no la rama.** Una rama puede estar verde y romper `main`
+   igualmente: dos cambios compatibles a ojo pueden ser incompatibles juntos, y eso no lo ve el
+   CI de la rama. Se hace el merge en local contra `main` actualizado y se comprueba **eso**.
+2. **En un clon limpio, no en el directorio de trabajo.** Un `git clone` aparte y un entorno
+   nuevo. Si no, se está comprobando la máquina de quien trabaja —con su `.venv` de hace tres
+   semanas y sus ficheros sin commitear— y no lo que va a entrar. Ha pasado: la imagen de Docker
+   local llevaba tiempo sin `pypdf` y nadie lo sabía.
+3. **La puerta entera del CI**: `ruff check`, `ruff format --check`, `mypy app`, `alembic upgrade
+   head` sobre una base vacía y `pytest` **completo**. Más el CI verde en el PR.
+4. **Decir qué NO se ha podido comprobar.** Lo que necesita Ollama, lo que solo se ve contra
+   producción, lo que depende de una decisión. Un informe que solo dice «todo verde» esconde
+   justamente lo que hay que mirar.
+5. **Nombrar los cambios que afirman algo**: catálogo de reglas, watchlist, prefiltro, esquema de
+   extracción, controles de seguridad. No es un veto —no bloquean el merge— pero **se enumeran en
+   la petición**, porque son los que ningún test puede validar: un test comprueba que la regla
+   hace lo que dice, no que la regla deba decir eso. Ahí el humano decide si quiere mirar.
+
+**Y después se pide autorización y se espera.** El agente **nunca** mergea por iniciativa propia,
+ni aunque salga todo verde: lo que se ha relajado es qué se le pide al humano —autorizar en vez
+de auditar—, no que haya humano. Un «sí» explícito, para ese merge concreto.
+
+Lo que **no** cambia, y conviene no confundirlo con esto: el gate humano del producto (regla de
+oro 4, ninguna alerta se emite sin una persona), las acciones externas de la sección 12, y que
+**las migraciones las revisa una persona siempre** (13.3, abajo).
 
 El script vive en **[`run_agent.sh`](../run_agent.sh)**, en la raíz del repositorio. **Lo que no
 se va de aquí son sus reglas**, porque son de criterio y no de implementación:

@@ -742,7 +742,7 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Fine-tuning, RAG, o cambiar de modelo buscando calidad.** Antes de tocar el modelo hay que
   poder medir, y medir es el gold set. Cualquier cambio de modelo sin gold set es una opinión.
 - **Bucle de agente que mergee solo.** Ver 13.3: el driver automatiza el tecleo, no el
-  criterio. Ninguna rama entra en `main` sin que la mire el humano.
+  criterio. El agente comprueba el resultado del merge en un clon limpio; **autoriza el humano**.
 
 ---
 
@@ -897,5 +897,5 @@ cambia de fichero. Lo que hay que saber sin abrirlo, porque son reglas y no proc
 - **Nunca `--dangerously-skip-permissions`** ni `alembic upgrade` desatendido.
 - **Los subagentes se lanzan de uno en uno** y no por encima del 60 % de consumo; son de ámbito
   de proyecto, así que la sesión se abre **en la raíz del repositorio** o no existen.
-- **Ninguna rama entra en `main` sin que la mire el humano**, y ninguna acción de la sección 12
+- **Ninguna rama entra en `main` sin que la autorice el humano** (13.3), y ninguna de la 12
   entra en el backlog automático.
