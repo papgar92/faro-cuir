@@ -25,12 +25,16 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
 
 from app.config import get_settings
 from app.security import hashing
 from app.services import almacen_remoto
+
+# Reintentos por objeto, por encima de los que ya hace boto3 (1 s, 2 s, 4 s entre medias).
+_REINTENTOS = 4
 
 
 def _relativa(fichero: Path, raiz: Path) -> str:
@@ -135,10 +139,28 @@ def main(argv: list[str] | None = None) -> int:
         if args.solo_verificar:
             return "verificado"
 
-        almacen_remoto.escribir(ruta, contenido)
-        return "subido"
+        # **Un corte de red en un objeto no puede tirar la pasada entera.** Con 84.000 subidas,
+        # que alguna conexión se caiga no es una posibilidad sino una certeza: la primera tanda
+        # larga murió en el objeto 30.000 con un `SSL: UNEXPECTED_EOF_WHILE_READING`, y con ella
+        # se fue media hora de subida. boto3 ya reintenta por dentro, pero se le agotan los
+        # intentos; esto es la red de fuera.
+        #
+        # Y lo que NO se hace es tragarse el fallo: si tras los reintentos sigue sin subir, se
+        # devuelve como fallido, se cuenta, se enumera al final y el script sale con código
+        # distinto de cero. Perder objetos en silencio en el archivo de la 6.5 sería peor que
+        # no copiarlo.
+        for intento in range(_REINTENTOS):
+            try:
+                almacen_remoto.escribir(ruta, contenido)
+                return "subido"
+            except almacen_remoto.AlmacenRemotoCaido:
+                if intento == _REINTENTOS - 1:
+                    return f"fallido:{ruta}"
+                time.sleep(2**intento)
+        return f"fallido:{ruta}"
 
     corruptos: list[str] = []
+    fallidos: list[str] = []
     subidos = 0
     saltados = len(ficheros) - len(pendientes)
     # En paralelo porque el cuello de botella es la latencia de cada PUT, no la CPU ni el disco:
@@ -148,22 +170,35 @@ def main(argv: list[str] | None = None) -> int:
         for hechos, resultado in enumerate(pool.map(_uno, pendientes), start=1):
             if resultado.startswith("corrupto:"):
                 corruptos.append(resultado.split(":", 1)[1])
+            elif resultado.startswith("fallido:"):
+                fallidos.append(resultado.split(":", 1)[1])
             elif resultado == "subido":
                 subidos += 1
             if hechos % 2000 == 0:
-                print(f"  {hechos}/{len(pendientes)}  (subidos {subidos})", flush=True)
+                print(
+                    f"  {hechos}/{len(pendientes)}  (subidos {subidos}, fallidos {len(fallidos)})",
+                    flush=True,
+                )
 
     print(
         f"\nverificados: {len(pendientes)}  subidos: {subidos}  ya estaban o saltados: {saltados}"
     )
+    if fallidos:
+        # No son un problema del archivo sino de la red, y se arreglan solos relanzando: el
+        # script se salta lo que ya está en el bucket. Aun así salen enumerados y con código
+        # distinto de cero, porque «se subió casi todo» no es un resultado.
+        print(f"\n{len(fallidos)} NO SE PUDIERON SUBIR (relanza y se reintentan):")
+        for ruta in fallidos[:20]:
+            print(f"  {ruta}")
+        if len(fallidos) > 20:
+            print(f"  ... y {len(fallidos) - 20} más")
     if corruptos:
         # Salida distinta de cero y la lista entera: un archivo que no cumple su propia huella
         # es el peor hallazgo posible en este proyecto y no puede quedar en una línea de log.
         print(f"\n{len(corruptos)} FICHEROS QUE NO CASAN CON SU sha256 (no se han subido):")
         for ruta in corruptos:
             print(f"  {ruta}")
-        return 1
-    return 0
+    return 1 if (corruptos or fallidos) else 0
 
 
 if __name__ == "__main__":
