@@ -1015,7 +1015,7 @@ docker compose exec -d worker sh -c "FASE2_MAX_POR_EJECUCION=400 python -m worke
 **Comprobar que siguen vivos**, que es lo primero que hay que mirar:
 
 ```bash
-docker compose exec -T worker sh -c 'for p in /proc/[0-9]*; do [ -r $p/cmdline ] || continue; tr " " " " < $p/cmdline | grep -E "worker.run|backfill" ; done'
+docker compose exec -T worker sh -c 'for p in /proc/[0-9]*; do [ -r $p/cmdline ] || continue; tr "\0" " " < $p/cmdline | grep -E "worker.run|backfill" ; done'
 ```
 
 #### Lo que va a pasar solo, y no es un fallo
@@ -2799,3 +2799,101 @@ tenerla, y aquí llegó a costar más — es lo primero que se lee al retomar.
 4. **Preceptos por norma-vehículo** (ADR 0030 y 0031), con el `jurista-lgtbi`.
 5. **Que la ingesta diaria no dependa de que el portátil esté encendido con Docker Desktop.** Hoy
    hay que arrancarlo a mano y los backfill lanzados con `exec -d` no sobreviven a un reinicio.
+   → **hecho el 2026-09-04**, ver la entrada siguiente. Lo que queda es crear dos cuentas.
+
+---
+
+### ✅ La ingesta se va a la nube y deja de depender del portátil — 2026-09-04 (ADR 0032)
+
+El punto 5 de la lista de arriba, y el que llevaba más tiempo doliendo sin que nadie lo escribiera
+como bug: **este proyecto vigila «a diario» y solo ingería los días que alguien encendía el
+portátil.** El propio `CLAUDE.md` lo tenía escrito como aviso operativo —«un `exec` NO sobrevive
+al cierre de la sesión; ha costado tiempo dos veces»— y la cabecera del plan V1 lo tenía medido
+como el cuello de botella real: «no es el pipeline, es que la máquina se duerme».
+
+Yo recomendé primero la solución barata de plazo —una tarea programada de Windows, media hora,
+cero cuentas— y **el humano decidió ir directo a la solución buena**. Es además la que se puede
+enseñar en la memoria: un despliegue, no un apaño.
+
+#### Las tres piezas, y por qué esas
+
+| pieza | dónde | plan gratuito | el descarte que importa |
+|---|---|---|---|
+| cómputo | GitHub Actions, `schedule:` diario | **ilimitado en repos públicos**; 6 h/job contra ~20 min del día entero | — |
+| base de datos | Neon | 0,5 GB, **se despierta al conectar** | **Supabase pausa el proyecto a los 7 días** sin actividad, y hay que reactivarlo a mano |
+| archivo (6.5) | Backblaze B2 (S3-compatible) | 10 GB | **Cloudflare R2 exige tarjeta**; la 0 bis manda elegir lo que pida menos cosas que conseguir |
+
+Y el resto, con su número: Fly.io ya no tiene plan gratuito, Render no incluye cron en el
+gratuito, Railway da 5 $ que caducan, Oracle Always Free pide tarjeta.
+
+**Los dos plazos están medidos, no estimados.** La base son 143 MB con 83.011 normas —**1.805
+bytes por norma**— y crece ~170 MB/año: **unos dos años** dentro de Neon. El archivo son 1,6 GB en
+84.185 ficheros, ~2 GB/año: **unos cuatro años** en B2. Cuando se acaben, la salida es pagar o
+podar, y es mejor saberlo hoy que el día que falle una escritura.
+
+#### Lo que el workflow NO hace, y es lo primero que hay que saber
+
+**No llama al LLM.** Todos los pasos van con `--sin-extraccion`, porque Ollama corre en local
+(ADR 0008) y en un runner no hay ninguno.
+
+**Y no cuesta vigilancia**, que no es una esperanza sino la consecuencia de dos decisiones ya
+tomadas: desde el ADR 0016 **el gate humano se alimenta del catálogo de reglas leyendo el texto
+archivado, no de la extracción**, y la 6.9.7 ya dejó medido que el modelo pequeño solo ve el 2,6 %
+de un documento medio. La cola del extractor se drena en local con `--extraer` cuando apetezca, y
+lo que se queda fuera no se pierde nunca: la cola es una consulta, no un estado que reponer.
+
+#### El archivo cambia de sitio sin cambiar de forma
+
+Que `services/archivo.py` fuera **la puerta única** del almacén desde el ADR 0015 convirtió esto
+en un `if` en vez de un refactor: los treinta y ocho módulos que archivan o leen no se enteran. Y
+la clave del objeto es **la misma ruta relativa derivada del sha256**, así que **migrar no
+reescribe ni una fila de `documento`**; hay un test que fija esa igualdad, porque es la propiedad
+de la que depende que esto sea reversible.
+
+Tres decisiones dentro, ninguna cosmética:
+
+- **Sustituye al disco, no lo replica.** Con bucket configurado no se escribe nada en local:
+  escribir en los dos sitios dejaría en el runner una copia que *parece* un respaldo y se destruye
+  con el job. Y si falta una credencial, **se para y se dice**, no se cae al disco.
+- **«No está» y «no se puede llegar» siguen siendo hechos distintos.** Un objeto ausente lanza
+  `FileNotFoundError` —que es `OSError`, así que `cuerpo.py` marca `ilegible` como siempre (7.2)—;
+  cualquier otro fallo lanza `AlmacenRemotoCaido`, que **no** es `OSError` y para la pasada. Sin
+  esa distinción, un 500 del almacén marcaría cientos de normas como ilegibles y el embudo lo
+  contaría como cobertura perdida en vez de como avería.
+- **Es la segunda excepción declarada a la allowlist de `url_guard`** (6.2), y por el mismo
+  criterio que Ollama: el destino sale de la configuración, no de un documento. Por eso se valida
+  al arrancar, y aquí con **HTTPS obligatorio** — por ahí van el archivo íntegro y la credencial
+  que lo firma.
+
+#### El canario, porque un cron mudo es peor que ninguno
+
+**GitHub desactiva un workflow programado tras 60 días sin actividad en el repositorio**, avisando
+solo por correo. Un correo no es un canario (6.9.6). El bueno ya existía y no hubo que escribirlo:
+la web publica `ultima_publicacion` por fuente, así que **una fuente muda se ve en la página de
+cobertura** sin que nadie tenga que acordarse de mirar.
+
+#### Lo que se tocó
+
+- `app/services/almacen_remoto.py` (nuevo), `app/services/archivo.py` (el `if`), `app/config.py`
+  (cuatro variables y su validador de arranque), `boto3` como dependencia.
+- `.github/workflows/ingesta.yml` (nuevo): cuatro fuentes + `--fase2` + `--versionar` +
+  `--reclasificar`, cada fuente en su paso para ver cuál se cae, y `!cancelled()` para que un
+  boletín caído no impida los otros tres **sin dejar de acabar en rojo** (6.9.6).
+- `scripts/migrar_almacen.py` (nuevo): sube el archivo **verificando antes que cada fichero sigue
+  casando con su sha256**, que es media razón de que exista. Reanudable e idempotente.
+- `docs/despliegue.md` (nuevo): el procedimiento paso a paso, con la trampa del `+psycopg` que
+  distingue la cadena de `psql` de la de `DATABASE_URL`.
+- 16 tests nuevos; 761 verdes en total, `ruff` y `mypy` limpios.
+
+#### Lo que le queda al humano, y solo lo puede hacer una persona
+
+Dos cuentas gratuitas —Neon y Backblaze B2—, cinco secretos en GitHub y lanzar el workflow una vez
+a mano. **Todo está en `docs/despliegue.md`.** Ninguna de las dos pide tarjeta; si alguna la
+pidiera, hay que parar y decirlo, no darla (0 bis).
+
+#### De paso: `ESTADO.md` era un fichero binario para `grep`
+
+Tenía **un byte NUL literal** dentro de un comando de ejemplo (`tr "\x00" " "` en el bloque que
+lista los backfill vivos). Con eso, `grep` lo trataba como binario y no devolvía ni una línea del
+fichero que es lo primero que se lee al retomar el proyecto. Sustituido por `\0`, que en `sh`
+hace exactamente lo mismo.
