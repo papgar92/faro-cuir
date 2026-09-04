@@ -95,6 +95,12 @@ archivo íntegro y la credencial que lo firma—, sin credenciales en la URL y s
   por norma**— y crece ~170 MB/año al ritmo real: unos **dos años** dentro de los 0,5 GB de Neon.
   El archivo son 1,6 GB en 84.185 ficheros y crece ~2 GB/año: unos **cuatro años** en los 10 GB de
   B2. Cuando se acaben, la salida es pagar o podar, y conviene saberlo desde hoy.
+- **La conexión de Neon es la directa, no la del pooler**, y no por precaución: la migración lo
+  demostró. `pg_restore` deja un `set_config('search_path','',false)` de sesión, el pooler
+  (pgbouncer en modo transacción) reutiliza esa conexión de servidor, y después todo cliente que
+  cayera en ese backend veía `relation "fuente" does not exist` con las diez tablas intactas en
+  `public`. Un `ALTER DATABASE ... SET search_path` se graba pero no rescata la conexión ya
+  envenenada. Está en `docs/despliegue.md`, paso 3 bis.
 - **El backend y el frontend siguen donde estaban.** Esto mueve la ingesta, que es lo que tenía
   que correr desatendido. Publicar la web es una decisión aparte y de la sección 12.
 

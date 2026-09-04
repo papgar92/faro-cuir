@@ -778,7 +778,7 @@ cd backend && uvicorn app.main:app --reload
 
 # Migraciones
 alembic revision --autogenerate -m "..."   &&   alembic upgrade head
-# y DESPUÉS de cada upgrade, comprobar que siguen vivas las CHECK (hoy 14). El filtro honesto
+# y DESPUÉS de cada upgrade, comprobar que siguen vivas las CHECK (hoy 15). El filtro honesto
 # lleva `conrelid <> 0`: sin él salen dos filas de information_schema que no son del proyecto.
 psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
          WHERE contype='c' AND conrelid <> 0 ORDER BY 1,2"

@@ -34,6 +34,29 @@ cuando haga falta mirar el panel. Lo que se mueve es **la ingesta diaria**.
    postgresql+psycopg://usuario:clave@ep-algo-123456.eu-central-1.aws.neon.tech/farocuir?sslmode=require
    ```
 
+3 bis. **Y usa la conexión DIRECTA, no la del pooler. Esto no es una precaución, pasó.**
+
+   Neon ofrece por defecto la cadena con `-pooler` en el host. Es pgbouncer en **modo
+   transacción**, o sea que **reutiliza conexiones de servidor entre clientes**, y `pg_restore`
+   ejecuta al empezar un `set_config('search_path', '', false)` que es de **sesión**. El ajuste
+   se queda pegado a esa conexión reutilizada, así que después de restaurar, cualquier cliente
+   que caiga en ese backend ve el `search_path` vacío y **todas las consultas sin esquema
+   fallan**:
+
+   ```
+   psycopg.errors.UndefinedTable: relation "fuente" does not exist
+   ```
+
+   Con las diez tablas ahí, en `public`, perfectamente restauradas. Un `ALTER DATABASE farocuir
+   SET search_path TO "$user", public` **no basta**: se graba, pero solo se aplica a conexiones
+   nuevas y el pooler te sigue dando la vieja.
+
+   La directa es el mismo host **sin el `-pooler`**, y comprobado sobre este proyecto arregla las
+   dos cosas a la vez (`search_path` correcto y las tablas visibles). Para un cron de veinte
+   minutos al día el pooler no aporta nada y sí trae esto.
+
+   **La cadena del secreto `DATABASE_URL` de GitHub también va sin `-pooler`.**
+
 4. Volcar lo que hay y restaurarlo. **En la base vacía, sin pasar antes `alembic`**: el volcado
    trae el esquema y la tabla `alembic_version` con la revisión correcta.
 
