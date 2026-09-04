@@ -25,11 +25,15 @@ export default defineConfig({
     // seguir sin ninguna cabecera CORS permisiva.
     proxy: {
       "/api": {
-        // Fuera de docker, el backend está en el host. Dentro del contenedor de desarrollo,
-        // 127.0.0.1 sería el propio contenedor, así que el destino llega por entorno
-        // (`VITE_API_PROXY=http://backend:8000` en el compose). El valor por defecto es el de
-        // siempre para que `npm run dev` a pelo siga funcionando igual.
-        target: process.env.VITE_API_PROXY ?? "http://127.0.0.1:8000",
+        // Fuera de docker, el backend está en el host y ahí el puerto es el **8010** (fijo desde
+        // el 2026-09-04; el porqué está en `docker-compose.yml`, junto al mapeo). Dentro del
+        // contenedor de desarrollo, 127.0.0.1 sería el propio contenedor, así que el destino
+        // llega por entorno (`VITE_API_PROXY=http://backend:8000` en el compose) y ahí sigue
+        // siendo el 8000, porque eso es red de contenedores y no toca el host.
+        //
+        // Este valor por defecto y el mapeo del compose son los dos únicos sitios del
+        // repositorio que hablan del puerto del host: si se mueve, se mueve en los dos.
+        target: process.env.VITE_API_PROXY ?? "http://127.0.0.1:8010",
         changeOrigin: true,
       },
     },

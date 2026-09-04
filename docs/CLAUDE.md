@@ -770,7 +770,7 @@ Si te encuentras haciendo cualquiera de estas, para:
 
 ```bash
 # Levantar todo: base de datos, backend, worker y la web (desde 2026-08-17 el frontend también
-# es un servicio del compose, con `restart: unless-stopped`). La web queda en el 5174 del host.
+# es un servicio del compose). PUERTOS FIJOS del host: web 5174, API 8010 (no 8000: ocupado).
 docker compose up --build
 
 # Backend en local
@@ -842,7 +842,7 @@ ollama show qwen2.5:3b-instruct     # digest del modelo, que va en extraccion_js
 curl -s localhost:11434/api/tags    # comprobación rápida de que responde
 
 # Frontend: normalmente NO hace falta, lo levanta el compose en http://localhost:5174.
-# Esto es solo para trabajar sin docker; entonces el proxy apunta al 8000 del host por defecto.
+# Solo para trabajar sin docker; el proxy apunta por defecto al 8010 del host, que es la API.
 cd frontend && npm run dev -- --host 127.0.0.1
 
 # Driver de sesiones (sección 13.3)
