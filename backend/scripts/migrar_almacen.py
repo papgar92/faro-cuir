@@ -56,8 +56,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"No existe el almacén local {raiz}", file=sys.stderr)
         return 2
 
-    ficheros = sorted(f for f in raiz.rglob("*") if f.is_file() and not f.name.endswith(".tmp"))
-    print(f"{len(ficheros)} ficheros en {raiz}")
+    # **Se recorre por estructura, no por extensión.** `relative_storage_path` produce siempre
+    # tres segmentos (`ab/cd/<sha256>.ext`), así que el glob de dos niveles *es* la definición de
+    # «documento archivado». Todo lo demás que haya bajo la raíz —y hay: las marcas `.hechos` que
+    # dejan los backfill para poder reanudarse, sus logs y algún json— es estado operativo del
+    # worker, no archivo, y **no sube al bucket**: allí solo va lo que la 6.5 promete conservar.
+    # La primera versión de esto barría con `rglob("*")` y filtraba por extensión, y lo que hizo
+    # fue reventar contra la primera marca de backfill.
+    ficheros = sorted(f for f in raiz.glob("*/*/*") if f.is_file() and f.suffix != ".tmp")
+    ajenos = sorted(
+        _relativa(f, raiz) for f in raiz.rglob("*") if f.is_file() and f not in set(ficheros)
+    )
+    print(f"{len(ficheros)} documentos archivados en {raiz}")
+    if ajenos:
+        print(f"{len(ajenos)} ficheros ajenos al archivo, que NO se suben: {', '.join(ajenos)}")
 
     ya_estan: set[str] = set()
     if not args.solo_verificar:
@@ -82,7 +94,15 @@ def main(argv: list[str] | None = None) -> int:
         # La comprobación que hace de esto algo más que una copia: el nombre promete un sha256
         # y el contenido tiene que cumplirlo. Si no, el archivo dejó de poder afirmar nada
         # sobre ese documento y hay que mirarlo a mano antes de propagarlo.
-        if ruta != hashing.relative_storage_path(digest, fichero.suffix):
+        #
+        # `UnsafeStoragePath` se captura y se cuenta como corrupto en vez de dejarse subir: un
+        # fichero con la forma del archivo pero una extensión que el proyecto nunca escribe es
+        # justo lo que hay que enseñar, no lo que hay que propagar por una excepción sin capturar.
+        try:
+            esperada = hashing.relative_storage_path(digest, fichero.suffix)
+        except hashing.UnsafeStoragePath:
+            esperada = None
+        if ruta != esperada:
             corruptos.append(ruta)
             continue
 
