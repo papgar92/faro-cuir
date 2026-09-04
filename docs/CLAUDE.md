@@ -294,6 +294,10 @@ una URL sigue siendo el sumario oficial parseado. Añadir un límite de peticion
 y una pausa entre descargas — cortesía con la fuente y freno propio si un sumario manipulado
 declara miles de items.
 
+**Solo hay dos excepciones declaradas a esta allowlist**, y por el mismo motivo: el destino sale
+de la configuración, no de un documento. Son Ollama (6.9.2) y el almacén de objetos donde vive el
+archivo (ADR 0032). Las dos se validan al arrancar. Una tercera necesita su ADR.
+
 ### 6.3 Path traversal
 Al nombrar ficheros descargados, nunca uses un valor de la fuente como nombre de archivo sin
 sanear. Genera nombres a partir del `sha256`, no del título.
@@ -371,7 +375,7 @@ el adaptador `llm/ollama.py`, no en la interfaz.
 1. **Puerta única.** Solo `llm/ollama.py` habla HTTP con Ollama. Mismo criterio que
    `url_guard` con el HTTP saliente y `xml_safe` con el XML. Ningún otro módulo importa el
    cliente ni conoce la URL.
-2. **La URL de Ollama es la excepción declarada a la allowlist de `url_guard`** (ADR 0006):
+2. **La URL de Ollama es la primera de las dos excepciones a la allowlist de `url_guard`** (6.2):
    destino local y fijo de configuración, no una URL que venga de una fuente. Se valida al
    arrancar (host, esquema y puerto esperados) y nunca se compone con nada dinámico. En docker,
    `host.docker.internal` vía `extra_hosts`; fuera, `127.0.0.1`.
@@ -748,9 +752,9 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
 - **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
-  consecuencias. **Están todos escritos del 0001 al 0031** y su título dice de qué van: `ls
+  consecuencias. **Están todos escritos del 0001 al 0032** y su título dice de qué van: `ls
   docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
-  **El siguiente número libre es el 0032.** No queda ninguno reservado.
+  **El siguiente número libre es el 0033.** No queda ninguno reservado.
   Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
   (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada, con el **0031** que
   lo lleva un paso más allá) y **0027** (el límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
@@ -808,6 +812,10 @@ python -m worker.run --extraer
 
 # Repasar el catálogo de reglas tras subir VERSION_REGLAS (ni red ni LLM)
 python -m worker.run --reclasificar
+
+# La ingesta DIARIA la corre ya GitHub Actions, con la base en Neon y el archivo en un bucket
+# (ADR 0032): `.github/workflows/ingesta.yml`. Va sin extracción —en un runner no hay Ollama— y
+# eso no cuesta vigilancia (ADR 0016). Los reprocesados masivos siguen siendo de casa.
 
 # --- Backfills de fondo, uno por fuente -----------------------------------------------------
 # REANUDABLES por marcas e IDEMPOTENTES por el sha256: relanzarlos salta en segundos lo hecho.

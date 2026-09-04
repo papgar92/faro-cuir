@@ -25,6 +25,20 @@ class Settings(BaseSettings):
     # por eso en `documento.ruta_almacen` se guarda la ruta relativa y no la absoluta: así
     # una fila no queda atada a la máquina donde se ingirió.
     almacen_root: Path = Path("data")
+
+    # --- Almacén remoto de objetos, compatible con S3 (ADR 0032) --------------------------
+    # Vacío = archivo en disco, que es lo que corre en local y en los tests. Con bucket, el
+    # archivo pasa a vivir en el almacén de objetos y `almacen_root` deja de usarse: no es una
+    # caché ni una réplica, es el mismo archivo de la 6.5 en otro sitio. Se configura entero o
+    # no se configura — `services/almacen_remoto.py` falla cerrado si falta una pieza, porque
+    # caer al disco sin avisar en un runner efímero sería escribir el archivo en la basura.
+    almacen_s3_bucket: str | None = None
+    almacen_s3_endpoint: str | None = None
+    almacen_s3_access_key: str | None = None
+    almacen_s3_secret_key: str | None = None
+    # "auto" vale para Backblaze B2 y para Cloudflare R2, que ignoran la región; un S3 de AWS
+    # de verdad querría la suya. No hay razón para adivinarla desde el endpoint.
+    almacen_s3_region: str = "auto"
     # Secreto para hashear emails de suscriptores (CLAUDE.md 6.4). Sin valor por defecto a
     # propósito: `security/hashing.hash_email` falla cerrado si no está, en vez de guardar un
     # hash sin sal que sería reversible con un diccionario de direcciones.
@@ -127,6 +141,41 @@ class Settings(BaseSettings):
             raise ValueError("LLM_BASE_URL no admite credenciales en la URL")
         if partes.path.rstrip("/"):
             raise ValueError(f"LLM_BASE_URL no admite ruta: {partes.path!r}")
+        return valor
+
+    @field_validator("almacen_s3_endpoint")
+    @classmethod
+    def _endpoint_del_almacen(cls, valor: str | None) -> str | None:
+        """Mismo control de arranque que `_ollama_es_local`, y por el mismo motivo.
+
+        El endpoint del almacén es la **segunda excepción declarada** a la allowlist de
+        `url_guard` (6.2; la primera es Ollama, ADR 0006). Esa excepción solo es legítima
+        mientras el destino sea fijo y de configuración, así que se comprueba que lo parece
+        antes de que salga la primera petición, y no en mitad de una ingesta.
+
+        Aquí, al contrario que con Ollama, **se exige HTTPS**: por ahí viaja el archivo íntegro
+        de la 6.5 hacia una red que no es la nuestra, con una credencial en cada petición.
+        Tampoco se admiten credenciales en la URL —van en su propia variable, para que no
+        acaben en un log de despliegue— ni ruta, que es lo que convertiría el endpoint en algo
+        componible.
+        """
+        if valor is None:
+            return None
+        partes = urlsplit(valor)
+        if partes.scheme != "https":
+            raise ValueError(
+                f"ALMACEN_S3_ENDPOINT tiene que ser https, no {partes.scheme!r}: por ahí sale "
+                "el archivo íntegro y la credencial que lo firma."
+            )
+        if not partes.hostname:
+            raise ValueError(f"ALMACEN_S3_ENDPOINT sin host: {valor!r}")
+        if partes.username or partes.password:
+            raise ValueError(
+                "ALMACEN_S3_ENDPOINT no admite credenciales en la URL; usa "
+                "ALMACEN_S3_ACCESS_KEY y ALMACEN_S3_SECRET_KEY."
+            )
+        if partes.path.rstrip("/"):
+            raise ValueError(f"ALMACEN_S3_ENDPOINT no admite ruta: {partes.path!r}")
         return valor
 
 
