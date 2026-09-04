@@ -112,11 +112,13 @@ def cliente(settings: Settings | None = None) -> S3Client:
                     retries={"max_attempts": 3, "mode": "standard"},
                     connect_timeout=10,
                     read_timeout=60,
-                    # Por encima de los hilos que usa la subida inicial (16 por defecto en
-                    # `scripts/migrar_almacen.py`). El valor de fábrica de botocore es 10, y con
-                    # más hilos que conexiones urllib3 empieza a descartar y rehacer conexiones
-                    # avisando por un warning que es fácil no ver.
-                    max_pool_connections=32,
+                    # Holgado a propósito, por encima de cualquier `--hilos` razonable de
+                    # `scripts/migrar_almacen.py`. El valor de fábrica de botocore es 10, y con
+                    # más hilos que conexiones urllib3 descarta la conexión y rehace el TLS en
+                    # cada petición, avisando solo por un warning fácil de no ver — que es
+                    # exactamente el coste que la subida en paralelo intenta evitar. La ingesta
+                    # normal usa una sola conexión, así que esto no le cuesta nada.
+                    max_pool_connections=128,
                     # Las claves llevan `/` y son nuestras: no hace falta el modo virtual-host,
                     # que además obliga a que el bucket sea un subdominio válido.
                     s3={"addressing_style": "path"},
