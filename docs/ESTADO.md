@@ -2885,11 +2885,55 @@ cobertura** sin que nadie tenga que acordarse de mirar.
   distingue la cadena de `psql` de la de `DATABASE_URL`.
 - 16 tests nuevos; 761 verdes en total, `ruff` y `mypy` limpios.
 
-#### Lo que le queda al humano, y solo lo puede hacer una persona
+#### Y se ejecutó el mismo día: ya no es un plan, es el despliegue
 
-Dos cuentas gratuitas —Neon y Backblaze B2—, cinco secretos en GitHub y lanzar el workflow una vez
-a mano. **Todo está en `docs/despliegue.md`.** Ninguna de las dos pide tarjeta; si alguna la
-pidiera, hay que parar y decirlo, no darla (0 bis).
+El humano creó las dos cuentas y la migración se hizo entera.
+
+- **Base en Neon** (PostgreSQL 17.11, Frankfurt). Las 8 tablas idénticas a local —47 fuentes,
+  83.011 normas, 84.165 documentos, 183 versiones, 90 detecciones, 45 en cola, 13 alertas—, las
+  **15 CHECK** y `alembic current` en `f4a8d21e7c93 (head)` sin proponer nada.
+- **Archivo en Backblaze B2: 84.165 objetos, exactamente los 84.165 ficheros del disco.** Cero
+  fallidos y **cero ficheros que no casaran con su sha256**, que es la **primera verificación de
+  integridad del archivo completo** que se hace en este proyecto: los 84.165 documentos siguen
+  cumpliendo la huella que llevan por nombre, así que el archivo puede seguir demostrando qué
+  decía cada boletín el día que se publicó. La copia fue también una auditoría.
+- **Comprobado leyendo del bucket de verdad**, no supuesto: el worker lee cuerpos archivados
+  desde B2 y la API sirve `/api/cobertura`, `/api/alertas` y `/api/alertas.xml`.
+
+#### Cinco cosas que se aprendieron migrando, y ninguna se deducía de la documentación
+
+1. **La conexión de Neon va SIN pooler.** `pg_restore` deja un `set_config('search_path','',false)`
+   de **sesión**; el pooler es pgbouncer en modo transacción y **reutiliza esa conexión de
+   servidor**, así que después todo cliente que cayera en ese backend veía `relation "fuente" does
+   not exist` con las diez tablas intactas en `public`. Un `ALTER DATABASE ... SET search_path` se
+   graba pero **no rescata la conexión ya envenenada**: solo aplica a las nuevas.
+2. **La API se movió al puerto 8010.** Otro proyecto de la misma máquina ocupaba el 8000 y el
+   síntoma era `farocuir-backend` en «Created» y un error de bind. Puerto fijo y escrito.
+3. **La filtración que rompió el CI era inexistente.** `gitleaks` marcaba `.env.example`: su regla
+   genérica ve un `ALMACEN_S3_ACCESS_KEY=` sin valor y **se traga la línea siguiente como si fuera
+   el valor**. Y la salida obvia era peor —se probó—: `#gitleaks:allow` al final de la línea hace
+   que `dotenv` lo lea **como el valor**, así que quien copiara la plantilla se llevaría una clave
+   fantasma. Se arregló separando las dos variables con un comentario.
+4. **La imagen de Docker no se reconstruye sola.** `boto3` era dependencia nueva y `docker compose
+   up` recrea el contenedor con la imagen vieja: el código entra por el volumen, la dependencia no.
+   Y en esa imagen faltaba también **`pypdf`**, o sea que la recuperación por PDF (ADR 0026)
+   llevaba tiempo sin poder correr en local sin que nadie lo notara.
+5. **Un corte de red no puede tirar una subida de 84.000 objetos.** La primera tanda larga murió en
+   el objeto 30.000 con un `SSL: UNEXPECTED_EOF_WHILE_READING` y se llevó media hora. Con 84.000
+   subidas, que alguna conexión caiga no es una posibilidad: es una certeza.
+
+Y dos números de rendimiento, por si vuelve a hacer falta: **265 objetos/min** con 16 hilos y el
+pool de conexiones en 32; **~2.000/min** con el pool holgado. El cuello es la latencia de cada
+`PUT`, no la CPU ni el disco.
+
+#### Lo que le queda al humano
+
+Mirar el **PR #3** (CI en verde), mergear a `main` —ahí empieza a existir el workflow— y estrenar
+la ingesta a mano con `Run workflow` antes de dejar que corra sola a las 06:30 UTC. Conviene
+además **proteger `main`**: PR obligatorio con **cero aprobaciones** (en un repositorio personal
+no puedes aprobar tu propio PR y te quedarías bloqueado), el check `quality` obligatorio, y sin
+force-push ni borrado. Eso convierte la regla «ninguna rama entra en `main` sin que la mire el
+humano» en algo que hace cumplir la plataforma y no la buena voluntad.
 
 #### De paso: `ESTADO.md` era un fichero binario para `grep`
 

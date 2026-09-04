@@ -110,6 +110,41 @@ docker compose exec -T worker python -m scripts.migrar_almacen
 
 1,6 GB por una línea doméstica es de una a varias horas. Si se corta, se relanza y sigue.
 
+## 3 bis. El cambio: mover las credenciales a `.env` **y reconstruir la imagen**
+
+Cuando la copia esté completa y comprobada, las cuatro `ALMACEN_S3_*` pasan a `.env`. Eso es el
+cambio, y es instantáneo: a partir de ahí el archivo se lee del bucket y `ALMACEN_ROOT` deja de
+usarse. **El disco local se queda intacto**, que es la vuelta atrás si hiciera falta.
+
+Y acto seguido, esto, que costó un susto:
+
+```bash
+docker compose build backend worker && docker compose up -d --force-recreate backend worker
+```
+
+**`boto3` es una dependencia nueva y las imágenes no se reconstruyen solas.** El `docker compose
+up` recrea el contenedor con la imagen que ya había, así que el código nuevo entra por el volumen
+pero la dependencia que necesita, no. El síntoma es un `ModuleNotFoundError: No module named
+'boto3'` en mitad de una ingesta, no al arrancar — y en la misma imagen vieja faltaba también
+`pypdf`, o sea que la recuperación por PDF (ADR 0026) llevaba quién sabe cuánto sin poder correr
+en local.
+
+Comprobación de que el cambio funcionó, que es leer del bucket de verdad y no fiarse:
+
+```bash
+docker compose exec -T worker python -c "
+from sqlalchemy import select
+from app.config import get_settings
+from app.database import SessionLocal
+from app.models.norma import Norma
+from app.services import almacen_remoto, cuerpo
+print('remoto:', almacen_remoto.configurado())
+with SessionLocal() as s:
+    n = s.scalars(select(Norma).where(Norma.documento_texto_id.is_not(None)).limit(1)).one()
+    print(n.identificador_oficial, len(cuerpo.leer_cuerpo(n, almacen_root=get_settings().almacen_root).texto))
+"
+```
+
 ## 4. Los secretos en GitHub
 
 `Settings → Secrets and variables → Actions → New repository secret`, cinco:
