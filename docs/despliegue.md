@@ -265,7 +265,12 @@ esta, a la vista en el diff, que es donde tiene que estar una excepcion.
   cada vez.
 - **La cadencia de intentos del panel tambien se reinicia al despertar.** Es el mismo «falla
   abierto» en version temporal, y **va al THREAT-MODEL** como riesgo residual.
-- **La EIPD hay que reescribirla en un punto**: con estas plataformas no se puede afirmar «no se
-  registran IPs», solo «nosotros no las registramos». Netlify y Render procesan IPs en su borde y
-  ninguno lo desactiva desde un plan gratuito; hay que nombrarlos como **encargados del
-  tratamiento**. Por nuestro lado sigue siendo cierto: uvicorn arranca con `--no-access-log`.
+- **La EIPD dice lo que se puede sostener, ni mas ni menos**: el sistema no registra IPs
+  —uvicorn con `--no-access-log`— y lo que registre el proveedor no esta en nuestra mano. Netlify
+  y Render las procesan en su borde y ninguno lo desactiva en un plan gratuito, asi que van
+  nombrados como **encargados del tratamiento**.
+
+  **Esto que se despliega es la muestra.** Si alguna vez una asociacion LGTBI+ lo usara de
+  verdad, lo alojaria en su propia infraestructura y ese control seria de su IT — que es ademas
+  la respuesta correcta para un sistema cuyos usuarios son dato de categoria especial. Nosotros
+  nos encargamos de la muestra, aun en produccion.

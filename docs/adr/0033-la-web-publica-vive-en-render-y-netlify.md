@@ -70,11 +70,21 @@ Tres decisiones dentro:
   un mes entero (744 en uno de 31 días), así que un ping cada ~14 minutos lo mantendría despierto
   dentro de cuota. Pero los pings de keep-alive están en **zona gris en los términos** de casi
   todas estas plataformas y no se han leído los de Render. Hasta que se lean, no se hace.
-- **La EIPD cambia y hay que reescribir una sección.** Con estas plataformas **no se puede afirmar
-  «no se registran IPs», solo «nosotros no las registramos»**: Netlify y Render procesan IPs en su
-  borde por necesidad técnica y ninguno lo desactiva desde un plan gratuito. La EIPD debe
-  nombrarlos como **encargados del tratamiento**. Por nuestro lado sigue siendo cierto —uvicorn
-  arranca con `--no-access-log` y está comprobado— pero la frase entera ya no lo es.
+- **La afirmación sobre las IPs se afloja, y el humano decidió cómo** (2026-09-05). Con estas
+  plataformas **no se puede afirmar «no se registran IPs», solo «nosotros no las registramos»**:
+  Netlify y Render las procesan en su borde por necesidad técnica y ninguno lo desactiva desde un
+  plan gratuito.
+
+  **Lo que se afirma pasa a ser exactamente eso**, sin adornarlo: el sistema no las registra
+  —uvicorn con `--no-access-log`, comprobado en el `Dockerfile` y en el compose— y lo que haga el
+  proveedor no está en nuestra mano.
+
+  **Y el encuadre importa más que el matiz:** esto que se despliega es **la muestra**. Si algún
+  día una asociación LGTBI+ lo usara de verdad, lo alojaría en su propia infraestructura y ese
+  control sería de su IT, no nuestro — que es además la respuesta correcta para un sistema cuyos
+  usuarios son dato de categoría especial. Nosotros nos encargamos de la muestra, aun en
+  producción. La EIPD lo dice así y nombra a los proveedores como encargados del tratamiento; no
+  promete un control que no tiene, que es justo lo que la haría inútil.
 - **Queda un defecto de privacidad que hay que arreglar ANTES de publicar**, y no es del hosting:
   `index.html` carga las tipografías desde **Google Fonts**, así que el navegador de cada
   visitante manda su IP a Google en cada carga. Eso contradice de frente la 6.4. Se arregla

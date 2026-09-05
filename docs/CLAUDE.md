@@ -323,9 +323,9 @@ test que lo fija.
 Consecuencias operativas:
 - La tabla `suscriptor` no se elimina, pero deja de ser el camino por defecto. El feed no
   tiene suscriptores que enumerar.
-- **No se registran IPs de quien consulta la web ni el feed.** Los logs de acceso cubren qué
-  normas se revisaron y quién aprobó qué; nunca quién leyó qué. Registrar IPs recrearía
-  exactamente el fichero que el canal pull elimina, con menos control y sin consentimiento.
+- **El sistema no registra IPs** de quien consulta (uvicorn con `--no-access-log`): recrearía el
+  fichero que el canal pull elimina. Lo que registre el proveedor donde se aloja **la muestra**
+  no está en nuestra mano; un despliegue real lo alojaría la asociación (ADR 0033).
 - El rate limiting de 6.8 ya funciona sin persistir IP (ventana en memoria, sin escritura).
   Mantenerlo así es requisito, no detalle.
 - `docs/eipd.md` se articula sobre esta decisión: la evaluación cambia radicalmente cuando el
