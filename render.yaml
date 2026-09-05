@@ -13,8 +13,13 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    # `base` y no `dev`: la imagen publica NO lleva ruff, mypy ni pytest dentro.
-    dockerTarget: base
+    # Aqui habia un `dockerTarget: base` y Render rechazo el fichero: **ese campo no existe en su
+    # especificacion** (comprobado el 2026-09-05 en render.com/docs/blueprint-spec). No hay forma
+    # de elegir etapa de un build multietapa desde `render.yaml`.
+    #
+    # Por eso el `Dockerfile` pone la produccion LA ULTIMA, que es la que Docker construye cuando
+    # nadie pide otra. No es un detalle de estilo: con `dev` al final, aqui se habria publicado
+    # una imagen con ruff, mypy y pytest dentro sin que nada lo dijera.
     plan: free
     # Frankfurt. El proyecto lleva una EIPD y una transferencia internacional que no aporta nada
     # es un capitulo que nadie quiere escribir. Mismo criterio que la region de Neon.
