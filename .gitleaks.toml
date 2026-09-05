@@ -1,0 +1,32 @@
+# Configuración de gitleaks. Se extiende la lista de reglas por defecto, no se sustituye.
+#
+# **Aquí solo entran falsos positivos demostrados, y con la exención más estrecha que funcione.**
+# La tentación en un fichero así es exculpar rutas enteras —`render.yaml`, `.env.example`— y eso
+# convierte el control en decoración: el día que alguien pegue una credencial de verdad en uno de
+# esos ficheros, gitleaks callará. En un proyecto de un máster de ciberseguridad, un control que
+# no puede fallar tampoco puede acertar.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Las declaraciones de variables de entorno de render.yaml (ADR 0033).
+
+Render las declara como `- key: NOMBRE` seguido de `sync: false`, que es literalmente «esto no se
+versiona, lo rellena una persona en el panel». La regla genérica `generic-api-key` ve un `key:`
+seguido de una cadena y da por hecho que lo de después es el secreto; aquí lo de después es el
+NOMBRE de la variable, y el valor no está en el fichero ni puede estarlo.
+
+La exención lista los nombres **uno a uno** en vez de exculpar el fichero: si mañana alguien
+añade `- key: OTRA_COSA` con un valor pegado al lado, gitleaks vuelve a saltar. Que es lo que
+tiene que pasar.
+"""
+# `regexTarget = "match"` y no el valor por defecto: sin esto, gitleaks compara la exención
+# contra el SECRETO que ha extraído (`ALMACEN_S3_BUCKET`) y no contra la línea, así que un
+# patrón que empiece por `key:` no casa nunca y la exención parece rota sin decir por qué.
+# Compararlo contra la línea entera es además más estrecho: exige la forma `key: NOMBRE`.
+regexTarget = "match"
+regexes = [
+  '''^key: (DATABASE_URL|ALMACEN_S3_BUCKET|ALMACEN_S3_ENDPOINT|ALMACEN_S3_ACCESS_KEY|ALMACEN_S3_SECRET_KEY|SUSCRIPTOR_PEPPER|PANEL_PASSWORD_HASH)$''',
+]
