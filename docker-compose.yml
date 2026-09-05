@@ -28,9 +28,13 @@ services:
 
   backend:
     build:
-      context: ./backend
-      # La etapa de desarrollo: la que lleva ruff, mypy y pytest dentro (ADR 0033). La imagen
-      # que se publica en Render es la etapa `base`, sin ellas.
+      # El contexto es la RAIZ y no `backend/`: `config/watchlist.json` tiene que entrar en la
+      # imagen, porque en Render no hay volumen que la monte (ADR 0033). Lo que NO viaja lo dice
+      # `.dockerignore`, empezando por `backend/data/`, que son 1,6 GB.
+      context: .
+      dockerfile: backend/Dockerfile
+      # La etapa de desarrollo: la que lleva ruff, mypy y pytest dentro. La que se publica en
+      # Render es `produccion`, la ultima del fichero, sin ellas.
       target: dev
     # Vuelve solo si el motor de Docker se reinicia o el equipo se apaga. Puesto el 2026-08-22,
     # despues de que el engine se colgara y `db` y `frontend` volvieran solos mientras estos dos
@@ -93,9 +97,13 @@ services:
 
   worker:
     build:
-      context: ./backend
-      # La etapa de desarrollo: la que lleva ruff, mypy y pytest dentro (ADR 0033). La imagen
-      # que se publica en Render es la etapa `base`, sin ellas.
+      # El contexto es la RAIZ y no `backend/`: `config/watchlist.json` tiene que entrar en la
+      # imagen, porque en Render no hay volumen que la monte (ADR 0033). Lo que NO viaja lo dice
+      # `.dockerignore`, empezando por `backend/data/`, que son 1,6 GB.
+      context: .
+      dockerfile: backend/Dockerfile
+      # La etapa de desarrollo: la que lleva ruff, mypy y pytest dentro. La que se publica en
+      # Render es `produccion`, la ultima del fichero, sin ellas.
       target: dev
     # Igual que `backend`. OJO CON LO QUE ESTO **NO** ARREGLA: la ingesta de fondo se lanza con
     # `docker compose exec -d worker sh /app/backfill.sh`, y un `exec` no es el comando del

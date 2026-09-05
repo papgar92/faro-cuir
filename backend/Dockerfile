@@ -1,8 +1,20 @@
-# Dos etapas desde el 2026-09-05, con el despliegue publico en Render (ADR 0033).
+# Dos etapas y contexto en la RAIZ del repositorio. ADR 0033.
 #
-# Hasta ahora habia una sola imagen con las dependencias de desarrollo dentro, y el comentario
-# que lo justificaba decia: «una imagen de despliegue real las quitaria con una etapa aparte;
-# ese dia se anade, hoy seria complejidad para un despliegue que no existe». Ese dia es hoy.
+# ## Por que el contexto es la raiz y no `backend/`
+#
+# Porque `config/watchlist.json` vive en la raiz (seccion 4) y **tiene que entrar en la imagen**.
+# En local no hacia falta: el compose monta `./config` en `/config`. En Render no hay volumen, y
+# el primer despliegue murio con
+#
+#     WatchlistNoDisponible: no se encuentra watchlist.json en: ['/config/watchlist.json', ...]
+#
+# en cada endpoint que la usa. Y no es un fichero opcional: `watchlist.py` levanta en vez de
+# devolver una lista vacia justamente para que esto se vea, porque una watchlist vacia no falla
+# -- deja de disparar el eje referencial y el sistema parece funcionar habiendo perdido la unica
+# defensa contra la instruccion que modifica un derecho sin nombrarlo.
+#
+# Mover el contexto a la raiz obliga a tener un `.dockerignore`, y ahi salio que `backend/data/`
+# -1,6 GB del archivo- viajaba al demonio de Docker en cada build.
 
 FROM python:3.12-slim AS base
 
@@ -10,10 +22,16 @@ WORKDIR /app
 
 # Solo el manifiesto primero para aprovechar la cache de capas de Docker: si el codigo
 # cambia pero las dependencias no, no se reinstalan.
-COPY pyproject.toml ./
+COPY backend/pyproject.toml ./
 RUN pip install --no-cache-dir -e "."
 
-COPY . .
+COPY backend/ ./
+
+# La watchlist, donde `pipeline/watchlist.py` la busca. Es la MISMA ruta que monta el compose,
+# asi que en local el volumen la tapa -y se puede editar sin reconstruir- y en produccion queda
+# la copia de la imagen. No se copia a `/app/config` a proposito: seria una tercera ruta que
+# mantener sincronizada con las dos que ya busca el codigo.
+COPY config/ /config/
 
 EXPOSE 8000
 
