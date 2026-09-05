@@ -67,7 +67,8 @@ tecleo, no el criterio**: cada tarea va a su rama y **el merge lo autoriza el hu
 Antes decía «ninguna rama entra en `main` sin que la mire el humano», o sea que había que leerse
 el diff. Ahora **el trabajo de comprobar es del agente y la autorización sigue siendo del
 humano**. La razón del cambio, dicha por él: leerse dieciocho commits para autorizar algo que las
-comprobaciones ya cubren es tiempo que no tiene, y el plazo es el 10 de septiembre.
+comprobaciones ya cubren es tiempo que no tiene. (El plazo era entonces el 10 de septiembre;
+desde el 2026-09-05 la entrega es el 1 de octubre, pero el motivo del cambio no era la fecha.)
 
 **Lo que el agente tiene que haber hecho antes de pedir permiso, y no vale a medias:**
 
@@ -78,8 +79,21 @@ comprobaciones ya cubren es tiempo que no tiene, y el plazo es el 10 de septiemb
    nuevo. Si no, se está comprobando la máquina de quien trabaja —con su `.venv` de hace tres
    semanas y sus ficheros sin commitear— y no lo que va a entrar. Ha pasado: la imagen de Docker
    local llevaba tiempo sin `pypdf` y nadie lo sabía.
-3. **La puerta entera del CI**: `ruff check`, `ruff format --check`, `mypy app`, `alembic upgrade
-   head` sobre una base vacía y `pytest` **completo**. Más el CI verde en el PR.
+3. **La puerta entera del CI, y son SIETE pasos**: `ruff check`, `ruff format --check`,
+   `mypy app`, `alembic upgrade head` sobre una base vacía, `pytest` **completo**, **`pip-audit`**
+   y **`gitleaks`**. Más el CI verde en el PR.
+
+   **Los dos últimos se escribieron aquí el 2026-09-05 porque faltaban, y costaron un merge
+   bloqueado.** La versión anterior de esta regla enumeraba cinco pasos, el agente los pasó todos,
+   informó de que había corrido «la puerta entera del CI»… y el CI falló en `gitleaks`. Una lista
+   de comprobaciones a la que le falta una comprobación es peor que no tenerla: da la confianza
+   sin darla. Si algún día el CI gana un paso, **este párrafo es lo que hay que actualizar
+   primero**, antes que ningún script.
+
+   Los dos que faltaban son además los que más fácil fallan por algo ajeno al cambio: `pip-audit`
+   salta cuando publican un CVE de una dependencia que no has tocado, y `gitleaks` tiene falsos
+   positivos de forma (ya van dos: `.env.example` y `render.yaml`). Saberlo antes de pedir permiso
+   es justo el valor de comprobar.
 4. **Decir qué NO se ha podido comprobar.** Lo que necesita Ollama, lo que solo se ve contra
    producción, lo que depende de una decisión. Un informe que solo dice «todo verde» esconde
    justamente lo que hay que mirar.

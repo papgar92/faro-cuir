@@ -90,7 +90,21 @@ ALLOWED_PORTS: frozenset[int] = frozenset({443})
 
 MAX_RESPONSE_BYTES: int = 20 * 1024 * 1024
 MAX_REDIRECTS: int = 3
-DEFAULT_TIMEOUT: httpx.Timeout = httpx.Timeout(15.0, connect=5.0)
+# **`connect` subió de 5 s a 20 s el 2026-09-05, con la ingesta ya en GitHub Actions (ADR
+# 0032).** Los 5 s se eligieron con el proyecto corriendo en el portátil del humano, o sea una
+# conexión española hablando con servidores españoles. Desde un runner en un centro de datos la
+# ruta es mucho más larga, y el primer estreno del workflow lo enseñó: BOE y BOA cayeron los dos
+# con `httpx.ConnectTimeout` mientras DOGC y BOCYL pasaban, y en el segundo intento pasaron las
+# cuatro y falló el versionado, que sale a la misma red. Fallos distintos en cada pasada es la
+# firma de un margen corto, no la de un bloqueo por rango de IP — que era la otra hipótesis y
+# habría exigido su propio ADR.
+#
+# **No relaja ningún control.** Los que protegen son el timeout de LECTURA —que sigue en 15 s y
+# es el que impide que una fuente lenta retenga el worker— y `MAX_RESPONSE_BYTES`. El de
+# conexión solo dice cuánto se espera a que el otro extremo conteste, no qué se acepta cuando
+# contesta. Y esperar de más ante una fuente pública es preferible a declararla caída: una
+# ingesta que se salta un día deja un hueco de vigilancia, que es el fallo que importa aquí.
+DEFAULT_TIMEOUT: httpx.Timeout = httpx.Timeout(15.0, connect=20.0)
 
 _REDIRECT_STATUS: frozenset[int] = frozenset({301, 302, 303, 307, 308})
 

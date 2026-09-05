@@ -1,9 +1,15 @@
-export type Screen = "mapa" | "alertas" | "hallazgos" | "archivo" | "ficha" | "revision";
+export type Screen = "mapa" | "alertas" | "hallazgos" | "archivo" | "revision";
 
 /**
- * Qué norma tiene que pintar la Ficha. Hacen falta los dos ids: la API expone las normas
+ * Qué norma está abierta en el Archivo. Hacen falta los dos ids: la API expone las normas
  * anidadas dentro de su documento (`GET /api/documentos/{id}`), así que el documento es la
  * petición y la norma es la fila dentro de la respuesta.
+ *
+ * **`ficha` dejó de ser una pantalla el 2026-09-05.** Era una entrada de menú que, pulsada en
+ * frío, solo servía para mandarte a otra entrada de menú; y al abrirse volvía a pedir el mismo
+ * documento de 160 KB que el Archivo acababa de descargar. Ahora la ficha es el panel derecho
+ * del Archivo y esta selección viaja **también en la URL**, que es lo que faltaba: para un
+ * archivo que se ofrece como verificable, «mira esta norma y su huella» tiene que ser un enlace.
  */
 export interface SeleccionNorma {
   documentoId: number;
@@ -59,6 +65,9 @@ export const PANTALLAS_CON_SESION: ReadonlySet<Screen> = new Set<Screen>(["revis
 export interface EstadoUrl {
   screen: Screen;
   ccaa?: string;
+  /** El documento abierto en el Archivo, y la norma abierta dentro de él. */
+  doc?: number;
+  norma?: number;
 }
 
 const PANTALLAS: ReadonlySet<string> = new Set<string>([
@@ -66,9 +75,21 @@ const PANTALLAS: ReadonlySet<string> = new Set<string>([
   "alertas",
   "hallazgos",
   "archivo",
-  "ficha",
   "revision",
 ]);
+
+/**
+ * Un id de la URL, o `undefined`.
+ *
+ * Solo entero positivo: la cadena va a un `GET /api/documentos/{id}`, así que lo que no sea un
+ * id se descarta aquí y no se compone con nada. Es el mismo criterio de 6.10 aplicado a la
+ * barra de direcciones — un valor que viene de fuera no acciona nada sin validarse.
+ */
+function idDeUrl(valor: string | null): number | undefined {
+  if (valor === null || !/^\d{1,9}$/.test(valor)) return undefined;
+  const numero = Number(valor);
+  return numero > 0 ? numero : undefined;
+}
 
 /** Lee la URL al arrancar. Cualquier valor que no reconozca cae al mapa, sin fallar. */
 export function leerUrl(busqueda: string): EstadoUrl {
@@ -80,6 +101,8 @@ export function leerUrl(busqueda: string): EstadoUrl {
     // El código de comunidad se valida en destino contra la geometría del mapa, no aquí: este
     // módulo no sabe qué territorios existen y no debe empezar a saberlo.
     ccaa: ccaa || undefined,
+    doc: idDeUrl(params.get("doc")),
+    norma: idDeUrl(params.get("norma")),
   };
 }
 
@@ -90,6 +113,12 @@ export function escribirUrl(estado: EstadoUrl): void {
   // direcciones es ruido que no dice nada.
   if (estado.screen !== "mapa") params.set("pantalla", estado.screen);
   if (estado.ccaa) params.set("ccaa", estado.ccaa);
+  if (estado.doc !== undefined) params.set("doc", String(estado.doc));
+  // Sin documento, una norma suelta no identifica nada: la API pide el documento y busca la
+  // norma dentro. Se omite en vez de escribir un enlace que no se puede resolver.
+  if (estado.doc !== undefined && estado.norma !== undefined) {
+    params.set("norma", String(estado.norma));
+  }
   const cadena = params.toString();
   window.history.replaceState(null, "", cadena ? `?${cadena}` : window.location.pathname);
 }

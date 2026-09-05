@@ -1,0 +1,89 @@
+# Despliegue de la web publica en Netlify. ADR 0033.
+#
+# Netlify y no Cloudflare Pages por un motivo concreto: **es el unico de los dos que puede hacer
+# de proxy de `/api` hacia el backend**, y con eso la web y la API quedan en el MISMO ORIGEN.
+# Eso no es comodidad, es una decision ya tomada y escrita en `frontend/vite.config.ts`: «la
+# alternativa seria activar CORS en FastAPI, y es peor: obligaria a relajar en el backend una
+# politica de origen cruzado para resolver un problema que solo existe en desarrollo».
+#
+# Con el proxy, esa frase sigue siendo cierta en produccion: no hay CORS que relajar y la CSP
+# puede decir `connect-src 'self'` en vez de nombrar a un segundo dominio.
+
+[build]
+  base = "frontend"
+  # `npm ci` y no `npm install`: instala exactamente el `package-lock.json`, sin resolver
+  # versiones nuevas en el servidor de compilacion. Una dependencia que cambia sola entre el
+  # commit y el despliegue es justo lo que la seccion 3 quiere evitar.
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# --- El proxy que conserva el mismo origen -------------------------------------------------
+#
+# `status = 200` es lo que lo convierte en proxy y no en redireccion: el navegador nunca ve el
+# dominio del backend, asi que no hay peticion cruzada. `force = true` para que gane sobre
+# cualquier fichero estatico que pudiera llamarse igual.
+#
+# OJO: sustituye el host por el que te de Render al crear el servicio. Mientras diga
+# `farocuir-api.onrender.com` sin que ese servicio exista, la API devolvera 404 y la web
+# parecera rota sin decir por que.
+[[redirects]]
+  from = "/api/*"
+  to = "https://farocuir-api.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# La navegacion va por parametros (`?pantalla=...`), asi que en la practica solo existe `/`.
+# El respaldo esta igualmente: sin el, cualquier ruta escrita a mano daria el 404 de Netlify en
+# vez de la aplicacion.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# --- Cabeceras de seguridad (CLAUDE.md 6.8) ------------------------------------------------
+[[headers]]
+  for = "/*"
+
+  [headers.values]
+    # HSTS un ano. Sin `preload` a proposito: entrar en la lista de precarga de los navegadores
+    # es practicamente irreversible y es una decision del dominio, no de este fichero.
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+    X-Content-Type-Options = "nosniff"
+    # Redundante con `frame-ancestors` en navegadores modernos, y se pone igual: los que no
+    # entienden CSP nivel 2 siguen existiendo y no cuesta nada.
+    X-Frame-Options = "DENY"
+
+    # `no-referrer` y no `strict-origin-when-cross-origin`: la 6.4 dice que no se anuncia a la
+    # fuente desde donde se la consulta, y el propio codigo ya usa `rel="noopener noreferrer"`
+    # en los enlaces al boletin por ese motivo. La cabecera lo hace valido para todo el sitio.
+    Referrer-Policy = "no-referrer"
+
+    # Nada de esto lo usa la web, y declararlo apagado evita que un dia lo use sin querer.
+    Permissions-Policy = "geolocation=(), camera=(), microphone=(), interest-cohort=()"
+
+    # CSP ajustada a lo que la web carga HOY, no a una plantilla. **Sin un solo origen externo**:
+    # las tipografias se sirven desde `public/fonts/` desde el 2026-09-05 (ADR 0033), asi que
+    # `default-src 'self'` se sostiene solo y no hay que nombrar a Google ni a nadie. Cuando
+    # cargaban de `fonts.gstatic.com`, la IP de cada visitante viajaba a un tercero en cada
+    # carga, que es lo que la 6.4 no admite.
+    #
+    # `img-src` admite `data:` por el favicon, que es un SVG en linea dentro del `index.html`
+    # para no pagar una peticion y un 404 en cada carga.
+    #
+    # Sin `'unsafe-inline'` en `script-src` ni en `style-src`: la compilacion de Vite emite un
+    # `.js` y un `.css` enlazados, y los `style` de React se aplican por CSSOM, que CSP no
+    # bloquea. Si algo se viera sin estilos tras el primer despliegue, es aqui donde hay que
+    # mirar **antes** de aflojar la politica.
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; upgrade-insecure-requests"
+
+# Los ficheros con huella en el nombre (`index-Buyl4MLY.js`) no cambian nunca: si cambia el
+# contenido, cambia el nombre. Cachearlos un ano es gratis y quita casi todas las peticiones.
+[[headers]]
+  for = "/assets/*"
+
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

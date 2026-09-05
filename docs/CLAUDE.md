@@ -98,7 +98,8 @@ primera iteración) sigue en pie y con 61 fuentes importa más, no menos.
 Detecta el **retroceso silencioso**: no la reforma que sale en prensa, sino la instrucción de
 rango bajo publicada un martes de agosto que desmonta un derecho sin titulares.
 
-Es la **práctica final de un máster de Ciberseguridad e IA**. Plazo: ~6 semanas. Por tanto:
+Es la **práctica final de un máster de Ciberseguridad e IA**. **Entrega: 2026-10-01**; versión
+«pro» pedida para el **2026-09-20**. Por tanto:
 
 - El rigor de seguridad y la calidad del diseño **puntúan más** que la cantidad de features.
 - Todo lo relevante se **documenta** (ADRs, THREAT-MODEL, EIPD). El tribunal lee el repo.
@@ -322,9 +323,9 @@ test que lo fija.
 Consecuencias operativas:
 - La tabla `suscriptor` no se elimina, pero deja de ser el camino por defecto. El feed no
   tiene suscriptores que enumerar.
-- **No se registran IPs de quien consulta la web ni el feed.** Los logs de acceso cubren qué
-  normas se revisaron y quién aprobó qué; nunca quién leyó qué. Registrar IPs recrearía
-  exactamente el fichero que el canal pull elimina, con menos control y sin consentimiento.
+- **El sistema no registra IPs** de quien consulta (uvicorn con `--no-access-log`): recrearía el
+  fichero que el canal pull elimina. Lo que registre el proveedor donde se aloja **la muestra**
+  no está en nuestra mano; un despliegue real lo alojaría la asociación (ADR 0033).
 - El rate limiting de 6.8 ya funciona sin persistir IP (ventana en memoria, sin escritura).
   Mantenerlo así es requisito, no detalle.
 - `docs/eipd.md` se articula sobre esta decisión: la evaluación cambia radicalmente cuando el
@@ -752,9 +753,9 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
 - **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
-  consecuencias. **Están todos escritos del 0001 al 0032** y su título dice de qué van: `ls
+  consecuencias. **Están todos escritos del 0001 al 0033** y su título dice de qué van: `ls
   docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
-  **El siguiente número libre es el 0033.** No queda ninguno reservado.
+  **El siguiente número libre es el 0034.** No queda ninguno reservado.
   Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
   (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada, con el **0031** que
   lo lleva un paso más allá) y **0027** (el límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
