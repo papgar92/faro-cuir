@@ -36,3 +36,16 @@ CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --no-access-log
 FROM base AS dev
 
 RUN pip install --no-cache-dir -e ".[dev]"
+
+# --- Y la produccion va LA ULTIMA, que es lo que hace que esto funcione -------------------
+#
+# Docker construye la ultima etapa cuando nadie pide otra, y **Render no sabe pedir otra**:
+# `dockerTarget` no existe en su especificacion de `render.yaml` (comprobado el 2026-09-05
+# contra render.com/docs/blueprint-spec, despues de que rechazara el fichero por ese campo).
+#
+# O sea que el orden de estas tres etapas NO es cosmetico: con `dev` al final, Render habria
+# publicado en internet una imagen con ruff, mypy y pytest dentro, y sin que nada lo dijera. La
+# unica forma de elegir etapa por defecto es ponerla la ultima.
+#
+# La etapa no anade nada a `base` a proposito: es `base`, con un nombre que dice para que es.
+FROM base AS produccion
