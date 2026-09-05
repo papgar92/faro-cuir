@@ -19,8 +19,10 @@ const NAV_ITEMS: Array<{ screen: Screen; label: string }> = [
   // proposito: son dos cosas que afirman cosas distintas -una la reviso una persona y
   // la otra no- y fundirlas en un menu dejaria esa diferencia en manos de una etiqueta.
   { screen: "hallazgos", label: "Hallazgos" },
+  // La ficha de una norma vive DENTRO del Archivo desde el 2026-09-05. Tuvo entrada propia y
+  // se retiró porque, pulsada en frío, lo único que ofrecía era un botón para venir aquí: una
+  // entrada de menú cuyo destino era otra entrada de menú.
   { screen: "archivo", label: "Archivo" },
-  { screen: "ficha", label: "Ficha de norma" },
   // El panel del gate humano (ADR 0017). Está en la navegación pública a propósito: que exista
   // un paso humano obligatorio antes de publicar es parte de lo que el proyecto afirma, y
   // esconder la puerta no la protege — la protege el 401 del backend. Quien no tenga la

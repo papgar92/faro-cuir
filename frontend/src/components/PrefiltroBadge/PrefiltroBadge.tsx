@@ -77,11 +77,31 @@ interface PrefiltroBadgeProps {
   /** Qué ejes dispararon (7.3). Sin esto, una norma que pasa solo por el eje referencial
    *  aparecería sin ningún término y parecería un fallo. */
   ejes?: EjePrefiltro[] | null;
+  /**
+   * Enseña **todos** los términos, sin el recorte de `TERMINOS_EN_LISTA`.
+   *
+   * El recorte existe solo por volumen en las listas: una norma del BOE llega a traer 20
+   * términos, y veinte `<code>` en una fila de índice convierten la lista en un muro. Pero el
+   * término exacto es lo que hace auditable la decisión del prefiltro, así que **la ficha los
+   * enseña enteros siempre**: el recorte mueve la auditoría de sitio, no la quita.
+   */
+  todosLosTerminos?: boolean;
 }
 
-export function PrefiltroBadge({ estado, terminos, ejes }: PrefiltroBadgeProps) {
+/** Cuántos términos caben en una fila de lista antes de que deje de leerse. Medido: hay normas
+ *  con 20, y a partir de media docena la fila deja de ser escaneable. */
+const TERMINOS_EN_LISTA = 6;
+
+export function PrefiltroBadge({
+  estado,
+  terminos,
+  ejes,
+  todosLosTerminos = false,
+}: PrefiltroBadgeProps) {
   const meta = META[estado];
-  const coincidencias = terminos ?? [];
+  const todos = terminos ?? [];
+  const coincidencias = todosLosTerminos ? todos : todos.slice(0, TERMINOS_EN_LISTA);
+  const ocultos = todos.length - coincidencias.length;
   const disparados = ejes ?? [];
 
   return (
@@ -116,6 +136,16 @@ export function PrefiltroBadge({ estado, terminos, ejes }: PrefiltroBadgeProps) 
           {termino}
         </code>
       ))}
+      {ocultos > 0 && (
+        // Se dice cuántos faltan y dónde están. Un recorte mudo escondería parte de la
+        // evidencia; este dice que hay más y que la ficha los tiene.
+        <span
+          title="Los términos restantes están en la ficha de la norma"
+          className="font-mono text-[10.5px] text-ink-3"
+        >
+          +{ocultos} más
+        </span>
+      )}
     </span>
   );
 }

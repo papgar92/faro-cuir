@@ -1,18 +1,55 @@
-import { useMemo, useState, type ReactNode } from "react";
-import type { DocumentoDetalleApi, NormaApi } from "../api/client";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { DocumentoDetalleApi, EstadoPrefiltro, NormaApi } from "../api/client";
 import { entraEnLaCola, listarDocumentos, obtenerDocumento } from "../api/client";
 import { describirError, useRecurso } from "../api/useRecurso";
-import { HuellaArchivo } from "../components/HuellaArchivo/HuellaArchivo";
-import { PrefiltroBadge } from "../components/PrefiltroBadge/PrefiltroBadge";
+import { BandaPrefiltro } from "../components/BandaPrefiltro/BandaPrefiltro";
+import { FichaNorma } from "../components/FichaNorma/FichaNorma";
+import { FilaNormaIndice } from "../components/FilaNormaIndice/FilaNormaIndice";
+import { SelectorDocumento } from "../components/SelectorDocumento/SelectorDocumento";
 import { acortarHash, formatearFecha, formatearSelloTiempo } from "../lib/formato";
-import type { SeleccionNorma } from "../lib/navigation";
+import { escribirUrl, leerUrl } from "../lib/navigation";
 
 /**
- * Un sumario del BOE trae ~250 normas y la API las devuelve todas en la respuesta del
- * documento. Pintarlas todas de golpe no rompe nada, pero convierte la pantalla en un muro
- * ilegible: el tope obliga a usar el buscador, que es la forma real de encontrar algo aquí.
+ * Archivo: el índice de lo ingerido y la ficha de la norma abierta, en una sola pantalla.
+ *
+ * ## Qué cambió el 2026-09-05 y por qué
+ *
+ * Antes eran dos pestañas —«Archivo» y «Ficha de norma»— y una lista plana cortada en 60. Los
+ * tres problemas, medidos:
+ *
+ * 1. **La lista escondía justo lo que importa.** No se ordenaba nunca: salía en el orden de
+ *    secciones del sumario oficial, y el corte era posicional. Sobre cuatro boletines del BOE,
+ *    las normas que el prefiltro NO descartó caían en las posiciones 169/169, 130/130,
+ *    207-210/210 y 112/112. **Cuatro de cuatro fuera de la pantalla.** El razonamiento que lo
+ *    justificaba —«el tope obliga a usar el buscador, que es la forma real de encontrar algo»—
+ *    se da la vuelta solo: para buscar hay que saber qué buscas, y esta es la pantalla de
+ *    descubrimiento.
+ * 2. **Las dos pestañas ya eran una sola pantalla y el código lo decía**: la Ficha volvía a
+ *    pedir el mismo documento de 160 KB que el Archivo tenía en memoria, y «Ficha de norma» en
+ *    el menú, pulsada en frío, solo ofrecía un botón para ir al Archivo.
+ * 3. **Una norma no se podía enlazar.** Ahora la selección viaja en la URL (`?pantalla=archivo&
+ *    doc=…&norma=…`), que para un archivo que se ofrece como verificable es media función.
+ *
+ * ## Lo que NO cambia, porque es lo que sostiene la 6.5
+ *
+ * Las bandas agrupan por `prefiltro_estado`, y eso **no es un juicio sobre las normas**: es
+ * publicar la decisión que el sistema ya tomó y que 7.2 define como «qué entra en el LLM y en
+ * qué orden». Todas las bandas pesan lo mismo, todas enseñan la huella de sus normas, y las
+ * descartadas nacen plegadas **por volumen y no por peso** — siguen contadas, siguen a un clic
+ * y siguen con su sha256 a la vista.
  */
-const NORMAS_VISIBLES = 60;
+
+/** Cuántos boletines trae cada página del selector. Es el tope duro del backend. */
+const DOCUMENTOS_POR_PAGINA = 100;
+
+/**
+ * Tope por banda, no por lista.
+ *
+ * Aquí sí es honesto: una banda es un cajón que declara su contenido («207 descartadas») antes
+ * de recortarlo, así que el recorte no puede esconder una categoría entera como hacía el corte
+ * posicional de la lista plana.
+ */
+const NORMAS_POR_BANDA = 60;
 
 /** Quita acentos y baja a minúsculas para que "fisicas" encuentre "Físicas". */
 function normalizar(texto: string): string {
@@ -30,77 +67,22 @@ function Aviso({ children }: { children: ReactNode }) {
   );
 }
 
-function FilaNorma({ norma, onVerFicha }: { norma: NormaApi; onVerFicha: () => void }) {
-  return (
-    <li className="flex items-start gap-4 border-b border-line px-4 py-3 last:border-b-0 hover:bg-inset">
-      {/* El botón a la ficha y el enlace al BOE son hermanos, no anidados: un <a> dentro de
-          un <button> no es HTML válido y el teclado no sabría a cuál de los dos va. */}
-      <button
-        type="button"
-        onClick={onVerFicha}
-        className="grid min-w-0 flex-1 grid-cols-1 gap-1 text-left sm:grid-cols-[190px_minmax(0,1fr)] sm:gap-4"
-      >
-        <span className="font-mono text-xs text-ink-3">{norma.identificador_oficial}</span>
-        <span className="min-w-0">
-          {/* line-clamp mantiene la lista escaneable: los títulos del BOE pasan de 400
-              caracteres y uno solo llenaría la pantalla. El completo está en la ficha.
-              Sin `block`: line-clamp necesita display:-webkit-box y `block` se lo pisaba. */}
-          <span className="line-clamp-2 text-sm text-ink">{norma.titulo}</span>
-          <span className="mt-1 block text-xs text-ink-3">
-            {norma.organo_emisor ?? "Órgano emisor no informado"}
-          </span>
-          <span className="mt-1.5 block">
-            <PrefiltroBadge
-              estado={norma.prefiltro_estado}
-              terminos={norma.prefiltro_terminos}
-              ejes={norma.prefiltro_ejes}
-            />
-          </span>
-          {/* La huella va en la lista y no solo en la ficha: que el archivo sea verificable
-              es una propiedad de TODO lo ingerido, incluidas las 412 normas descartadas, y
-              enseñarla solo en las interesantes daría a entender lo contrario. */}
-          <span className="mt-1 block">
-            <HuellaArchivo archivo={norma.texto_archivado} />
-          </span>
-        </span>
-      </button>
-      {norma.url_texto ? (
-        <a
-          href={norma.url_texto}
-          target="_blank"
-          // noopener corta el acceso de la pestaña abierta a `window.opener`, y noreferrer
-          // evita anunciar a la fuente desde dónde se la consulta.
-          rel="noopener noreferrer"
-          className="self-start whitespace-nowrap text-xs"
-        >
-          Texto íntegro ↗
-        </a>
-      ) : (
-        // Sin URL no se pinta un enlace muerto: parecer funcional sin serlo es peor que
-        // decir que no hay (backlog de CLAUDE.md sección 12).
-        <span className="self-start whitespace-nowrap text-xs text-ink-3">Sin enlace</span>
-      )}
-    </li>
-  );
-}
-
 function CabeceraDocumento({ documento }: { documento: DocumentoDetalleApi }) {
   return (
-    <div className="border-b border-line bg-inset px-4 py-3.5">
+    <div className="mt-4 rounded border border-line bg-inset px-4 py-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="font-mono text-sm font-semibold text-ink">
           {documento.identificador_oficial}
         </h2>
         <span className="text-xs text-ink-2">{formatearFecha(documento.fecha_publicacion)}</span>
         <span className="text-xs text-ink-3">
-          {documento.normas.length}{" "}
-          {documento.normas.length === 1 ? "norma" : "normas"}
+          {documento.normas.length} {documento.normas.length === 1 ? "norma" : "normas"}
         </span>
         <span className="ml-auto font-mono text-[11px] text-ink-3">
           estado: {documento.estado_pipeline}
         </span>
       </div>
-      <dl className="mt-2.5 grid grid-cols-1 gap-x-6 gap-y-1 text-[11.5px] sm:grid-cols-2">
+      <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-[11.5px] sm:grid-cols-2">
         <div className="flex gap-2">
           <dt className="text-ink-3">sha256</dt>
           <dd className="m-0 truncate font-mono text-ink-2" title={documento.sha256}>
@@ -119,73 +101,143 @@ function CabeceraDocumento({ documento }: { documento: DocumentoDetalleApi }) {
 }
 
 /**
- * Archivo: la única pantalla que hoy enseña **datos reales de la API**.
+ * Las bandas del índice, **en este orden y con este estado inicial**.
  *
- * Existe porque la Ficha necesita el id de una norma real y las otras dos pantallas no pueden
- * dárselo: sus alertas son inventadas. Además el archivo de lo ingerido no es material de
- * relleno — con su hash y su sello es el entregable de la sección 6.5, así que merece
- * pantalla propia y no esconderse en un desplegable.
+ * `ilegible` va primero y se dibuja siempre, aunque sean cero, porque 7.2 lo dice con estas
+ * palabras: «el embudo lo cuenta aparte y **no se omite aunque sea cero**». La pantalla anterior
+ * lo pintaba bajo `ilegibles > 0`, así que en la práctica desaparecía casi siempre — hoy hay 4
+ * ilegibles en 83.344 normas. Y es el peldaño que más importa ver, porque **no habla de la norma
+ * sino de nosotros**: es cobertura que este archivo aparenta y no tiene.
  */
-export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionNorma) => void }) {
-  const [documentoElegido, setDocumentoElegido] = useState<number | null>(null);
+const BANDAS: Array<{
+  clave: string;
+  glifo: string;
+  titulo: string;
+  explicacion: string;
+  abierta: boolean;
+  incluye: (estado: EstadoPrefiltro) => boolean;
+}> = [
+  {
+    clave: "ilegible",
+    glifo: "⊘",
+    titulo: "Sin poder leer",
+    explicacion:
+      "Su texto está archivado y el pipeline no puede parsearlo (ADR 0020). No hay vigilancia " +
+      "sobre ellas. Se cuenta siempre, también cuando es cero.",
+    abierta: true,
+    incluye: (estado) => estado === "ilegible",
+  },
+  {
+    clave: "cola",
+    glifo: "◉",
+    titulo: "Entran en la cola",
+    explicacion:
+      "El prefiltro no las descartó tras leer su texto íntegro, así que pasan al extractor y al " +
+      "catálogo de reglas. Incluye las de indicio débil (sospecha).",
+    abierta: true,
+    incluye: entraEnLaCola,
+  },
+  {
+    clave: "pendiente",
+    glifo: "◌",
+    titulo: "Sin evaluar todavía",
+    explicacion:
+      "Aún no tienen su texto íntegro archivado, o no se han evaluado. No es un descarte: " +
+      "vuelven solas en la pasada siguiente.",
+    abierta: true,
+    incluye: (estado) => estado === "pendiente",
+  },
+  {
+    clave: "descartada",
+    glifo: "○",
+    titulo: "Descartadas",
+    explicacion:
+      "Descartadas después de leer su texto completo, nunca por el título. Se pliegan por " +
+      "volumen, no por peso: son archivo igual que las demás y conservan su huella.",
+    abierta: false,
+    incluye: (estado) => estado === "descartada",
+  },
+];
+
+export function ArchivoPage() {
+  const inicial = useState(() => leerUrl(window.location.search))[0];
+
+  const [pagina, setPagina] = useState(0);
+  const [documentoElegido, setDocumentoElegido] = useState<number | null>(inicial.doc ?? null);
+  const [normaElegida, setNormaElegida] = useState<number | null>(inicial.norma ?? null);
   const [busqueda, setBusqueda] = useState("");
-  const [soloRelevantes, setSoloRelevantes] = useState(false);
 
-  const lista = useRecurso((signal) => listarDocumentos({ limite: 100 }, signal), []);
+  const lista = useRecurso(
+    (signal) =>
+      listarDocumentos(
+        { limite: DOCUMENTOS_POR_PAGINA, desplazamiento: pagina * DOCUMENTOS_POR_PAGINA },
+        signal,
+      ),
+    [pagina],
+  );
 
-  // Sin elección explícita se abre el más reciente: la API ya los devuelve ordenados por
-  // fecha descendente, y con un solo documento ingerido obligar a un clic previo sería ruido.
+  // Sin elección explícita se abre el más reciente: la API ya los devuelve ordenados por fecha
+  // descendente, y obligar a un clic previo para ver el boletín de hoy sería ruido.
   const documentoId =
     documentoElegido ?? (lista.fase === "listo" ? (lista.datos[0]?.id ?? null) : null);
 
   const detalle = useRecurso<DocumentoDetalleApi | null>(
-    (signal) => (documentoId === null ? Promise.resolve(null) : obtenerDocumento(documentoId, signal)),
+    (signal) =>
+      documentoId === null ? Promise.resolve(null) : obtenerDocumento(documentoId, signal),
     [documentoId],
   );
 
   const documento = detalle.fase === "listo" ? detalle.datos : null;
+  const norma = documento?.normas.find((item) => item.id === normaElegida) ?? null;
+
+  // La URL sigue a la selección, para que una norma se pueda enlazar. `replaceState` y no
+  // `pushState` por lo mismo que el resto del módulo: elegir norma es navegar dentro de una
+  // pantalla, no cambiar de pantalla, y llenar el historial dejaría «atrás» inservible.
+  useEffect(() => {
+    if (documentoId === null) return;
+    const actual = leerUrl(window.location.search);
+    escribirUrl({
+      screen: "archivo",
+      ccaa: actual.ccaa,
+      doc: documentoId,
+      norma: norma?.id,
+    });
+  }, [documentoId, norma?.id]);
 
   const coincidencias = useMemo(() => {
     if (!documento) return [];
     const aguja = normalizar(busqueda.trim());
-    return documento.normas.filter((norma) => {
-      // `entraEnLaCola` y no `=== "relevante"`: con la comparación directa, este filtro
-      // escondía las normas en `sospecha`, que son las que el prefiltro **no ha sabido
-      // descartar**. Esconder justo esas es el falso negativo que el proyecto no se permite.
-      if (soloRelevantes && !entraEnLaCola(norma.prefiltro_estado)) return false;
-      if (!aguja) return true;
-      return (
-        normalizar(norma.titulo).includes(aguja) ||
-        normalizar(norma.identificador_oficial).includes(aguja) ||
-        normalizar(norma.organo_emisor ?? "").includes(aguja)
-      );
-    });
-  }, [documento, busqueda, soloRelevantes]);
+    if (!aguja) return documento.normas;
+    return documento.normas.filter(
+      (item) =>
+        normalizar(item.titulo).includes(aguja) ||
+        normalizar(item.identificador_oficial).includes(aguja) ||
+        normalizar(item.organo_emisor ?? "").includes(aguja),
+    );
+  }, [documento, busqueda]);
 
-  // El embudo del prefiltro sobre el documento abierto. Se calcula en el cliente porque la
-  // API ya devuelve todas las normas del documento: pedir un recuento aparte sería una
-  // petición extra para contar lo que ya tenemos delante.
-  const embudo = useMemo(() => {
-    const normas = documento?.normas ?? [];
-    // Los CINCO escalones, y ninguno se omite por ser cero. El embudo anterior contaba
-    // relevantes y pendientes, así que las sospechas quedaban fuera y quien lo leyera daría
-    // por hecho que las que faltaban se habían descartado. Mismo criterio que el log del
-    // worker: un embudo al que le falta un peldaño no cuadra.
-    //
-    // `ilegibles` es el peldaño del ADR 0020 y el que más importa que se vea: son normas
-    // archivadas que el pipeline no puede parsear, o sea cobertura que este archivo aparenta y
-    // no tiene. Mientras vivieron dentro de `pendientes` había 172 normas del DOGC contadas
-    // como «esperando su texto íntegro» cuando su texto ya estaba descargado.
-    return {
-      total: normas.length,
-      relevantes: normas.filter((n) => n.prefiltro_estado === "relevante").length,
-      sospechas: normas.filter((n) => n.prefiltro_estado === "sospecha").length,
-      descartadas: normas.filter((n) => n.prefiltro_estado === "descartada").length,
-      pendientes: normas.filter((n) => n.prefiltro_estado === "pendiente").length,
-      ilegibles: normas.filter((n) => n.prefiltro_estado === "ilegible").length,
-      enCola: normas.filter((n) => entraEnLaCola(n.prefiltro_estado)).length,
-    };
-  }, [documento]);
+  // El embudo del prefiltro, agrupado por banda. Se calcula en el cliente porque la API ya
+  // devuelve todas las normas del documento: pedir un recuento aparte sería una petición extra
+  // para contar lo que ya tenemos delante. Es el mismo embudo de antes; lo que cambia es que
+  // ahora **es la estructura de la pantalla** en vez de una línea de texto que lo describía.
+  const porBanda = useMemo(() => {
+    const mapa = new Map<string, NormaApi[]>();
+    for (const banda of BANDAS) {
+      mapa.set(
+        banda.clave,
+        coincidencias.filter((item) => banda.incluye(item.prefiltro_estado)),
+      );
+    }
+    return mapa;
+  }, [coincidencias]);
+
+  const elegirDocumento = (id: number) => {
+    setDocumentoElegido(id);
+    // La norma abierta pertenece al documento anterior: mantenerla dejaría la ficha enseñando
+    // una norma que ya no está en el índice de la izquierda.
+    setNormaElegida(null);
+    setBusqueda("");
+  };
 
   return (
     <main className="mx-auto max-w-[1360px] px-7 pb-2 pt-7">
@@ -199,14 +251,14 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
           </span>
         </div>
         <p className="mt-2 max-w-[70ch] text-sm text-ink-2">
-          Todo lo que Faro Cuir ha descargado y archivado, tal cual salió de la fuente oficial.
-          De cada documento se guarda su huella SHA-256 y el momento de la captura, para que
-          cualquiera pueda comprobar que lo archivado es lo que se publicó. Abre una norma para
-          ver su ficha.
+          Todo lo que Faro Cuir ha descargado y archivado, tal cual salió de la fuente oficial. De
+          cada documento se guarda su huella SHA-256 y el momento de la captura, para que
+          cualquiera pueda comprobar que lo archivado es lo que se publicó. El índice está
+          agrupado por lo que decidió el prefiltro, no por el orden del boletín.
         </p>
       </div>
 
-      <div className="mt-5 max-w-[900px]">
+      <div className="mt-5">
         {lista.fase === "cargando" && <Aviso>Cargando el archivo…</Aviso>}
 
         {lista.fase === "error" && (
@@ -228,103 +280,111 @@ export function ArchivoPage({ onVerFicha }: { onVerFicha: (seleccion: SeleccionN
           </Aviso>
         )}
 
-        {lista.fase === "listo" && lista.datos.length > 1 && (
-          <nav aria-label="Documentos ingeridos" className="mb-4 flex flex-wrap gap-2">
-            {lista.datos.map((doc) => (
-              <button
-                key={doc.id}
-                type="button"
-                onClick={() => setDocumentoElegido(doc.id)}
-                aria-current={doc.id === documentoId ? "true" : undefined}
-                className={`rounded border px-3 py-1.5 font-mono text-xs ${
-                  doc.id === documentoId
-                    ? "border-ink-3 bg-surface-2 text-ink"
-                    : "border-line-2 text-ink-2 hover:border-ink-3"
-                }`}
-              >
-                {doc.identificador_oficial}
-              </button>
-            ))}
-          </nav>
+        {lista.fase === "listo" && lista.datos.length > 0 && (
+          <SelectorDocumento
+            documentos={lista.datos}
+            documentoId={documentoId}
+            pagina={pagina}
+            hayPaginaSiguiente={lista.datos.length === DOCUMENTOS_POR_PAGINA}
+            onElegir={elegirDocumento}
+            onPagina={(siguiente) => {
+              setPagina(siguiente);
+              setDocumentoElegido(null);
+              setNormaElegida(null);
+            }}
+          />
         )}
 
         {detalle.fase === "error" && (
-          <Aviso>
-            <p className="m-0 font-semibold text-ink">No se ha podido cargar el documento</p>
-            <p className="mt-1.5">{describirError(detalle.error)}</p>
-          </Aviso>
+          <div className="mt-4">
+            <Aviso>
+              <p className="m-0 font-semibold text-ink">No se ha podido cargar el documento</p>
+              <p className="mt-1.5">{describirError(detalle.error)}</p>
+            </Aviso>
+          </div>
         )}
 
         {documento && (
-          <section className="rounded border border-line bg-surface">
+          <>
             <CabeceraDocumento documento={documento} />
 
-            <div className="border-b border-line px-4 py-3">
-              <label htmlFor="buscar-norma" className="block text-xs text-ink-3">
-                Buscar por título, identificador u órgano emisor
-              </label>
-              <input
-                id="buscar-norma"
-                type="search"
-                value={busqueda}
-                onChange={(evento) => setBusqueda(evento.target.value)}
-                placeholder={`Buscar entre ${documento.normas.length} normas…`}
-                className="mt-1.5 w-full rounded border border-line-2 bg-inset px-3 py-2 text-sm text-ink placeholder:text-ink-3"
-              />
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
-                <label className="flex items-center gap-2 text-xs text-ink-2">
+            <div className="mt-4 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+              <section
+                aria-label="Índice de normas"
+                className="rounded border border-line bg-surface"
+              >
+                <div className="border-b border-line px-4 py-3">
+                  <label htmlFor="buscar-norma" className="block text-xs text-ink-3">
+                    Buscar por título, identificador u órgano emisor
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={soloRelevantes}
-                    onChange={(evento) => setSoloRelevantes(evento.target.checked)}
+                    id="buscar-norma"
+                    type="search"
+                    value={busqueda}
+                    onChange={(evento) => setBusqueda(evento.target.value)}
+                    placeholder={`Buscar entre ${documento.normas.length} normas…`}
+                    className="mt-1.5 w-full rounded border border-line-2 bg-inset px-3 py-2 text-sm text-ink placeholder:text-ink-3"
                   />
-                  Solo las que entran en la cola
-                </label>
-                {/* El embudo es la métrica de la etapa 1: cuántas normas se ahorra el
-                    extractor. Se enseña siempre, no solo cuando hay resultados, y con todos
-                    los escalones — el que falta se lee como un descarte. */}
-                <span className="font-mono text-xs text-ink-3">
-                  {embudo.enCola} de {embudo.total} entran en la cola
-                  {embudo.sospechas > 0 && ` (${embudo.relevantes} + ${embudo.sospechas} sospecha)`}
-                  {embudo.descartadas > 0 && ` · ${embudo.descartadas} descartadas`}
-                  {embudo.pendientes > 0 && ` · ${embudo.pendientes} sin texto íntegro`}
-                </span>
-                {/* Fuera de la línea del embudo y con su propio color: no es un escalón más
-                    del filtro, es un hueco de cobertura (ADR 0020). Dentro de la misma frase
-                    se leería como una categoría de descarte, que es de donde viene. */}
-                {embudo.ilegibles > 0 && (
-                  <span
-                    title="Su texto está archivado y el pipeline no puede parsearlo. No hay vigilancia sobre ellas."
-                    className="rounded border border-alr bg-alr-soft px-1.5 py-0.5 font-mono text-[10.5px] uppercase tracking-wide text-alr"
-                  >
-                    ⊘ {embudo.ilegibles} sin poder leer
-                  </span>
-                )}
-              </div>
-              <p aria-live="polite" className="m-0 mt-2 font-mono text-xs text-ink-3">
-                {coincidencias.length}{" "}
-                {coincidencias.length === 1 ? "norma coincide" : "normas coinciden"}
-                {coincidencias.length > NORMAS_VISIBLES &&
-                  ` · se muestran las ${NORMAS_VISIBLES} primeras`}
-              </p>
-            </div>
+                  <p aria-live="polite" className="m-0 mt-2 font-mono text-[11px] text-ink-3">
+                    {coincidencias.length}{" "}
+                    {coincidencias.length === 1 ? "norma coincide" : "normas coinciden"} de{" "}
+                    {documento.normas.length}
+                  </p>
+                </div>
 
-            {coincidencias.length === 0 ? (
-              <p className="m-0 px-4 py-8 text-center text-sm text-ink-2">
-                Ninguna norma de este documento coincide con estos filtros.
-              </p>
-            ) : (
-              <ul className="m-0 list-none p-0">
-                {coincidencias.slice(0, NORMAS_VISIBLES).map((norma) => (
-                  <FilaNorma
-                    key={norma.id}
-                    norma={norma}
-                    onVerFicha={() => onVerFicha({ documentoId: documento.id, normaId: norma.id })}
-                  />
-                ))}
-              </ul>
-            )}
-          </section>
+                {coincidencias.length === 0 ? (
+                  <p className="m-0 px-4 py-8 text-center text-sm text-ink-2">
+                    Ninguna norma de este documento coincide con la búsqueda.
+                  </p>
+                ) : (
+                  BANDAS.map((banda) => {
+                    const normas = porBanda.get(banda.clave) ?? [];
+                    return (
+                      <BandaPrefiltro
+                        key={banda.clave}
+                        glifo={banda.glifo}
+                        titulo={banda.titulo}
+                        explicacion={banda.explicacion}
+                        recuento={normas.length}
+                        // Con una búsqueda activa se abren todas: si has escrito algo, no
+                        // quieres que el resultado se quede escondido dentro de un cajón.
+                        abierta={banda.abierta || busqueda.trim().length > 0}
+                      >
+                        {normas.slice(0, NORMAS_POR_BANDA).map((item) => (
+                          <FilaNormaIndice
+                            key={item.id}
+                            norma={item}
+                            seleccionada={item.id === norma?.id}
+                            onAbrir={() => setNormaElegida(item.id)}
+                          />
+                        ))}
+                        {normas.length > NORMAS_POR_BANDA && (
+                          <li className="px-4 py-2.5 font-mono text-[11px] text-ink-3">
+                            … y {normas.length - NORMAS_POR_BANDA} más. Usa el buscador para
+                            llegar a ellas.
+                          </li>
+                        )}
+                      </BandaPrefiltro>
+                    );
+                  })
+                )}
+              </section>
+
+              <section aria-label="Ficha de la norma" className="min-w-0">
+                {norma ? (
+                  <FichaNorma documento={documento} norma={norma} />
+                ) : (
+                  <div className="rounded border border-dashed border-line-2 bg-surface p-8 text-center">
+                    <p className="m-0 font-semibold text-ink">Elige una norma del índice</p>
+                    <p className="mx-auto mt-2 max-w-[52ch] text-sm text-ink-2">
+                      Aquí aparecerán sus metadatos, qué decidió el prefiltro y con qué términos,
+                      y la cadena de verificación de su texto archivado.
+                    </p>
+                  </div>
+                )}
+              </section>
+            </div>
+          </>
         )}
       </div>
     </main>

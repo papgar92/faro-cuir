@@ -11,7 +11,6 @@ import { ESTADO_MAPA_META, type EstadoMapa } from "../lib/classification";
 import { CoberturaTotal } from "../components/CoberturaTotal/CoberturaTotal";
 import { PanelEstatal } from "../components/PanelEstatal/PanelEstatal";
 import {
-  categoriaMarco,
   construirRegiones,
   MARCO_ETIQUETA,
   resumenEstatal,
