@@ -1,0 +1,40 @@
+# Qué NO se manda al demonio de Docker al construir. ADR 0033.
+#
+# **Sin este fichero, cada `docker build` enviaba `backend/data/` entero: 1,6 GB y 84.000
+# ficheros**, que son el archivo de la 6.5. Nadie lo notó porque el sintoma es "el build tarda
+# mucho" y un build lento no parece un error. Se descubrio el 2026-09-05, al mover el contexto a
+# la raiz del repositorio para que `config/` entrara en la imagen.
+#
+# Que el archivo NO viaje a la imagen no es solo velocidad: en produccion se lee del bucket
+# (ADR 0032), asi que meterlo dentro seria publicar 1,6 GB de documentos en cada despliegue para
+# no usarlos.
+
+# El archivo de la 6.5 y el estado del worker. Van al bucket, no a la imagen.
+backend/data/
+
+# Entornos y cachés locales
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/node_modules/
+frontend/dist/
+
+# Historial y metadatos del repositorio
+.git/
+.github/
+.claude/
+
+# Los secretos, por si acaso: nunca deberian entrar en una imagen, y el `.gitignore` ya los
+# para antes. Cinturón y tirantes, que aqui el coste de equivocarse es publicar una credencial.
+.env
+.env.*
+!.env.example
+
+# Salida de las sesiones headless y ficheros de trabajo
+tasks/log/
+*.dump
+*.log
