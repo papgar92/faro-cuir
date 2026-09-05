@@ -65,20 +65,20 @@
     # Nada de esto lo usa la web, y declararlo apagado evita que un dia lo use sin querer.
     Permissions-Policy = "geolocation=(), camera=(), microphone=(), interest-cohort=()"
 
-    # CSP ajustada a lo que la web carga HOY, no a una plantilla.
+    # CSP ajustada a lo que la web carga HOY, no a una plantilla. **Sin un solo origen externo**:
+    # las tipografias se sirven desde `public/fonts/` desde el 2026-09-05 (ADR 0033), asi que
+    # `default-src 'self'` se sostiene solo y no hay que nombrar a Google ni a nadie. Cuando
+    # cargaban de `fonts.gstatic.com`, la IP de cada visitante viajaba a un tercero en cada
+    # carga, que es lo que la 6.4 no admite.
     #
-    # **`fonts.googleapis.com` y `fonts.gstatic.com` estan aqui porque `index.html` carga las
-    # tipografias desde Google, y eso es un problema de privacidad que hay que arreglar antes de
-    # publicar, no una excepcion aceptable**: cargarlas desde Google hace que el navegador de
-    # cada visitante mande su IP a un tercero en cada carga, y la 6.4 dice literalmente que no se
-    # registran IPs de quien consulta la web. La solucion es alojar las fuentes nosotros; cuando
-    # se haga, estas dos entradas se van y `default-src 'self'` se sostiene solo.
+    # `img-src` admite `data:` por el favicon, que es un SVG en linea dentro del `index.html`
+    # para no pagar una peticion y un 404 en cada carga.
     #
     # Sin `'unsafe-inline'` en `script-src` ni en `style-src`: la compilacion de Vite emite un
     # `.js` y un `.css` enlazados, y los `style` de React se aplican por CSSOM, que CSP no
     # bloquea. Si algo se viera sin estilos tras el primer despliegue, es aqui donde hay que
     # mirar **antes** de aflojar la politica.
-    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; upgrade-insecure-requests"
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'self'; upgrade-insecure-requests"
 
 # Los ficheros con huella en el nombre (`index-Buyl4MLY.js`) no cambian nunca: si cambia el
 # contenido, cambia el nombre. Cachearlos un ano es gratis y quita casi todas las peticiones.

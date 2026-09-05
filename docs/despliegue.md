@@ -212,15 +212,18 @@ página de cobertura** sin que nadie tenga que acordarse de comprobarlo. Reactiv
 | API | [Render](https://render.com), region **Frankfurt** | Free | **no** |
 | Web | [Netlify](https://netlify.com) | Free | **no** |
 
-## 0. Antes de nada: las tipografias
+## 0. Las tipografias — HECHO el 2026-09-05
 
-`frontend/index.html` carga las fuentes desde **Google Fonts**, o sea que el navegador de cada
-visitante manda su IP a Google en cada carga. La seccion 6.4 dice que **no se registran IPs de
-quien consulta la web**, y la EIPD se articula sobre eso.
+`index.html` las cargaba desde **Google Fonts**, o sea que el navegador de cada visitante mandaba
+su IP a Google en cada carga, y la seccion 6.4 dice que el sistema no registra IPs de quien
+consulta la web.
 
-**Esto se arregla antes de publicar**, alojando las tres familias nosotros. Mientras no se haga,
-la CSP de `netlify.toml` tiene que nombrar a `fonts.googleapis.com` y `fonts.gstatic.com` — y ahi
-esta, a la vista en el diff, que es donde tiene que estar una excepcion.
+Ya no: las tres familias viven en `frontend/public/fonts/` (327 KB en 8 woff2, solo `latin` y
+`latin-ext`, con su licencia OFL al lado). **La web no hace ni una peticion a un tercero**, y por
+eso la CSP puede decir `default-src 'self'` sin nombrar a nadie. Comprobado en el navegador:
+
+    peticiones_a_terceros: NINGUNA
+    fuentes servidas desde: /fonts/*.woff2
 
 ## 1. La API en Render
 
