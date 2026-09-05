@@ -67,7 +67,8 @@ tecleo, no el criterio**: cada tarea va a su rama y **el merge lo autoriza el hu
 Antes decía «ninguna rama entra en `main` sin que la mire el humano», o sea que había que leerse
 el diff. Ahora **el trabajo de comprobar es del agente y la autorización sigue siendo del
 humano**. La razón del cambio, dicha por él: leerse dieciocho commits para autorizar algo que las
-comprobaciones ya cubren es tiempo que no tiene, y el plazo es el 10 de septiembre.
+comprobaciones ya cubren es tiempo que no tiene. (El plazo era entonces el 10 de septiembre;
+desde el 2026-09-05 la entrega es el 1 de octubre, pero el motivo del cambio no era la fecha.)
 
 **Lo que el agente tiene que haber hecho antes de pedir permiso, y no vale a medias:**
 

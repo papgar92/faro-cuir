@@ -31,7 +31,14 @@ Dos cosas, siempre:
      tests, migración si toca y verificación en navegador o curl- ronda los **15-30k**. Si te
      sale más de 50k, sospecha de la estimación antes que del alcance. -->
 
-### ⇨ PLAN A V1 — pedido por el humano el 2026-08-08, fecha objetivo **2026-09-10**
+### ⇨ PLAN A V1 — pedido por el humano el 2026-08-08
+
+> **PLAZOS VIGENTES, cambiados por el humano el 2026-09-05.** La entrega oficial es el
+> **2026-10-01**, y antes hay un hito propio: **una versión «pro» para el 2026-09-20**, con la idea
+> de matizar a partir de ahí. Lo que estaba escrito antes —10 de septiembre— ya no vale, y varias
+> decisiones de esta sección se tomaron contra aquella fecha: al releerlas, pesa el motivo, no la
+> urgencia. Tres semanas más no reabren la sección 8, pero sí dejan sitio para lo que se aplazó
+> «por plazo» y no por criterio.
 
 > **El plazo se movió del 22 de agosto al ~10 de septiembre el 2026-08-21**, a petición del
 > humano. No es solo más tiempo: **cambia qué cabe**. Con dos días, el histórico grande estaba
@@ -2941,3 +2948,82 @@ Tenía **un byte NUL literal** dentro de un comando de ejemplo (`tr "\x00" " "` 
 lista los backfill vivos). Con eso, `grep` lo trataba como binario y no devolvía ni una línea del
 fichero que es lo primero que se lee al retomar el proyecto. Sustituido por `\0`, que en `sh`
 hace exactamente lo mismo.
+
+
+---
+
+### ✅ El Archivo escondía justo lo que importa, y era medible — 2026-09-05
+
+El humano dijo que el Archivo «no le cuadraba» con tantos títulos de BOE y pidió fusionarlo con
+la Ficha de norma, sugiriendo un desplegable. Se lanzó un agente con la skill de diseño de
+frontend —**no existe un subagente de diseño en el proyecto**, los cuatro son de rigor— y lo que
+volvió no fue una propuesta estética: **era un fallo de cobertura, con números.**
+
+#### El hallazgo
+
+El Archivo listaba las normas **en el orden del sumario oficial** y cortaba en las 60 primeras.
+Medido sobre cuatro boletines:
+
+| Boletin | Normas | Posición de las que entran en la cola |
+|---|---:|---|
+| `BOE-S-2026-198` | 169 | **169 de 169** |
+| `BOE-S-2026-199` | 130 | **130 de 130** |
+| `BOE-S-2026-200` | 210 | **207, 208 y 210 de 210** |
+| `BOE-S-2026-201` | 112 | **112 de 112** |
+
+**Cuatro de cuatro: el 100 % de lo que el pipeline decidió mirar quedaba fuera de la pantalla.**
+El orden administrativo del BOE correlaciona a la inversa con la relevancia —las subastas de
+Hacienda abren el boletín y los convenios con cláusulas LGTBI lo cierran—, así que un corte
+posicional esconde sistemáticamente lo contrario de lo que debería.
+
+Y el comentario que justificaba el tope —«obliga a usar el buscador, que es la forma real de
+encontrar algo aquí»— **se da la vuelta solo**: para buscar hay que saber qué buscas, y esta es
+la pantalla de descubrimiento del proyecto.
+
+#### Lo que se hizo
+
+El índice se agrupa en **bandas por `prefiltro_estado`**, con la ficha como panel derecho. Y eso
+**no es un juicio sobre las normas**: es publicar la decisión que el sistema ya tomó y que 7.2
+define como «qué entra en el LLM y en qué orden». Por eso **todas las bandas pesan lo mismo** —
+misma letra, mismo tamaño de fila, misma huella visible— y lo único que las distingue es el
+orden y el plegado inicial. Las descartadas nacen plegadas **por volumen y no por peso**.
+
+El desplegable que pedía el humano va, pero donde rinde: **uno por banda**, que pliega las 332
+descartadas de golpe, en vez de 333 desplegables que no pliegan nada.
+
+**Comprobado en el navegador contra datos reales**: el BOE de hoy trae 333 normas, **una** entra
+en la cola, y ahora es lo primero que se ve.
+
+#### Tres cosas que salieron al mirarlo
+
+1. **`ilegible` se ocultaba cuando era cero**, y 7.2 dice literalmente lo contrario: «no se omite
+   aunque sea cero». Con 4 ilegibles en 83.344 normas, ese peldaño casi nunca se pintaba —y es el
+   que más importa ver, porque **no habla de la norma sino de nosotros**.
+2. **698 documentos no eran alcanzables.** El selector eran 100 botones sin paginar, con 798
+   documentos archivados. Un sistema que afirma custodiar un archivo íntegro no puede tener el
+   87 % fuera de su propia interfaz.
+3. **El frontend no compilaba limpio** (un import sin usar en `MapaPage`). Nadie lo había visto
+   porque **el CI no ejecuta nada de `frontend/`**: ni `tsc`, ni tests, y `vitest` no está en
+   `package.json` aunque la tabla de stack de la sección 3 lo declara. Eso es más grande que este
+   trabajo y queda **pendiente**.
+
+#### Y el estreno de la ingesta en la nube, resuelto
+
+El primer `Run workflow` dejó BOE y BOA en rojo con `httpx.ConnectTimeout`; el segundo pasó las
+cuatro fuentes y falló el versionado. **Fallos distintos en cada pasada es la firma de un margen
+corto, no la de un bloqueo por rango de IP** —que era la otra hipótesis y habría significado que
+esas fuentes solo se pueden ingerir desde una máquina española—. Los 5 s de `connect` de
+`url_guard` se eligieron con el proyecto corriendo en un portátil español; suben a 20 s. **No
+relaja ningún control**: los que protegen son el timeout de lectura y `MAX_RESPONSE_BYTES`.
+
+#### Siguiente
+
+1. **Etiquetar los 32 borradores del gold set** (tiempo humano). Sigue siendo el cuello real.
+2. **El frontend en el CI**: `tsc` como mínimo, y `vitest` con pruebas de las pantallas. Con la
+   entrega el 1 de octubre esto ya cabe, y sin ello ninguna pantalla tiene una sola prueba.
+3. **Pantalla de Metodología** con el catálogo de reglas entero (7.6).
+4. **Decidir qué se hace con la alerta de `BOE-A-2026-16172`.**
+5. **Preceptos por norma-vehículo** (ADR 0030 y 0031), con el `jurista-lgtbi`.
+6. **Publicar `fuente` en `DocumentoResumen`** (~3 líneas de backend, cambio de API pública): sin
+   ella el selector de boletines no puede decir de qué fuente es cada uno sin descifrar el
+   prefijo del identificador, que **lo pone la fuente y no nosotros**.

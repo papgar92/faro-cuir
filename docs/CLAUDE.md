@@ -98,7 +98,8 @@ primera iteración) sigue en pie y con 61 fuentes importa más, no menos.
 Detecta el **retroceso silencioso**: no la reforma que sale en prensa, sino la instrucción de
 rango bajo publicada un martes de agosto que desmonta un derecho sin titulares.
 
-Es la **práctica final de un máster de Ciberseguridad e IA**. Plazo: ~6 semanas. Por tanto:
+Es la **práctica final de un máster de Ciberseguridad e IA**. **Entrega: 2026-10-01**; versión
+«pro» pedida para el **2026-09-20**. Por tanto:
 
 - El rigor de seguridad y la calidad del diseño **puntúan más** que la cantidad de features.
 - Todo lo relevante se **documenta** (ADRs, THREAT-MODEL, EIPD). El tribunal lee el repo.
