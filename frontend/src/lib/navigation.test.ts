@@ -15,9 +15,15 @@ import { escribirUrl, leerUrl } from "./navigation";
  *    publicar un enlace roto es peor que no publicarlo.
  */
 
-function urlEscrita(): string {
-  const espia = vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
-  return espia;
+/**
+ * Espía `history.replaceState` para poder leer lo que se escribió sin navegar de verdad.
+ *
+ * Sin anotación de tipo a propósito: se infiere del `spyOn` y así no hay dos verdades que
+ * mantener. La primera versión ponía `: string` —un despiste— y `vitest` lo dio por bueno porque
+ * **no comprueba tipos**; lo cazó `tsc` en el CI, en el mismo commit que lo añadía.
+ */
+function urlEscrita() {
+  return vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
 }
 
 describe("leerUrl", () => {
