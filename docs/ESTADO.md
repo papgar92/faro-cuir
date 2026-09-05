@@ -3027,3 +3027,79 @@ relaja ningún control**: los que protegen son el timeout de lectura y `MAX_RESP
 6. **Publicar `fuente` en `DocumentoResumen`** (~3 líneas de backend, cambio de API pública): sin
    ella el selector de boletines no puede decir de qué fuente es cada uno sin descifrar el
    prefijo del identificador, que **lo pone la fuente y no nosotros**.
+
+
+---
+
+### ⚙ La medición para decidir la quinta fuente — 2026-09-05 (pedida para el 2026-09-06)
+
+El humano pidió «que el resto de comunidades cojan datos». Son **13 boletines autonómicos + 43
+provinciales**, y la sección 8 pone el techo de la primera iteración en **cinco fuentes**; vamos
+por cuatro. Así que la pregunta que sí cabe antes del 1 de octubre no es «¿todas?» sino
+**«¿cuál es la quinta?»**, y esa se puede medir. `scripts/medir_fuentes_pendientes.py`.
+
+#### 1. Lo que ha rendido cada fuente ya integrada
+
+| fuente | normas | en cola | detecciones | de cada mil, entran |
+|---|---:|---:|---:|---:|
+| BOE | 78.526 | 671 | 49 | **8,5 ‰** |
+| BOA (Aragón) | 3.204 | 93 | 3 | **29,0 ‰** |
+| BOCYL (Castilla y León) | 969 | 32 | **0** | 33,0 ‰ |
+| DOGC (Cataluña) | 645 | 131 | 18 | **203,1 ‰** |
+
+**La comparación está confundida y hay que decirlo**: el BOE se ingiere entero —subastas,
+nombramientos, oposiciones— mientras que los autonómicos publican menos y más sustantivo, y el
+corpus del DOGC son 645 normas de un backfill parcial. El ‰ no mide calidad de fuente; mide
+cuánto ruido trae cada una. Aun así, **el DOGC rinde 24 veces más por norma ingerida que el
+BOE**, y eso sí orienta.
+
+#### 2. El hallazgo incómodo: el BOCYL
+
+**969 normas, 32 en cola, CERO detecciones.** Y el motivo es estructural, no de mala suerte:
+Castilla y León es **una de las dos únicas comunidades sin ley autonómica LGTBI** (la otra es
+Asturias; consta verificado en `_sin_ley_autonomica` de la watchlist).
+
+O sea que ahí **el eje referencial no puede disparar sobre una ley autonómica porque no la hay**:
+queda el léxico y las normas estatales. Se integró como cuarta fuente un boletín de la comunidad
+donde media vigilancia está apagada por construcción. No es un error —amplía cobertura
+territorial y el léxico sigue trabajando— pero es exactamente el criterio que **no** hay que
+repetir al elegir la quinta.
+
+#### 3. Dónde puede rendir un boletín nuevo
+
+Con norma vigilada y **sin** boletín integrado:
+
+| comunidad | normas vigiladas |
+|---|---:|
+| **Andalucía, C. Valenciana, Madrid, País Vasco** | **2** cada una |
+| Baleares, Canarias, Cantabria, C.-La Mancha, Extremadura, Galicia, Murcia, Navarra, La Rioja | 1 |
+
+Y **sin norma vigilada**: Asturias, Ceuta y Melilla. Añadir su boletín suma superficie, no
+vigilancia referencial.
+
+#### 4. Lo que cuesta una fuente, medido en el historial
+
+| fuente | ficheros | líneas |
+|---|---:|---:|
+| BOA (ADR 0028) | 14 | 987 |
+| BOCYL (ADR 0029) | 12 | 919 |
+
+Unas **900-1.000 líneas y su ADR** por fuente. Es una sesión sólida cada una, y la 6 avisa de por
+qué no baja: **«ninguna se comporta como la anterior»** — el DOGC mete el articulado en un
+atributo XML, el BOA sirve su portada los días sin boletín, el BOCYL obliga a raspar HTML.
+
+#### Lo que yo recomendaría, y por qué
+
+**Madrid (BOCM) como quinta.** Tiene 2 normas vigiladas, y sobre todo: **la reforma madrileña de
+2023 es el caso alrededor del cual se construyó este proyecto** — la 7.8 la nombra como caso
+obligatorio del gold set y sus dos normas (`BOE-A-2024-10767` y `-10768`) son casos de control
+del ADR 0031. Vigilar el boletín de la comunidad cuyo retroceso motivó el sistema es lo que un
+tribunal espera ver, y no hay que explicarlo.
+
+Segunda opción: **C. Valenciana**, que aporta las dos leyes que más aparecen en las mediciones
+del eje referencial (`BOE-A-2021-1859` y `BOE-A-2026-16931`).
+
+**Y la parte honesta, que vale más que la quinta fuente:** con 4 de 61 fuentes, lo que hay que
+hacer bien es **decirlo en la web**. La página de cobertura ya existe; que diga con claridad
+«estas 4 sí, estas 13 todavía no» es más defendible que 17 a medias, y es coherente con la 6.9.6:
+un sistema de vigilancia que aparenta cobertura que no tiene es peor que uno que no existe.
