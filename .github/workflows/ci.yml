@@ -20,9 +20,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # **Node 24, y el numero importa.** El job se estreno con el 20 y `vitest` reventó con
+      # `webidl.util.markAsUncloneable is not a function`: es `undici` dentro de `jsdom` pidiendo
+      # una API que el 20 no tiene. `jsdom@30` declara `engines: ^22.22.2 || ^24.15.0`, pero
+      # `npm ci` solo AVISA de eso, no lo bloquea — asi que en local pasaba (Node 24) y aqui no.
+      #
+      # La misma version esta en `netlify.toml` y declarada en `package.json`. Tres sitios y un
+      # numero: si alguno se queda atras, vuelve a fallar solo aqui.
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 

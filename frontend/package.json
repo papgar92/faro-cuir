@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "description": "Frontend de Faro Cuir: mapa de alertas normativas y observatorio de derechos LGTBI+.",
   "type": "module",
+  "engines": {
+    "node": ">=22.22.2"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
