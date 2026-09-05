@@ -25,6 +25,13 @@ dependencies = [
     # superficie es pequena, que es lo que se pide de algo que va a comerse entrada hostil.
     # NUNCA se usa directamente: la puerta es security/pdf_safe.py, igual que xml_safe con XML.
     "pypdf>=5.1",
+    # Cliente del almacen de objetos compatible con S3 (ADR 0032). NUNCA se usa directamente:
+    # la puerta es services/almacen_remoto.py, igual que xml_safe con el XML y url_guard con el
+    # HTTP de la ingesta. Se elige boto3 antes que firmar SigV4 a mano sobre httpx porque
+    # escribir sesenta lineas de HMAC propias en el camino de escritura del archivo de la 6.5
+    # es peor idea que una dependencia mas, y antes que la API nativa de Backblaze porque el
+    # dialecto S3 deja cambiar de proveedor (B2, R2, S3, Minio) sin tocar codigo.
+    "boto3>=1.35",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +43,10 @@ dev = [
     # defusedxml no trae anotaciones propias; sin estos stubs mypy estricto no puede
     # comprobar security/xml_safe.py, que es justo donde más interesa que compruebe.
     "types-defusedxml>=0.7",
+    # boto3 tampoco trae anotaciones propias, y mypy corre en estricto sobre services/, que es
+    # donde vive el cliente del almacen. Sin estos stubs, el modulo que escribe el archivo de
+    # la 6.5 seria el unico sin comprobar.
+    "boto3-stubs[s3]>=1.35",
 ]
 
 [build-system]

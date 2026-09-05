@@ -9,6 +9,13 @@ a que escribiera la suya.
 Que sea una es lo que hace que la garantía de 6.5 sea comprobable de un vistazo: la ruta se
 deriva **siempre** del hash (nunca de un dato de la fuente, 6.3) y la escritura es **siempre**
 atómica. El mismo criterio que `url_guard` con el HTTP y `xml_safe` con el XML.
+
+**Y es lo que hizo que mover el archivo a la nube (ADR 0032) fuera un `if` y no un refactor.**
+Desde el ADR 0032 hay dos destinos posibles —disco local y almacén de objetos compatible con
+S3— y la elección la hace la configuración, aquí, una sola vez. Los treinta y ocho módulos que
+archivan o leen no se enteran, y `documento.ruta_almacen` vale igual en los dos porque la ruta
+relativa sigue siendo la misma cadena derivada del hash: **migrar el almacén no reescribe ni
+una fila de la base de datos.**
 """
 
 from __future__ import annotations
@@ -17,6 +24,7 @@ import os
 from pathlib import Path
 
 from app.security import hashing
+from app.services import almacen_remoto
 
 
 def archivar(contenido: bytes, digest: str, *, almacen_root: Path, extension: str = ".xml") -> str:
@@ -28,6 +36,15 @@ def archivar(contenido: bytes, digest: str, *, almacen_root: Path, extension: st
     fichero, y cada una conserva su propia fila con su propio sello.
     """
     ruta_relativa = hashing.relative_storage_path(digest, extension)
+
+    if almacen_remoto.configurado():
+        # `almacen_root` no se usa en esta rama, y no por descuido: el destino de un objeto es
+        # el bucket, no una raíz de disco. El parámetro se conserva en la firma para no tocar
+        # los treinta y ocho módulos que llaman aquí; el día que el almacén remoto sea el único,
+        # se quita de una vez y en un solo commit.
+        almacen_remoto.escribir(ruta_relativa, contenido)
+        return ruta_relativa
+
     destino = hashing.storage_path(digest, extension, root=almacen_root)
 
     if destino.exists():
@@ -56,6 +73,9 @@ def leer(ruta_relativa: str, *, almacen_root: Path) -> bytes:
     salida de otro control deja de ser un control: si alguien llegara a escribir esa columna
     por otra vía, esto sigue impidiendo leer fuera del almacén.
     """
+    if almacen_remoto.configurado():
+        return almacen_remoto.leer(ruta_relativa)
+
     root = almacen_root.resolve()
     destino = (almacen_root / ruta_relativa).resolve()
     if not destino.is_relative_to(root):

@@ -8,8 +8,14 @@
 > dos; al cerrar un trabajo, actualiza `ESTADO.md`.
 >
 > **Mantén este fichero por debajo de ~55 KB.** No es estética: entra entero en el contexto de
-> **cada subagente**, así que es el coste fijo de arrancar cualquier trabajo. Si crece, lo que
-> sobra casi siempre es historial, y el historial va a `ESTADO.md`.
+> **cada subagente**, así que es el coste fijo de arrancar cualquier trabajo.
+>
+> Se ha desbordado dos veces y las dos se arregló igual: **sacando un bloque entero que el otro
+> lado no necesita**, no recortando frases. La 11 se fue a [`ESTADO.md`](ESTADO.md) y la 13 a
+> [`TRABAJO.md`](TRABAJO.md); las dos conservan su número.
+>
+> **Antes de recortar, mide.** Podar narrativa de las secciones 6 y 7 dio ~800 bytes: son reglas,
+> no historial, y ahí un recorte a ojo se lleva un guardarraíl por delante.
 
 <!--
 REVISIÓN 2026-08-07 — qué cambia respecto de la versión anterior y por qué.
@@ -256,8 +262,13 @@ esa inmutabilidad es parte del valor: es el archivo de lo que realmente se publi
 
 ## 6. Requisitos de seguridad (esto es lo que puntúa)
 
-Estás ingiriendo XML y PDF de 18 fuentes externas que no controlas. Esa es la superficie de
+Estás ingiriendo XML, HTML y PDF de fuentes externas que no controlas. Esa es la superficie de
 ataque principal. Trátalo así.
+
+**Hoy son cuatro integradas de las 61 registradas** —BOE, DOGC, BOA y BOCYL (ADR 0019, 0028 y
+0029)—, y cada una ha traído su propia forma de romper: el DOGC mete el articulado dentro de un
+atributo XML, el BOA sirve su portada los días sin boletín y el BOCYL obliga a raspar HTML. **El
+número de fuentes importa menos que el hecho de que ninguna se comporta como la anterior.**
 
 ### 6.1 Parseo de contenido no confiable
 - **XXE:** `defusedxml` siempre. Prohibido `xml.etree` o `lxml` sin endurecer. Entidades
@@ -282,6 +293,10 @@ toda URL de fase 2 pasa por `url_guard` igual que las de fase 1, y la única fue
 una URL sigue siendo el sumario oficial parseado. Añadir un límite de peticiones por ejecución
 y una pausa entre descargas — cortesía con la fuente y freno propio si un sumario manipulado
 declara miles de items.
+
+**Solo hay dos excepciones declaradas a esta allowlist**, y por el mismo motivo: el destino sale
+de la configuración, no de un documento. Son Ollama (6.9.2) y el almacén de objetos donde vive el
+archivo (ADR 0032). Las dos se validan al arrancar. Una tercera necesita su ADR.
 
 ### 6.3 Path traversal
 Al nombrar ficheros descargados, nunca uses un valor de la fuente como nombre de archivo sin
@@ -360,7 +375,7 @@ el adaptador `llm/ollama.py`, no en la interfaz.
 1. **Puerta única.** Solo `llm/ollama.py` habla HTTP con Ollama. Mismo criterio que
    `url_guard` con el HTTP saliente y `xml_safe` con el XML. Ningún otro módulo importa el
    cliente ni conoce la URL.
-2. **La URL de Ollama es la excepción declarada a la allowlist de `url_guard`** (ADR 0006):
+2. **La URL de Ollama es la primera de las dos excepciones a la allowlist de `url_guard`** (6.2):
    destino local y fijo de configuración, no una URL que venga de una fuente. Se valida al
    arrancar (host, esquema y puerto esperados) y nunca se compone con nada dinámico. En docker,
    `host.docker.internal` vía `extra_hosts`; fuera, `127.0.0.1`.
@@ -384,11 +399,16 @@ el adaptador `llm/ollama.py`, no en la interfaz.
    que se pueda»: el worker marca el trabajo como no procesado, lo dice en el log y sale con
    código distinto de cero. Un sistema de vigilancia que falla en silencio es peor que uno que no
    existe, porque genera confianza infundada.
-7. **Presupuesto de contexto medido, no supuesto.** `MAX_CARACTERES_DOCUMENTO` (hoy 4.000) es
-   un parámetro de rendimiento del modelo pequeño en CPU, no una decisión de calidad. **Está sin
-   medir si un artículo cortado se entiende bien.** Cuando el gold set dé para medirlo: si hace
-   falta, ventana deslizante con solapamiento en vez de truncado, y los offsets de 7.5 se rebasan
-   a la posición absoluta.
+7. **Presupuesto de contexto, MEDIDO el 2026-08-28 y peor de lo que se temía.**
+   `MAX_CARACTERES_DOCUMENTO` (hoy 4.000) es rendimiento del modelo pequeño en CPU, no calidad.
+   Sobre 150 normas de la cola: **2 caben enteras (1 %)**, mediana 82.309 caracteres, y de las ya
+   enviadas el modelo vio el **2,6 %**. Por eso `extraccion_json` registra `caracteres_enviados` y
+   `caracteres_documento`: sin ellos, «el extractor no encontró nada aquí» no se distingue de «no
+   lo miró», y sobre esta cola es lo segundo el 99 % de las veces.
+   **La ventana deslizante es la solución correcta y NO se implementa**: la extracción no alimenta
+   el gate humano —lo hace el catálogo de reglas leyendo el texto completo (ADR 0016)—, así que
+   multiplicar por ~38 el coste de CPU no desbloquearía ni una alerta. Si algún día se hace, los
+   offsets de 7.5 se rebasan a la posición absoluta.
 8. **Ollama no se instala ni se descarga solo.** Si falta el modelo, se dice y se para; no se
    lanza un `pull` de gigabytes sin avisar.
 
@@ -515,26 +535,23 @@ BOE **y las citas dentro del texto** (`pipeline/citas.py`). La segunda existe po
 vale fuera del BOE — esa fuente no publica en ningún metadato a quién afecta la norma, solo en el
 texto. Reglas que **no** se relajan: solo la forma larga de la cita (número **y** fecha; la corta
 produjo 4 falsos positivos de 4), el verbo se busca 200 caracteres hacia atrás, y sin verbo la
-referencia es `CITA`, que no dispara nada.
+referencia es `CITA`, que no dispara nada. **Y el verbo tiene que *gobernar* la cita, no solo caer
+cerca** (ADR 0031): no cuenta si en medio empieza la redacción nueva, si hay otra norma que lo
+reclame antes, si se cierra una frase, si la cita es el término de una referencia («a que se
+refiere») o si la forma casó dentro de otra palabra («se modific**aron**»). **La ventana no se
+recorta**: está medido que con 60 caracteres sale el mismo total y se pierden modificaciones
+reales.
 
 `config/watchlist.json` lleva las normas objetivo por identificador. **Cualquier disposición que
 modifique una norma de la watchlist pasa el filtro por definición, diga lo que diga su texto.**
 Este eje cubre el agujero estructural del diccionario: una instrucción que elimina un derecho no
 dice «identidad de género», dice «se modifica el epígrafe 4.3 del anexo II».
 
-**Estructura del bloque, verificada; no la deduzcas otra vez:**
-
-```
-analisis > referencias > anteriores > anterior[@referencia="BOE-A-2015-11431"]
-                                        ├── <palabra codigo="270">MODIFICA</palabra>
-                                        └── <texto>el art. 33.4 f) de la Ley de Empleo…</texto>
-                                    > posteriores > posterior[@referencia]
-```
-
 **No dice solo «menciona esta norma»: trae el verbo** (`MODIFICA`, `DEROGA`, `AÑADE`,
 `SUSTITUYE`) y qué artículos toca. `posteriores` son las que modificaron a esta *después*, así que
-no sirven para decidir en el día. El sumario de fase 1 no trae `<analisis>`, así que este eje es
-**por construcción de fase 2**; con el ADR 0011 eso deja de importar porque se descarga todo.
+no sirven para decidir en el día. **La estructura exacta del bloque está verificada en el ADR
+0011 (decisión 5); no la deduzcas otra vez.** El sumario de fase 1 no lo trae, así que este eje
+es por construcción de fase 2— con el ADR 0011 eso deja de importar porque se descarga todo.
 
 **Su alcance está medido y es limitado (ADR 0027):** solo el 7 % de las disposiciones modifican
 algo, y ampliar la watchlist rinde ~5 casos al año. El sistema ve el retroceso que **deja rastro
@@ -605,11 +622,15 @@ Ninguna regla puede consultar al modelo ni depender de un campo que venga de su 
 regla necesita algo que el extractor no da como hecho objetivo, la regla está mal planteada.
 
 **El catálogo vive en `pipeline/reglas.py` (`VERSION_REGLAS`) y lee el texto archivado, no la
-salida del modelo** (ADR 0016). La primera familia fue la **supresión** por un motivo que conviene
-no olvidar: el BOE modificativo publica la redacción *nueva*, no la vieja, así que hasta el ADR
-0018 el diff de una modificación no se podía construir — supresión y derogación son los dos únicos
-cambios que no necesitan texto anterior. El ADR 0018 tira ese muro trayendo el texto consolidado, y
-sobre él se escribió R-MOD-001, que **sigue sin afirmar signo**: establece el hecho, no el veredicto.
+salida del modelo** (ADR 0016). Por qué la supresión fue la primera familia y qué desbloqueó el
+texto consolidado está en el docstring de ese módulo y en los ADR 0016 y 0018. La regla que queda
+aquí: **R-MOD-001 no afirma signo** — establece el hecho, no el veredicto.
+
+**R-SUP-001 tampoco lo afirma siempre, desde el ADR 0030**: solo si la norma suprimida es
+**protectora** (`especificidad: lgtbi` en la watchlist). Sobre una **norma-vehículo** —la Ley del
+SNS, el Registro Civil, la LOE, donde el derecho vive en dos o tres preceptos y el resto es materia
+ajena— cae a `indeterminado` conservando regla y evidencia. Suprimir el art. 33 de la Ley 16/2003
+no es un retroceso LGTBI.
 
 **Regla que costó 2 falsos positivos de 4 y que no se relaja (ADR 0023): el verbo tiene que ir
 pegado a la norma vigilada.** No basta con que el documento contenga una supresión *y* toque una
@@ -721,7 +742,7 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Fine-tuning, RAG, o cambiar de modelo buscando calidad.** Antes de tocar el modelo hay que
   poder medir, y medir es el gold set. Cualquier cambio de modelo sin gold set es una opinión.
 - **Bucle de agente que mergee solo.** Ver 13.3: el driver automatiza el tecleo, no el
-  criterio. Ninguna rama entra en `main` sin que la mire el humano.
+  criterio. El agente comprueba el resultado del merge en un clon limpio; **autoriza el humano**.
 
 ---
 
@@ -731,12 +752,12 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
 - **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
-  consecuencias. **Están todos escritos del 0001 al 0027** y su título dice de qué van: `ls
+  consecuencias. **Están todos escritos del 0001 al 0032** y su título dice de qué van: `ls
   docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
-  **El siguiente número libre es el 0028.** No queda ninguno reservado.
+  **El siguiente número libre es el 0033.** No queda ninguno reservado.
   Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
-  (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada) y **0027** (el
-  límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
+  (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada, con el **0031** que
+  lo lleva un paso más allá) y **0027** (el límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
   interfaz.
 - Mantén `SECURITY.md` y `THREAT-MODEL.md` vivos, no como trámite final. Esta revisión añade
   entradas al modelo de amenazas: volumen de peticiones en fase 2 (6.2), `<analisis>` como
@@ -749,7 +770,7 @@ Si te encuentras haciendo cualquiera de estas, para:
 
 ```bash
 # Levantar todo: base de datos, backend, worker y la web (desde 2026-08-17 el frontend también
-# es un servicio del compose, con `restart: unless-stopped`). La web queda en el 5174 del host.
+# es un servicio del compose). PUERTOS FIJOS del host: web 5174, API 8010 (no 8000: ocupado).
 docker compose up --build
 
 # Backend en local
@@ -757,7 +778,7 @@ cd backend && uvicorn app.main:app --reload
 
 # Migraciones
 alembic revision --autogenerate -m "..."   &&   alembic upgrade head
-# y DESPUÉS de cada upgrade, comprobar que siguen vivas las CHECK (hoy 14). El filtro honesto
+# y DESPUÉS de cada upgrade, comprobar que siguen vivas las CHECK (hoy 15). El filtro honesto
 # lleva `conrelid <> 0`: sin él salen dos filas de information_schema que no son del proyecto.
 psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
          WHERE contype='c' AND conrelid <> 0 ORDER BY 1,2"
@@ -765,8 +786,10 @@ psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
 # Calidad (lo que corre el CI)
 ruff check . && ruff format --check . && mypy backend/app && pytest --cov
 
-# Ingesta manual (una fecha concreta)
+# Ingesta manual (una fecha concreta). Las cuatro fuentes integradas:
+#   boe | dogc | boa | bocyl   (la tabla FUENTES de worker/run.py manda)
 python -m worker.run --fuente boe --fecha 2024-12-19
+python -m worker.run --fuente bocyl --fecha 2024-01-10
 
 # Backfill: un rango de días, sin llamar al LLM. Es lo que hace viable traer meses de boletín
 # (una extracción cuesta 133,9 s, ADR 0011). Lo que se salta NO se pierde: la cola del extractor
@@ -790,6 +813,28 @@ python -m worker.run --extraer
 # Repasar el catálogo de reglas tras subir VERSION_REGLAS (ni red ni LLM)
 python -m worker.run --reclasificar
 
+# La ingesta DIARIA la corre ya GitHub Actions, con la base en Neon y el archivo en un bucket
+# (ADR 0032): `.github/workflows/ingesta.yml`. Va sin extracción —en un runner no hay Ollama— y
+# eso no cuesta vigilancia (ADR 0016). Los reprocesados masivos siguen siendo de casa.
+
+# --- Backfills de fondo, uno por fuente -----------------------------------------------------
+# REANUDABLES por marcas e IDEMPOTENTES por el sha256: relanzarlos salta en segundos lo hecho.
+# OJO: un `exec` NO sobrevive al cierre de la sesión ni al reinicio del contenedor. Hay que
+# relanzarlos a mano después de cada `docker compose up`; ha costado tiempo dos veces.
+docker compose exec -d worker sh //app/backfill.sh          # BOE
+docker compose exec -d worker sh //app/backfill_boa.sh      # BOA
+docker compose exec -d worker sh //app/backfill_bocyl.sh    # BOCYL
+
+# Quién ha reformado a cada norma vigilada, preguntándoselo al consolidado del BOE (ADR 0018).
+# UNA petición por ley vigilada da su historial completo de reformas, sin backfillear años. NO
+# ingiere ni clasifica: imprime qué días harían falta y el gasto lo decide una persona.
+docker compose exec -T backend python -m scripts.reformas_de_vigiladas
+
+# Elegir candidatos para el gold set y escribir sus borradores. NO los etiqueta (7.8): deja
+# rellenado lo que es un hecho y omite los tres campos de juicio, para que el esquema rechace
+# el fichero mientras nadie lo haya mirado. Muestreo estratificado con semilla fija.
+docker compose exec -T backend python -m scripts.preparar_gold_set
+
 # Ollama (local, sin clave, sin coste)
 ollama serve                        # normalmente ya corre como servicio
 ollama list                         # modelos disponibles
@@ -797,7 +842,7 @@ ollama show qwen2.5:3b-instruct     # digest del modelo, que va en extraccion_js
 curl -s localhost:11434/api/tags    # comprobación rápida de que responde
 
 # Frontend: normalmente NO hace falta, lo levanta el compose en http://localhost:5174.
-# Esto es solo para trabajar sin docker; entonces el proxy apunta al 8000 del host por defecto.
+# Solo para trabajar sin docker; el proxy apunta por defecto al 8010 del host, que es la API.
 cd frontend && npm run dev -- --host 127.0.0.1
 
 # Driver de sesiones (sección 13.3)
@@ -839,111 +884,18 @@ de cada subagente y el historial era más de la mitad.
 
 ---
 
-## 13. Cómo se ejecuta el trabajo con Claude Code
+## 13. Cómo se ejecuta el trabajo con Claude Code → **[`TRABAJO.md`](TRABAJO.md)**
 
-Sección operativa. No cambia el diseño del producto; cambia cómo se gasta el recurso escaso,
-que aquí no es el dinero (todo es coste 0 €) sino la **cuota de la suscripción y el tiempo
-humano de revisión**.
+Límites de cuota, backlog de tareas, el driver de sesiones y los cuatro subagentes. Salió a un
+fichero propio el 2026-08-30 por el motivo de la cabecera —este entra entero en el contexto de
+cada subagente— y porque es justo la parte que ningún subagente puede ejecutar.
 
-### 13.1 Límites de uso, en corto
+**Las referencias a «sección 13» del repositorio siguen siendo válidas**: conserva su número, solo
+cambia de fichero. Lo que hay que saber sin abrirlo, porque son reglas y no procedimiento:
 
-Dos límites solapados: ventana móvil de 5 horas y **tope semanal**, con la cuota compartida con
-el chat web. El semanal es el límite real: una sesión larga con mucho contexto arrastrado se lo
-come rápido. Consecuencias, y son reglas:
-
-- **Una tarea = una sesión limpia**, con `/clear` al cambiar. El estado vive en `ESTADO.md`, no en
-  la conversación. Cambiar de modelo a mitad de conversación larga pierde la caché de prompt: si
-  hay que cambiar, al empezar.
-- Trabajo rutinario contra un criterio de aceptación claro: modelo rápido. Diseño, ADRs y
-  seguridad: el modelo bueno.
-- `/usage` antes de arrancar algo grande. Las estimaciones de contexto de `ESTADO.md` sirven para
-  decidir si una tarea cabe en la sesión que empieza.
-
-### 13.2 Backlog de tareas (`tasks/backlog/`)
-
-Un fichero por tarea, `NN-nombre-corto.md`, ordenados por dependencia. Cada tarea debe ser
-**autosuficiente**: se le pasa a una sesión nueva que solo tiene este CLAUDE.md como contexto.
-Contenido mínimo:
-
-- Objetivo en una frase.
-- Ficheros exactos que se van a tocar.
-- Criterio de aceptación **verificable con `pytest`** (más la verificación real que
-  corresponda: `psql`, `curl`, navegador — en este repo eso ha encontrado fallos que ningún
-  test veía).
-- Restricciones de este archivo que la tarea no puede violar (citar sección).
-- Coste estimado de contexto.
-
-Al terminar una tarea: actualizar la sección 11, mover el fichero a `tasks/done/`.
-
-### 13.3 Driver de sesiones (`run_agent.sh`)
-
-Ejecuta tareas del backlog en modo headless, una sesión limpia por tarea. **Automatiza el
-tecleo, no el criterio**: cada tarea va a su rama y el merge lo hace el humano tras mirar el
-diff. Es el mismo principio que el gate humano del producto (regla 4) aplicado al código.
-
-El script vive en **[`run_agent.sh`](../run_agent.sh)**, en la raíz del repositorio. **Lo que no
-se va de aquí son sus reglas**, porque son de criterio y no de implementación:
-
-- **Nunca `--dangerously-skip-permissions`.** La allowlist de herramientas es la que lleva el
-  script: escribir código y correr las comprobaciones del CI, nada más.
-- **Nunca `alembic upgrade` desatendido.** El aviso del autogenerate (sección 11) ha aparecido
-  cuatro veces y una de ellas habría desarmado un control del proyecto. Las migraciones las
-  revisa una persona, siempre.
-- **Parada al primer rojo.** Un agente que sigue sobre tests rotos genera deuda más rápido de
-  lo que se revisa.
-- Ninguna acción de la sección 12 "Difusión" entra jamás en el backlog automático.
-- `tasks/log/` en `.gitignore`.
-
-### 13.4 Subagentes (`.claude/agents/`)
-
-Ficheros Markdown con frontmatter, ámbito de proyecto. Contexto propio: la lectura pesada no
-contamina la sesión principal. **Se cargan al arrancar**: si se crea uno con la sesión
-abierta, hay que reiniciarla.
-
-- **`revisor-seguridad`** — audita un diff buscando: fugas de datos de suscriptores, IPs o
-  identificadores en logs, superficies de inyección nuevas, HTTP fuera de `url_guard`, XML
-  fuera de `xml_safe`, llamadas al LLM fuera de `llm/`, y cualquier camino que salte el gate
-  humano. `Read, Grep, Glob` más **`Bash` acotado a lectura del historial** (`git diff`, `log`,
-  `show`, `status`): sin eso auditaba el árbol y no el diff, y un import **nuevo** —el hallazgo
-  que su propio fichero llama el más importante— es indistinguible de uno de siempre.
-- **`auditor-reglas`** — comprueba que el clasificador siga siendo determinista y auditable:
-  que ninguna regla dependa de la salida valorativa del modelo, que cada veredicto emita
-  `regla_aplicada` y spans, y que el esquema de extracción no haya ganado campos de juicio.
-  `Read, Grep, Glob` más **`Bash` solo de verificación**: `git diff` sobre `alembic/` y el
-  `SELECT ... FROM pg_constraint` de la sección 10. Leer la cadena de migraciones prueba que
-  ninguna borra la CHECK; no prueba que la CHECK esté en la base de datos.
-- **`evaluador`** — corre el gold set y reporta recall **desglosado por eje** (7.3),
-  enumerando los falsos negativos uno a uno. Un número agregado no sirve: lo que importa es
-  qué se escapó y por qué eje debería haber entrado.
-- **`jurista-lgtbi`** — analiza normas de los tres niveles desde el derecho antidiscriminatorio.
-  Produce **reglas candidatas para el clasificador (7.6)** e informes de apoyo al etiquetado y al
-  gate humano. Aporta el conocimiento de dominio que no está escrito en ningún sitio: los
-  instrumentos por nivel (con las **bases de subvención** como vector local), los vectores de
-  retroceso ordenados por lo silenciosos que son, y **lo que parece cambio y no lo es** — de
-  donde saldrían los falsos positivos del clasificador.
-
-  **Sí señala «posible retroceso, a verificar»; no emite veredictos.** La diferencia no es de
-  grado, es de naturaleza: una hipótesis va dirigida a una persona y **muere cuando esa persona
-  decide**; un veredicto se persiste, se publica y hay que poder defenderlo ante un tercero sin
-  ejecutar nuestro código. Que eso no llegue a `deteccion` ni a la API lo hace cumplir la CHECK
-  `origenclasificacion`.
-
-  **El riesgo que se diseñó en contra es el anclaje.** Si quien revisa lee «posible retroceso»
-  antes que el artículo, ya no lo juzga: lo confirma, y el gate humano (regla 4) se vacía. Por eso
-  el orden del informe es fijo —**texto citado → pregunta → hipótesis → qué la refutaría**— y el
-  último punto es obligatorio siempre. Y tiene prohibido etiquetar el gold set: si lo etiquetara
-  él, el sistema se mediría contra sí mismo.
-
-Ninguno de los cuatro escribe código. Su salida es un informe para la sesión principal o para el
-humano.
-
-**Ojo con dos cosas que costaron una tanda entera de cuota:**
-
-1. **Los subagentes se cargan al arrancar y son de ámbito de proyecto.** Si la sesión se abre
-   fuera del repositorio, `subagent_type: auditor-reglas` devuelve *not found* y los cuatro son
-   inalcanzables. Abrir la sesión **en la raíz del repositorio**, siempre.
-2. **Gastan cuota muy rápido.** Los cuatro en paralelo agotaron el límite de sesión a mitad de
-   trabajo y hubo que retomarlos. Regla: lanzarlos **de uno en uno**, con un presupuesto de
-   llamadas dicho en el encargo, y no arrancar ninguno por encima del 60 % de consumo. Se
-   retoman por su identificador conservando el contexto, así que un corte no obliga a repetir
-   desde cero — pero lo barato es no provocarlo.
+- **Una tarea = una sesión limpia.** El estado vive en `ESTADO.md`, no en la conversación.
+- **Nunca `--dangerously-skip-permissions`** ni `alembic upgrade` desatendido.
+- **Los subagentes se lanzan de uno en uno** y no por encima del 60 % de consumo; son de ámbito
+  de proyecto, así que la sesión se abre **en la raíz del repositorio** o no existen.
+- **Ninguna rama entra en `main` sin que la autorice el humano** (13.3), y ninguna de la 12
+  entra en el backlog automático.

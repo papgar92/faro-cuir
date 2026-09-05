@@ -1015,7 +1015,7 @@ docker compose exec -d worker sh -c "FASE2_MAX_POR_EJECUCION=400 python -m worke
 **Comprobar que siguen vivos**, que es lo primero que hay que mirar:
 
 ```bash
-docker compose exec -T worker sh -c 'for p in /proc/[0-9]*; do [ -r $p/cmdline ] || continue; tr " " " " < $p/cmdline | grep -E "worker.run|backfill" ; done'
+docker compose exec -T worker sh -c 'for p in /proc/[0-9]*; do [ -r $p/cmdline ] || continue; tr "\0" " " < $p/cmdline | grep -E "worker.run|backfill" ; done'
 ```
 
 #### Lo que va a pasar solo, y no es un fallo
@@ -2511,3 +2511,433 @@ docker compose exec -d worker sh -c "python -m worker.run --reprefiltrar && pyth
   Convertiría esas 95 candidatas históricas en un puñado. No se hizo porque exige investigación
   jurídica norma a norma; queda anotada en el ADR 0030 y en la watchlist como lo siguiente, no
   como descarte.
+
+### 📊 El reprocesado de la tanda 2, medido — 2026-08-30 (tarde)
+
+Las 82.166 normas reevaluadas con la watchlist de 42. **~4 horas**, y el resultado confirma que
+el campo `especificidad` del ADR 0030 era la pieza que faltaba.
+
+| | antes | después |
+|---|---|---|
+| relevantes | — | 316 |
+| sospechas | — | 578 |
+| descartadas | — | 81.231 |
+| **ilegibles** | 1 | **2** |
+| cola del clasificador | 799 | **893** |
+| detecciones con veredicto | 50 | **65** |
+| **pendientes de revisión** | 0 | **13** |
+
+#### Las 13 nuevas son todas de normas-vehículo, y ninguna afirma signo
+
+| norma vigilada | pendientes |
+|---|---|
+| LOE | 7 |
+| LO 3/2007 de igualdad | 3 |
+| RD 243/2022 Bachillerato | 1 |
+| Ley 20/2011 del Registro Civil | 1 |
+| Ley 16/2003 del SNS | 1 |
+
+**Las 13 salen `R-MOD-001 / indeterminado / severidad 3`.** Esa línea es la validación del ADR
+0030 sobre datos reales: sin el campo, varias habrían salido «retroceso severidad 4» por tocar la
+LOE o la Ley del SNS, donde el derecho del colectivo vive en dos o tres preceptos. Llegan al gate
+como lo que son —*algo ha modificado una norma por la que pasan derechos, míralo*— y el signo lo
+pone una persona leyendo qué precepto se tocó.
+
+#### Aparece una segunda `ilegible`
+
+De 1 a 2 (ADR 0020). Se reintenta sola en cada pasada y **se cuenta aparte**: cualquier cifra de
+cobertura va con ella al lado o afirma una vigilancia que no existe.
+
+### ✅ Gold set: 32 borradores listos para etiquetar — 2026-08-30 (cierre)
+
+`scripts/preparar_gold_set.py` ejecutado con los estratos ya estables. **4 señaladas + 4
+descartadas por cada una de las cuatro fuentes.**
+
+| fuente | señaladas | descartadas | base del estrato descartada |
+|---|---|---|---|
+| BOE | 4 | 4 | 77.485 |
+| DOGC | 4 | 4 | 511 |
+| BOA | 4 | 4 | 2.376 |
+| BOCYL | 4 | 4 | 937 |
+
+**906.641 caracteres en total, mediana de 8.234.** El documento típico se lee en cinco minutos, no
+en cuarenta — importa saberlo antes de sentarse a etiquetar.
+
+Con esto **BOA y BOCYL pasan de 0 casos a 8 cada una**, que era el hueco que dejaba al gold set
+sin poder medir las dos fuentes nuevas. Si se etiquetan los 32, el corpus va de 32 a 64: dentro
+del rango 60-80 de la sección 7.8.
+
+**Los borradores están en `.gitignore`** y son regenerables con la semilla fija. Lo que se versiona
+es lo etiquetado.
+
+### ⚠️ `CLAUDE.md` lleva por encima de su propio límite desde antes de esta semana
+
+Su cabecera pide **por debajo de ~55 KB** porque entra entero en el contexto de cada subagente.
+Medido el 2026-08-30: **60 KB**. Y no es de hoy — el 2026-08-28 ya iba por 56 KB.
+
+Dónde está el peso: **sección 7 (pipeline) 16,6 KB y sección 6 (seguridad) 10,5 KB**, o sea el 46 %
+entre las dos. **No se podan a ojo**: son las reglas, no historial, y ahí es donde un recorte
+descuidado se lleva un guardarraíl por delante. Queda medido y **pendiente de decisión del
+humano**, no hecho a medias.
+
+Lo que sí se corrigió hoy, que era desfase y no tamaño:
+
+- **Decía que el siguiente ADR libre era el 0028** y vamos por el 0030. Era el desfase peligroso:
+  habría hecho que alguien escribiera un 0028 duplicado.
+- Decía «18 fuentes externas», anterior al ADR 0014 que subió el censo a 61.
+- La sección 10 no conocía ni `bocyl` ni `boa` como fuentes, ni los tres backfills, ni los dos
+  scripts nuevos.
+
+### ✅ «Hay alertas que no tocan nada LGTBIQ+»: era un bug medible, y el sistema entero lo tenía — 2026-08-30 (noche)
+
+Lo dijo el humano mirando la cola. Tenía razón, y la causa no era ruido inevitable: era un fallo
+concreto de `pipeline/citas.py` que **afectaba a las 42 normas vigiladas, no solo a las nuevas**.
+
+#### El fallo
+
+El título oficial de la LOMLOE es literalmente:
+
+> «Ley Orgánica 3/2020, de 29 de diciembre, **por la que se modifica** la Ley Orgánica 2/2006, de
+> 3 de mayo, de Educación»
+
+Toda norma educativa española la cita por su nombre completo. Y `_FORMAS` tenía
+`("por la que se modifica", "MODIFICA")` como marca de modificación, así que **todas parecían
+modificar la LOE** en cuanto la LOE entró en la watchlist con el ADR 0030.
+
+Es el error del ADR 0023 **un paso más atrás**: allí el verbo estaba suelto en el documento y no
+pegado a la norma; aquí está pegado, pero pertenece **al nombre de otra**.
+
+#### Medido antes y después (912 normas de la cola)
+
+| | |
+|---|---|
+| Referencias modificativas a normas vigiladas, antes | **143** |
+| Después | **62** |
+| Falsos positivos eliminados | **81** |
+
+Y no era cosa solo de las norma-vehículo: 45 apuntaban a la LOE, 18 al Registro Civil y **2 a las
+leyes madrileñas**, que son el caso insignia del proyecto.
+
+#### El arreglo, y la salvedad que costó encontrar
+
+Se quitan las dos formas largas de `_FORMAS` —«se modifica» sigue casando dentro de la misma
+frase, así que no se pierde nada— y `_verbo_previo` ignora un verbo precedido de «por la que».
+
+**Con una salvedad, que son 12 casos reales de los 81:** cuando la construcción está en el título
+del **propio** documento sí declara lo que hace. «Orden SND/454/2025, por la que se modifican los
+anexos del Real Decreto 1030/2006» es una modificación de verdad.
+
+**Y la salvedad necesita su segunda condición**, que es lo que costó ver: la norma citada tiene que
+ser **la que ese título nombra**. Sin ella se colaba justo el ruido original — «Orden EFD/998/2025,
+por la que se modifica la Orden EDU/2739/2009» lleva la construcción en su propio título, pero lo
+que modifica es esa orden, no la LOE.
+
+Cinco casos de control verificados y **ninguno perdido**: las dos reformas madrileñas, la valenciana
+de 31 preceptos, la foral navarra y la catalana.
+
+#### Las que ya estaban en la cola NO se retiran solas, y es a propósito
+
+`services/clasificacion.py` lo dice: *«No se retira sola: revísala»*. Un cambio de catálogo no
+reescribe en silencio lo ya producido. Así que quedan **3 obsoletas para descartar a mano**:
+
+| cola | norma | ¿la sostiene el catálogo actual? |
+|---|---|---|
+| 38 | `BOE-A-2025-25279` | sí, R-MOD-001 |
+| **40** | `BOE-A-2025-19414` | **no — obsoleta** |
+| **41** | `BOE-A-2025-18077` | **no — obsoleta** |
+| 42 | `BOA-007957248` | sí, R-MOD-001 |
+| 43 | `BOA-007954477` | sí, R-MOD-001 |
+| **44** | `BOA-007957687` | **no — obsoleta** |
+| 45 | `BOE-A-2026-2622` | sí, R-DER-001 |
+
+**Lo importante no es descartar esas tres, es que no van a volver a aparecer.**
+
+#### Las tres que el catálogo sí sostiene siguen siendo ruido, y su causa es otra
+
+42, 43 y 38 modifican órdenes de educación autonómicas y el verbo se encuentra dentro de la
+ventana de 200 caracteres (`VENTANA_VERBO`) perteneciendo a otra frase. **Es un problema distinto
+y más difícil**: no hay una construcción que lo delate, solo distancia. Queda anotado y **no se
+toca a ojo** — estrechar la ventana sin medir perdería modificaciones reales.
+
+La solución de fondo sigue siendo la que el ADR 0030 dejó anotada: **vigilar preceptos y no normas
+enteras**. Con la LOE se ve por qué.
+
+#### Sobre sacar al `jurista-lgtbi` para vaciar la cola
+
+Se pidió y **no se hizo, porque no puede**: su propio fichero dice que no emite veredictos y que su
+salida es un informe; y la regla de oro 4 dice que ninguna alerta se emite sin que **una persona**
+la apruebe, sin flag que lo salte. Un agente que resolviera la cola sería exactamente el gate
+humano vaciado por dentro.
+
+Para lo que sí sirve —y sigue pendiente— es para la continuación del ADR 0030: **decir qué
+preceptos de cada norma-vehículo sostienen el derecho**. Eso es conocimiento de dominio que no
+está escrito en ningún sitio y es justo su encargo.
+
+### ✅ El ruido que quedaba en la cola, medido y quitado — 2026-09-03 (ADR 0031)
+
+Era el punto que el 2026-08-30 quedó **anotado y no tapado**: *«es un problema distinto y más
+difícil: no hay una construcción que lo delate, solo distancia»*, *«no se toca a ojo — estrechar
+la ventana sin medir perdería modificaciones reales»*. Se ha medido, y las dos frases eran
+ciertas: hay construcciones que lo delatan, y la distancia era la solución equivocada.
+
+#### El fallo, que es el ADR 0023 un paso más allá
+
+El verbo cae dentro de los 200 caracteres de `VENTANA_VERBO`, pero **la cita no es su objeto**:
+
+> «Se modifica el anexo III del Reglamento de ingreso, accesos y adquisición de nuevas
+> especialidades en los cuerpos docentes **a que se refiere la** Ley Orgánica 2/2006…»
+
+Ahí no se toca la LOE: se toca un reglamento que la LOE menciona.
+
+#### Medido sobre las 925 normas de la cola (`scripts/medir_ventana_verbo.py`)
+
+De **89** referencias modificativas a normas vigiladas, **22 se descartan y las 22 son ruido**,
+leídas una a una. Quedan **67**.
+
+| | descarta | qué es |
+|---|---|---|
+| **R** | 15 | «a que se refiere», «regulado por», «dada por»: se la nombra, no se la toca |
+| **N** | 9 | otra norma citada en medio — **el verbo lo reclama la más cercana** |
+| **C** | 8 | empieza la redacción **nueva** («…como sigue: "…"»): lo de dentro es del documento modificado |
+| **F** | 5 | se cierra una frase en medio |
+| **P** | 1 | «se modifica» dentro de «se modific**aron**»: preámbulo en pasado, no articulado |
+
+#### Y la distancia, que era lo evidente, era lo malo
+
+Recortar `VENTANA_VERBO` a 60 deja **el mismo número, 67**. Por dentro es lo contrario: **pierde
+dos modificaciones reales** —el apartado 5 del art. 8 de la ley LGTBI valenciana (67 caracteres) y
+cinco preceptos de la ley trans valenciana en `BOE-A-2026-16931` (105)— **a cambio de conservar
+ruido de 4 caracteres**. La misma cifra por fuera y lo contrario por dentro; es exactamente para
+lo que existía la medición. Hay un test que lo deja clavado.
+
+#### El tropiezo propio, que queda como test
+
+La primera versión del criterio `P` miraba solo si tras el verbo seguía una letra. `_VERBOS` es
+una alternancia y casa la **primera** forma que encaja, así que sobre «se modifican» casa «se
+modifica» y deja una «n» detrás: el criterio se llevaba por delante **todos los plurales**, 15 de
+89, que son la mitad del articulado real. Lo cazó la propia medición al desglosar por criterio.
+
+#### Qué se tocó
+
+- `pipeline/citas.py`: `_gobierna()` y sus cinco criterios. **`VENTANA_VERBO` no se toca.**
+- `backend/scripts/medir_ventana_verbo.py` (nuevo). **Importa los predicados de producción y
+  comprueba en cada referencia que su desglose coincide con `citas._gobierna`**: un script de
+  medición con su propia copia de la regla mide su copia, y este ya divergió una vez.
+- `backend/tests/test_citas.py`: 8 tests nuevos, uno por criterio más los de control (34 en el
+  fichero). **754 tests en verde.**
+- `VERSION_REGLAS` → **`2026.09.03`**, y `VERSION_REGLAS_PUBLICADA` del frontend con ella.
+  `VERSION_WATCHLIST` **no** sube: cambia cómo se lee una cita, no qué se vigila (ADR 0030).
+- `docs/adr/0031-el-verbo-tiene-que-gobernar-la-cita.md`. **El siguiente ADR libre es el 0032.**
+
+#### El reprocesado, y lo que se encontró al mirarlo
+
+`--reclasificar` sobre las 925: **53 con veredicto** (eran 65) y **13 veredictos obsoletos**, que
+el sistema avisa y **no retira solos**, como debe.
+
+**De esos 13, doce ya los había descartado a mano el humano.** O sea que el filtro reproduce, sin
+haberlos mirado, doce de doce decisiones del gate. Es la mejor validación que puede tener una
+regla de este tipo: no coincide con lo que yo creo que es ruido, coincide con lo que una persona
+descartó.
+
+**Y el decimotercero está aprobado y con alerta emitida:** `BOE-A-2026-16172`, el Real Decreto
+606/2026 del Estatuto de la Autoridad Independiente para la Igualdad de Trato, aprobado como
+**avance** el 2026-08-30 a las 19:46.
+
+**Su obsolescencia NO viene del cambio de hoy, viene del arreglo del 30-08**, y las horas lo
+demuestran: se clasificó a las 18:51 y se aprobó a las 19:46, y el arreglo de «por la que se
+modifica» se commiteó a las 20:46 de ese mismo día. Comprobado además directamente: con el
+`citas.py` de ayer, la referencia a la LO 3/2007 en ese cuerpo ya salía `CITA` y no `MODIFICA`.
+Lo que pasa es que nadie volvió a pasar el catálogo por encima de lo ya aprobado, y hasta hoy no
+se vio.
+
+**No se toca.** Lo que dejó de sostenerse es **el motivo por el que la máquina se la puso delante
+a una persona**, no lo que esa persona leyó y decidió: el RD 606/2026 da entrada al Consejo de
+Participación LGTBI en varios órganos, y la clasificación de avance la puso un humano. Cambiar en
+silencio un dato ya publicado es exactamente la desindexación sin registro que este proyecto
+documenta para denunciarla, así que **lo decide el humano** y, si se cambia, va en un script con
+su porqué como `corregir_signos_20260822.sql`.
+
+#### Lo que esto NO arregla, y sigue siendo lo siguiente
+
+El ruido que apunta **de verdad** a una norma-vehículo pero a un precepto que no sostiene ningún
+derecho del colectivo. La solución de fondo sigue siendo la que dejó anotada el ADR 0030:
+**vigilar preceptos y no normas enteras** (`preceptos: ["art. 33"]`). Exige investigación jurídica
+norma a norma —es el encargo del `jurista-lgtbi`— y no cabe antes de la entrega.
+
+#### ⚠️ La lista de «Siguiente» llevaba semanas mandando a trabajo ya hecho
+
+Al ir a por la primera tarea de la lista resultó estar **hecha desde el 2026-08-22**. Y la
+siguiente. Y la siguiente. Se comprobó una a una **contra el código**, que es lo que nadie había
+hecho: cada cierre copiaba la lista del cierre anterior, y una entrada solo salía de ella si quien
+escribía se acordaba de tacharla.
+
+| lo que decía la lista | estado real, comprobado el 2026-09-03 |
+|---|---|
+| «que el signo sea difícil de errar en el panel» | **hecho**: `RevisionPage.tsx` lleva el identificador dentro del cuadro, botones separados con glifo y color, y aviso cuando la regla se abstiene |
+| «feed Atom de hallazgos» | **hecho**: `GET /api/hallazgos.xml` |
+| «bloque de descargar y citar» | **hecho**: `components/DatosYCita/` |
+| «fecha de última lectura por fuente» | **hecho y mejor planteado**: `ultima_publicacion` en `CoberturaCcaa`, con aviso de rancia — y es la fecha del **boletín**, no el sello de nuestra ingesta |
+| «ficha de comunidad enlazable (`?ccaa=AN`)» | **hecho** en `MapaPage.tsx` |
+| «Canarias, Ceuta y Melilla en el mapa» | **hecho** en `MapaCCAA.tsx` |
+| «las 172 ilegibles del DOGC por PDF» | **hecho**: ADR 0026, hoy quedan 2 ilegibles en todo el corpus |
+
+**La lección de método**: en este repositorio el estado de una tarea se comprueba en el código, no
+en la lista. Una lista de pendientes que solo se poda a mano acaba costando lo mismo que no
+tenerla, y aquí llegó a costar más — es lo primero que se lee al retomar.
+
+#### Siguiente, por orden (auditado contra el código, no copiado)
+
+1. **Etiquetar los 32 borradores del gold set** (tiempo humano, no de agente): sigue siendo el
+   cuello de botella del plazo, y ahora sin nada por delante. El cuaderno de lectura ya está.
+2. **Decidir qué se hace con la alerta de `BOE-A-2026-16172`** (arriba). La cola está a **0
+   pendientes** —13 aprobadas y 32 descartadas—, así que es lo único que queda del reprocesado.
+3. **Pantalla de Metodología con el catálogo de reglas entero.** Es la mitad que falta de aquella
+   tarea: el `<details>` por tarjeta existe (`lib/reglas.ts`, en `AlertCard` y `HallazgoCard`),
+   pero no hay una pantalla donde leer el catálogo completo con su versión. Lo pide 7.6 —«una
+   alerta publicada tiene que poder reconstruirla un tercero leyendo la regla y el texto
+   archivado»— y es de lo que más peso tiene ante el tribunal.
+4. **Preceptos por norma-vehículo** (ADR 0030 y 0031), con el `jurista-lgtbi`.
+5. **Que la ingesta diaria no dependa de que el portátil esté encendido con Docker Desktop.** Hoy
+   hay que arrancarlo a mano y los backfill lanzados con `exec -d` no sobreviven a un reinicio.
+   → **hecho el 2026-09-04**, ver la entrada siguiente. Lo que queda es crear dos cuentas.
+
+---
+
+### ✅ La ingesta se va a la nube y deja de depender del portátil — 2026-09-04 (ADR 0032)
+
+El punto 5 de la lista de arriba, y el que llevaba más tiempo doliendo sin que nadie lo escribiera
+como bug: **este proyecto vigila «a diario» y solo ingería los días que alguien encendía el
+portátil.** El propio `CLAUDE.md` lo tenía escrito como aviso operativo —«un `exec` NO sobrevive
+al cierre de la sesión; ha costado tiempo dos veces»— y la cabecera del plan V1 lo tenía medido
+como el cuello de botella real: «no es el pipeline, es que la máquina se duerme».
+
+Yo recomendé primero la solución barata de plazo —una tarea programada de Windows, media hora,
+cero cuentas— y **el humano decidió ir directo a la solución buena**. Es además la que se puede
+enseñar en la memoria: un despliegue, no un apaño.
+
+#### Las tres piezas, y por qué esas
+
+| pieza | dónde | plan gratuito | el descarte que importa |
+|---|---|---|---|
+| cómputo | GitHub Actions, `schedule:` diario | **ilimitado en repos públicos**; 6 h/job contra ~20 min del día entero | — |
+| base de datos | Neon | 0,5 GB, **se despierta al conectar** | **Supabase pausa el proyecto a los 7 días** sin actividad, y hay que reactivarlo a mano |
+| archivo (6.5) | Backblaze B2 (S3-compatible) | 10 GB | **Cloudflare R2 exige tarjeta**; la 0 bis manda elegir lo que pida menos cosas que conseguir |
+
+Y el resto, con su número: Fly.io ya no tiene plan gratuito, Render no incluye cron en el
+gratuito, Railway da 5 $ que caducan, Oracle Always Free pide tarjeta.
+
+**Los dos plazos están medidos, no estimados.** La base son 143 MB con 83.011 normas —**1.805
+bytes por norma**— y crece ~170 MB/año: **unos dos años** dentro de Neon. El archivo son 1,6 GB en
+84.185 ficheros, ~2 GB/año: **unos cuatro años** en B2. Cuando se acaben, la salida es pagar o
+podar, y es mejor saberlo hoy que el día que falle una escritura.
+
+#### Lo que el workflow NO hace, y es lo primero que hay que saber
+
+**No llama al LLM.** Todos los pasos van con `--sin-extraccion`, porque Ollama corre en local
+(ADR 0008) y en un runner no hay ninguno.
+
+**Y no cuesta vigilancia**, que no es una esperanza sino la consecuencia de dos decisiones ya
+tomadas: desde el ADR 0016 **el gate humano se alimenta del catálogo de reglas leyendo el texto
+archivado, no de la extracción**, y la 6.9.7 ya dejó medido que el modelo pequeño solo ve el 2,6 %
+de un documento medio. La cola del extractor se drena en local con `--extraer` cuando apetezca, y
+lo que se queda fuera no se pierde nunca: la cola es una consulta, no un estado que reponer.
+
+#### El archivo cambia de sitio sin cambiar de forma
+
+Que `services/archivo.py` fuera **la puerta única** del almacén desde el ADR 0015 convirtió esto
+en un `if` en vez de un refactor: los treinta y ocho módulos que archivan o leen no se enteran. Y
+la clave del objeto es **la misma ruta relativa derivada del sha256**, así que **migrar no
+reescribe ni una fila de `documento`**; hay un test que fija esa igualdad, porque es la propiedad
+de la que depende que esto sea reversible.
+
+Tres decisiones dentro, ninguna cosmética:
+
+- **Sustituye al disco, no lo replica.** Con bucket configurado no se escribe nada en local:
+  escribir en los dos sitios dejaría en el runner una copia que *parece* un respaldo y se destruye
+  con el job. Y si falta una credencial, **se para y se dice**, no se cae al disco.
+- **«No está» y «no se puede llegar» siguen siendo hechos distintos.** Un objeto ausente lanza
+  `FileNotFoundError` —que es `OSError`, así que `cuerpo.py` marca `ilegible` como siempre (7.2)—;
+  cualquier otro fallo lanza `AlmacenRemotoCaido`, que **no** es `OSError` y para la pasada. Sin
+  esa distinción, un 500 del almacén marcaría cientos de normas como ilegibles y el embudo lo
+  contaría como cobertura perdida en vez de como avería.
+- **Es la segunda excepción declarada a la allowlist de `url_guard`** (6.2), y por el mismo
+  criterio que Ollama: el destino sale de la configuración, no de un documento. Por eso se valida
+  al arrancar, y aquí con **HTTPS obligatorio** — por ahí van el archivo íntegro y la credencial
+  que lo firma.
+
+#### El canario, porque un cron mudo es peor que ninguno
+
+**GitHub desactiva un workflow programado tras 60 días sin actividad en el repositorio**, avisando
+solo por correo. Un correo no es un canario (6.9.6). El bueno ya existía y no hubo que escribirlo:
+la web publica `ultima_publicacion` por fuente, así que **una fuente muda se ve en la página de
+cobertura** sin que nadie tenga que acordarse de mirar.
+
+#### Lo que se tocó
+
+- `app/services/almacen_remoto.py` (nuevo), `app/services/archivo.py` (el `if`), `app/config.py`
+  (cuatro variables y su validador de arranque), `boto3` como dependencia.
+- `.github/workflows/ingesta.yml` (nuevo): cuatro fuentes + `--fase2` + `--versionar` +
+  `--reclasificar`, cada fuente en su paso para ver cuál se cae, y `!cancelled()` para que un
+  boletín caído no impida los otros tres **sin dejar de acabar en rojo** (6.9.6).
+- `scripts/migrar_almacen.py` (nuevo): sube el archivo **verificando antes que cada fichero sigue
+  casando con su sha256**, que es media razón de que exista. Reanudable e idempotente.
+- `docs/despliegue.md` (nuevo): el procedimiento paso a paso, con la trampa del `+psycopg` que
+  distingue la cadena de `psql` de la de `DATABASE_URL`.
+- 16 tests nuevos; 761 verdes en total, `ruff` y `mypy` limpios.
+
+#### Y se ejecutó el mismo día: ya no es un plan, es el despliegue
+
+El humano creó las dos cuentas y la migración se hizo entera.
+
+- **Base en Neon** (PostgreSQL 17.11, Frankfurt). Las 8 tablas idénticas a local —47 fuentes,
+  83.011 normas, 84.165 documentos, 183 versiones, 90 detecciones, 45 en cola, 13 alertas—, las
+  **15 CHECK** y `alembic current` en `f4a8d21e7c93 (head)` sin proponer nada.
+- **Archivo en Backblaze B2: 84.165 objetos, exactamente los 84.165 ficheros del disco.** Cero
+  fallidos y **cero ficheros que no casaran con su sha256**, que es la **primera verificación de
+  integridad del archivo completo** que se hace en este proyecto: los 84.165 documentos siguen
+  cumpliendo la huella que llevan por nombre, así que el archivo puede seguir demostrando qué
+  decía cada boletín el día que se publicó. La copia fue también una auditoría.
+- **Comprobado leyendo del bucket de verdad**, no supuesto: el worker lee cuerpos archivados
+  desde B2 y la API sirve `/api/cobertura`, `/api/alertas` y `/api/alertas.xml`.
+
+#### Cinco cosas que se aprendieron migrando, y ninguna se deducía de la documentación
+
+1. **La conexión de Neon va SIN pooler.** `pg_restore` deja un `set_config('search_path','',false)`
+   de **sesión**; el pooler es pgbouncer en modo transacción y **reutiliza esa conexión de
+   servidor**, así que después todo cliente que cayera en ese backend veía `relation "fuente" does
+   not exist` con las diez tablas intactas en `public`. Un `ALTER DATABASE ... SET search_path` se
+   graba pero **no rescata la conexión ya envenenada**: solo aplica a las nuevas.
+2. **La API se movió al puerto 8010.** Otro proyecto de la misma máquina ocupaba el 8000 y el
+   síntoma era `farocuir-backend` en «Created» y un error de bind. Puerto fijo y escrito.
+3. **La filtración que rompió el CI era inexistente.** `gitleaks` marcaba `.env.example`: su regla
+   genérica ve un `ALMACEN_S3_ACCESS_KEY=` sin valor y **se traga la línea siguiente como si fuera
+   el valor**. Y la salida obvia era peor —se probó—: `#gitleaks:allow` al final de la línea hace
+   que `dotenv` lo lea **como el valor**, así que quien copiara la plantilla se llevaría una clave
+   fantasma. Se arregló separando las dos variables con un comentario.
+4. **La imagen de Docker no se reconstruye sola.** `boto3` era dependencia nueva y `docker compose
+   up` recrea el contenedor con la imagen vieja: el código entra por el volumen, la dependencia no.
+   Y en esa imagen faltaba también **`pypdf`**, o sea que la recuperación por PDF (ADR 0026)
+   llevaba tiempo sin poder correr en local sin que nadie lo notara.
+5. **Un corte de red no puede tirar una subida de 84.000 objetos.** La primera tanda larga murió en
+   el objeto 30.000 con un `SSL: UNEXPECTED_EOF_WHILE_READING` y se llevó media hora. Con 84.000
+   subidas, que alguna conexión caiga no es una posibilidad: es una certeza.
+
+Y dos números de rendimiento, por si vuelve a hacer falta: **265 objetos/min** con 16 hilos y el
+pool de conexiones en 32; **~2.000/min** con el pool holgado. El cuello es la latencia de cada
+`PUT`, no la CPU ni el disco.
+
+#### Lo que le queda al humano
+
+Mirar el **PR #3** (CI en verde), mergear a `main` —ahí empieza a existir el workflow— y estrenar
+la ingesta a mano con `Run workflow` antes de dejar que corra sola a las 06:30 UTC. Conviene
+además **proteger `main`**: PR obligatorio con **cero aprobaciones** (en un repositorio personal
+no puedes aprobar tu propio PR y te quedarías bloqueado), el check `quality` obligatorio, y sin
+force-push ni borrado. Eso convierte la regla «ninguna rama entra en `main` sin que la mire el
+humano» en algo que hace cumplir la plataforma y no la buena voluntad.
+
+#### De paso: `ESTADO.md` era un fichero binario para `grep`
+
+Tenía **un byte NUL literal** dentro de un comando de ejemplo (`tr "\x00" " "` en el bloque que
+lista los backfill vivos). Con eso, `grep` lo trataba como binario y no devolvía ni una línea del
+fichero que es lo primero que se lee al retomar el proyecto. Sustituido por `\0`, que en `sh`
+hace exactamente lo mismo.

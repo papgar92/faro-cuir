@@ -31,7 +31,7 @@
  */
 
 /** La del catálogo con la que se clasificaron las alertas. Debe coincidir con `reglas.py`. */
-export const VERSION_REGLAS_PUBLICADA = "2026.08.30.2";
+export const VERSION_REGLAS_PUBLICADA = "2026.09.03";
 
 export interface ReglaPublicada {
   id: string;

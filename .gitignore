@@ -55,3 +55,8 @@ backend/data/informes-*.json
 # temporal va con este prefijo y se ignora solo.
 backend/scripts/_sondeo_*.py
 backend/_sondeo_*.py
+
+# Borradores del gold set: andamiaje regenerable con semilla fija (ver su README).
+# Lo que se versiona es lo ETIQUETADO, en casos/.
+backend/tests/gold_set/borradores/*.json
+backend/tests/gold_set/borradores/*.md

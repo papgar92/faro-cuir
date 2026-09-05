@@ -136,7 +136,11 @@ def leer_cuerpo(
         # `<analisis>` del BOE, así que el eje referencial aquí solo puede alimentarse de las
         # citas del propio texto (ADR 0022) — que es justo lo que ese ADR existía para cubrir en
         # las fuentes que no publican metadatos.
-        citadas_pdf = extraer_referencias_citadas(texto_pdf, lista) if lista is not None else ()
+        citadas_pdf = (
+            extraer_referencias_citadas(texto_pdf, lista, norma.titulo or "")
+            if lista is not None
+            else ()
+        )
         return Cuerpo(texto=texto_pdf, referencias=citadas_pdf)
 
     try:
@@ -159,5 +163,7 @@ def leer_cuerpo(
     # es modificativa, `versionado._objetivos` mete los objetivos en un `dict`— y ninguna cuenta
     # cuántas hay. Deduplicar aquí obligaría a decidir cuál de los dos verbos gana, que es una
     # decisión de pipeline y no de lectura.
-    citadas = extraer_referencias_citadas(texto, lista) if lista is not None else ()
+    citadas = (
+        extraer_referencias_citadas(texto, lista, norma.titulo or "") if lista is not None else ()
+    )
     return Cuerpo(texto=texto, referencias=extraer_referencias_anteriores(raiz) + citadas)

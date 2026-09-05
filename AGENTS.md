@@ -70,7 +70,9 @@ Si te encuentras haciendo esto, para:
   medir, y medir es el gold set. Sin él, un cambio de modelo es una opinión.
 - OCR: la prohibición se levantó, pero **antes de escribir una línea hay que demostrar con un
   documento real que su PDF no tiene capa de texto**, y llevarlo a un ADR.
-- Ninguna rama entra en `main` sin que la mire una persona.
+- Ninguna rama entra en `main` sin que **la autorice** una persona. Comprobarla es trabajo tuyo:
+  el resultado del **merge** (no la rama) en un **clon limpio**, con la puerta entera del CI. Y
+  luego pides permiso y esperas — nunca mergees por iniciativa propia, aunque salga todo verde.
 
 ## Coste y autonomía
 
@@ -141,6 +143,6 @@ psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
 
 - Los subagentes de `.claude/agents/` (`jurista-lgtbi`, `revisor-seguridad`, `auditor-reglas`,
   `evaluador`) **son específicos de Claude Code y no funcionan aquí**. Sus criterios están
-  documentados en la sección 13.4 de `docs/CLAUDE.md` si quieres replicarlos.
+  documentados en la sección 13.4, que desde el 2026-08-30 vive en `docs/TRABAJO.md`.
 - Si existe un `GEMINI.md` en la raíz, **tendrá precedencia sobre este fichero**. No crees uno sin
   saberlo: tener dos ficheros de reglas que se contradicen es peor que no tener ninguno.

@@ -60,8 +60,17 @@ services:
       # este montaje ese test se saltaba en local y solo corria en CI, o sea que el desfase se
       # descubria con el commit hecho. Ningun codigo de produccion lee de aqui.
       - ./frontend:/frontend:ro
+    # EL PUERTO DEL HOST ES EL 8010, Y ES FIJO. No se elige a ojo cada vez: se movio del 8000 el
+    # 2026-09-04 porque otro proyecto de la misma maquina ya escuchaba ahi, y `farocuir-backend`
+    # se quedaba en "Created" sin mas explicacion que un error de bind. Un puerto que baila es un
+    # puerto que hay que averiguar cada vez que algo no responde.
+    #
+    # DENTRO del compose sigue siendo el 8000 (`http://backend:8000`, ver VITE_API_PROXY del
+    # frontend): eso es red de contenedores y no colisiona con nada del host. Solo cambia el lado
+    # de fuera. Si algun dia el 8010 tambien se ocupa, se cambia AQUI y en el `target` por defecto
+    # de `frontend/vite.config.ts`, que son los dos unicos sitios que hablan del puerto del host.
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8010:8000"
     # `--no-access-log`: el log de acceso de uvicorn escribe la IP del cliente en CADA peticion,
     # y la 6.4 dice literalmente que no se registran las IPs de quien consulta. Estaba desde S0 y
     # nadie lo habia mirado; se ve al leer el log del panel de revision (ADR 0017), donde la

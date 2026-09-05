@@ -1,0 +1,142 @@
+name: Ingesta diaria
+
+# La vigilancia deja de depender de que el portátil esté encendido con Docker levantado
+# (ADR 0032). Los runners de Linux son gratis e ilimitados en repositorios públicos, y este
+# repositorio lo es; la base vive en Neon y el archivo de la 6.5 en un bucket compatible con S3.
+#
+# LO QUE ESTE WORKFLOW **NO** HACE, Y HAY QUE SABERLO ANTES DE LEERLO: no llama al LLM. Todos
+# los pasos de ingesta llevan `--sin-extraccion`. No es una degradación silenciosa de las que
+# prohíbe 6.9.6 —es una declaración—: Ollama corre en local (ADR 0008) y en un runner no hay.
+# La vigilancia sigue entera porque **el gate humano no se alimenta de la extracción sino del
+# catálogo de reglas, que lee el texto archivado** (ADR 0016 y 6.9.7). La cola del extractor se
+# drena en local con `--extraer` cuando apetezca, y lo que se deja fuera no se pierde nunca,
+# porque la cola es una consulta y no un estado que haya que reponer.
+
+on:
+  schedule:
+    # 06:30 UTC = 08:30 en Madrid en verano, 07:30 en invierno. Después de que el BOE publique
+    # el sumario del día y antes de que a nadie le haga falta mirarlo.
+    - cron: "30 6 * * *"
+  # Para poder relanzar un día concreto sin esperar a mañana, y para reactivar el cron a mano
+  # si GitHub lo desactiva (ver la nota de los 60 días al final del fichero).
+  workflow_dispatch:
+    inputs:
+      fecha:
+        description: "Día a ingerir (AAAA-MM-DD). Vacío = hoy."
+        required: false
+        type: string
+
+# Menos de lo que da por defecto: este job lee el repositorio y no escribe nada en él.
+permissions:
+  contents: read
+
+# Dos ingestas a la vez sobre la misma base no se corrompen —el sha256 hace idempotente la
+# escritura— pero se pisan las pausas de cortesía de la 6.2 y duplican las peticiones a una
+# fuente pública. Se encolan, no se cancelan: una ingesta a medias no deja nada útil.
+concurrency:
+  group: ingesta
+  cancel-in-progress: false
+
+jobs:
+  ingesta:
+    runs-on: ubuntu-latest
+    # El día entero de las cuatro fuentes medido son ~20 min; el tope está para que una fuente
+    # que se quede colgada no consuma horas de runner, no porque se espere llegar cerca.
+    timeout-minutes: 120
+
+    env:
+      # `datetime.date.today()` del worker lee la zona del proceso. Sin esto, un cron que
+      # alguien mueva a las 23:xx UTC ingeriría el día anterior sin que se note.
+      TZ: Europe/Madrid
+      APP_ENV: production
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ALMACEN_S3_BUCKET: ${{ secrets.ALMACEN_S3_BUCKET }}
+      ALMACEN_S3_ENDPOINT: ${{ secrets.ALMACEN_S3_ENDPOINT }}
+      ALMACEN_S3_ACCESS_KEY: ${{ secrets.ALMACEN_S3_ACCESS_KEY }}
+      ALMACEN_S3_SECRET_KEY: ${{ secrets.ALMACEN_S3_SECRET_KEY }}
+      # Ni SUSCRIPTOR_PEPPER ni PANEL_PASSWORD_HASH: el worker no los usa. Un secreto que no
+      # hace falta en la nube es un secreto que no puede filtrarse desde la nube, y los logs de
+      # las Actions de un repositorio público los lee cualquiera.
+      FECHA: ${{ inputs.fecha }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Instalar dependencias
+        working-directory: backend
+        run: pip install -e .
+
+      # Idempotente y barato. Está aquí y no en un despliegue aparte porque el único momento en
+      # que este proyecto toca su base de producción es esta pasada: si una migración falta, lo
+      # que sigue fallaría de una forma mucho menos legible.
+      - name: Migraciones
+        working-directory: backend
+        run: alembic upgrade head
+
+      # --- Las cuatro fuentes integradas (6, ADR 0019, 0028 y 0029) ------------------------
+      # Un paso por fuente y no un bucle: en la interfaz de Actions se ve de un vistazo cuál se
+      # cayó. `!cancelled()` hace que un boletín caído no impida ingerir los otros tres, pero
+      # **el job acaba en rojo igual** — que es lo que exige 6.9.6. Un día sin boletín (domingo,
+      # festivo) no es un fallo y el worker ya sale con 0.
+      - name: BOE
+        working-directory: backend
+        run: python -m worker.run --fuente boe --sin-extraccion ${FECHA:+--fecha "$FECHA"}
+
+      - name: DOGC
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: python -m worker.run --fuente dogc --sin-extraccion ${FECHA:+--fecha "$FECHA"}
+
+      - name: BOA
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: python -m worker.run --fuente boa --sin-extraccion ${FECHA:+--fecha "$FECHA"}
+
+      - name: BOCYL
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: python -m worker.run --fuente bocyl --sin-extraccion ${FECHA:+--fecha "$FECHA"}
+
+      # --- Mantenimiento, en el orden en que se alimentan ---------------------------------
+      # Fase 2 antes que nada: descarga el texto íntegro que falte de TODA la tabla y reevalúa
+      # el prefiltro sobre él (ADR 0011 y 0015). Sin esto lo demás miraría normas sin cuerpo.
+      - name: Texto íntegro pendiente (fase 2)
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: python -m worker.run --fase2
+
+      # El BOE consolida con retraso, así que lo normal es que esta pasada complete el texto
+      # anterior de modificaciones de días atrás (ADR 0018). Por eso se lanza a diario.
+      - name: Versionado desde el consolidado
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: python -m worker.run --versionar
+
+      # El catálogo de reglas sobre el texto archivado, que es lo único que produce veredicto
+      # (ADR 0016) y lo que llena la cola del gate humano (7.7). Este es el paso que hace que la
+      # ausencia del LLM no cueste vigilancia.
+      - name: Catálogo de reglas
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: python -m worker.run --reclasificar
+
+# --- Dos límites conocidos, escritos aquí para que no se descubran en producción -----------
+#
+# 1. **GitHub desactiva un `schedule:` tras 60 días sin actividad en el repositorio**, avisando
+#    solo por correo. Es justo el fallo mudo de 6.9.6, así que el canario NO es ese correo: es
+#    que la web pública ya publica `ultima_publicacion` por fuente (`schemas/cobertura.py`), y
+#    una fuente que lleva días sin nada se ve en la página de cobertura sin que nadie tenga que
+#    acordarse de mirar. Si el cron se apaga, se reactiva con `workflow_dispatch` de arriba.
+#
+# 2. **Los reprocesados masivos NO se lanzan aquí.** `--reprefiltrar` sobre ~82.000 normas lee
+#    el cuerpo de cada una: en local son cuatro horas contra un disco, y contra el bucket serían
+#    82.000 descargas, muy por encima del tope diario del plan gratuito y del límite de 6 h de
+#    un job. Subir VERSION_VOCABULARIO o VERSION_WATCHLIST sigue siendo trabajo de la máquina de
+#    casa, con el archivo local. Lo que sí cabe de sobra es el `--reclasificar` diario, que solo
+#    toca lo que cambió de versión.
