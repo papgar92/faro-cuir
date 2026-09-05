@@ -29,6 +29,9 @@ services:
   backend:
     build:
       context: ./backend
+      # La etapa de desarrollo: la que lleva ruff, mypy y pytest dentro (ADR 0033). La imagen
+      # que se publica en Render es la etapa `base`, sin ellas.
+      target: dev
     # Vuelve solo si el motor de Docker se reinicia o el equipo se apaga. Puesto el 2026-08-22,
     # despues de que el engine se colgara y `db` y `frontend` volvieran solos mientras estos dos
     # se quedaban fuera sin que nada lo dijera. `unless-stopped` y no `always` a proposito: si lo
@@ -91,6 +94,9 @@ services:
   worker:
     build:
       context: ./backend
+      # La etapa de desarrollo: la que lleva ruff, mypy y pytest dentro (ADR 0033). La imagen
+      # que se publica en Render es la etapa `base`, sin ellas.
+      target: dev
     # Igual que `backend`. OJO CON LO QUE ESTO **NO** ARREGLA: la ingesta de fondo se lanza con
     # `docker compose exec -d worker sh /app/backfill.sh`, y un `exec` no es el comando del
     # contenedor, asi que al reiniciarse vuelve el contenedor pero NO el backfill. Hay que

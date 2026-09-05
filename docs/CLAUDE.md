@@ -753,9 +753,9 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
 - **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
-  consecuencias. **Están todos escritos del 0001 al 0032** y su título dice de qué van: `ls
+  consecuencias. **Están todos escritos del 0001 al 0033** y su título dice de qué van: `ls
   docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
-  **El siguiente número libre es el 0033.** No queda ninguno reservado.
+  **El siguiente número libre es el 0034.** No queda ninguno reservado.
   Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
   (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada, con el **0031** que
   lo lleva un paso más allá) y **0027** (el límite medido del eje referencial). El **0025** es el único implementado a medias: falta la

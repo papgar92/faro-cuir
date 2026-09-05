@@ -1,0 +1,60 @@
+# Despliegue del backend publico en Render. ADR 0033.
+#
+# Esta en el repositorio y no pinchado en la interfaz de Render a proposito: la configuracion de
+# un despliegue es parte de lo que un tercero tiene que poder auditar, igual que las reglas del
+# clasificador. Un ajuste que solo vive en el panel de un proveedor no se revisa en un PR, no
+# aparece en un diff y nadie se entera cuando cambia.
+#
+# Se aplica desde Render con «New > Blueprint» apuntando a este repositorio.
+
+services:
+  - type: web
+    name: farocuir-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # `base` y no `dev`: la imagen publica NO lleva ruff, mypy ni pytest dentro.
+    dockerTarget: base
+    plan: free
+    # Frankfurt. El proyecto lleva una EIPD y una transferencia internacional que no aporta nada
+    # es un capitulo que nadie quiere escribir. Mismo criterio que la region de Neon.
+    region: frankfurt
+    # Solo main: lo que se publica hacia fuera sale de la rama protegida, nunca de una rama de
+    # trabajo. Es la misma regla del gate humano aplicada al despliegue.
+    branch: main
+    autoDeployTrigger: commit
+    # `/health` existe desde S0 y no toca la base de datos. Render lo usa para saber si el
+    # servicio esta vivo y para despertarlo; que no consulte nada es justo lo que se quiere.
+    healthCheckPath: /health
+
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+
+      # --- Los secretos NO van aqui ------------------------------------------------------
+      # `sync: false` significa «esto lo rellena una persona en el panel de Render y no se
+      # versiona». Un fichero de configuracion en un repositorio publico no es sitio para una
+      # credencial, y `gitleaks` lo pararia en el CI de todas formas.
+      #
+      # La cadena de Neon va SIN `-pooler` (docs/despliegue.md, paso 3 bis) y CON `+psycopg`.
+      - key: DATABASE_URL
+        sync: false
+      - key: ALMACEN_S3_BUCKET
+        sync: false
+      - key: ALMACEN_S3_ENDPOINT
+        sync: false
+      - key: ALMACEN_S3_ACCESS_KEY
+        sync: false
+      - key: ALMACEN_S3_SECRET_KEY
+        sync: false
+      # Sin el, `security/hashing.hash_email` falla cerrado y no se guarda ningun alta. Es lo
+      # correcto: mejor una suscripcion perdida que un padron con hashes reversibles (6.4).
+      - key: SUSCRIPTOR_PEPPER
+        sync: false
+      # Sin el, el panel de revision NO abre y el resto de la API sigue funcionando. Tambien es
+      # lo correcto: es el unico camino por el que una deteccion se convierte en alerta
+      # publicable (regla de oro 4), asi que fallar cerrado es la unica opcion.
+      - key: PANEL_PASSWORD_HASH
+        sync: false

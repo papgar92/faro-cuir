@@ -196,3 +196,76 @@ avisa por correo. Un correo no es un canario (6.9.6). El canario es el que ya ex
 publica `ultima_publicacion` por fuente, así que una fuente que lleva días sin nada **se ve en la
 página de cobertura** sin que nadie tenga que acordarse de comprobarlo. Reactivarlo es lanzar el
 `Run workflow` de arriba.
+
+
+---
+
+# Parte 2 · La web y la API en la nube (ADR 0033)
+
+> La parte 1 saco la ingesta, la base y el archivo del portatil. Esto saca **lo que tiene
+> publico**: el backend de FastAPI y la web.
+>
+> **Nada de esto se despliega sin que lo digas tu** (seccion 12). Aqui esta todo preparado.
+
+| pieza | donde | plan | tarjeta |
+|---|---|---|---|
+| API | [Render](https://render.com), region **Frankfurt** | Free | **no** |
+| Web | [Netlify](https://netlify.com) | Free | **no** |
+
+## 0. Antes de nada: las tipografias
+
+`frontend/index.html` carga las fuentes desde **Google Fonts**, o sea que el navegador de cada
+visitante manda su IP a Google en cada carga. La seccion 6.4 dice que **no se registran IPs de
+quien consulta la web**, y la EIPD se articula sobre eso.
+
+**Esto se arregla antes de publicar**, alojando las tres familias nosotros. Mientras no se haga,
+la CSP de `netlify.toml` tiene que nombrar a `fonts.googleapis.com` y `fonts.gstatic.com` — y ahi
+esta, a la vista en el diff, que es donde tiene que estar una excepcion.
+
+## 1. La API en Render
+
+1. Crear cuenta (no pide tarjeta) y **no anadir metodo de pago**. Sin el, el modo de fallo es la
+   suspension, no el cargo: es lo que protege la restriccion de 0 EUR.
+2. **New -> Blueprint**, apuntando a este repositorio. Render lee `render.yaml` y crea el
+   servicio con su region, su etapa de Docker y su comprobacion de salud ya puestas.
+3. Rellenar a mano los **siete secretos** que el fichero declara con `sync: false`:
+
+   | variable | de donde sale |
+   |---|---|
+   | `DATABASE_URL` | Neon, **sin `-pooler`** y **con `+psycopg`** (paso 3 bis de la parte 1) |
+   | `ALMACEN_S3_BUCKET` / `_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` | los mismos cuatro de B2 |
+   | `SUSCRIPTOR_PEPPER` | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+   | `PANEL_PASSWORD_HASH` | `docker compose exec backend python -m scripts.generar_hash_panel` |
+
+   Los dos ultimos **fallan cerrado** si faltan, y es lo correcto: sin pepper no se guarda ningun
+   alta, y sin hash el panel no abre. El resto de la API sigue funcionando.
+4. Anotar el host que da Render (`farocuir-api.onrender.com` o el que sea) y **ponerlo en
+   `netlify.toml`**, en el `to` del proxy. Mientras no coincida, la web parecera rota sin decir
+   por que.
+5. Comprobar: `curl https://<host>/health` y `curl https://<host>/api/cobertura`.
+
+## 2. La web en Netlify
+
+1. Crear cuenta y **Add new site -> Import an existing project**, apuntando al repositorio.
+   Netlify lee `netlify.toml`: no hay que teclear ni el comando de compilacion ni el directorio.
+2. Desplegar y comprobar **tres cosas, en este orden**:
+   - Que la pagina carga **con estilos**. Si se viera sin ellos, es la CSP: mirar la consola del
+     navegador y arreglar la politica, **no aflojarla a `'unsafe-inline'` sin leer el error**.
+   - Que `/api/cobertura` responde **desde el dominio de Netlify**. Eso prueba que el proxy
+     funciona y que seguimos en el mismo origen.
+   - Que el panel de revision abre y acepta la contrasena.
+3. Pasar las cabeceras por un comprobador (securityheaders.com o `curl -I`): HSTS,
+   `X-Content-Type-Options`, `Referrer-Policy` y la CSP.
+
+## 3. Lo que hay que saber antes de ensenarselo a nadie
+
+- **La API duerme a los 15 minutos sin trafico y tarda ~1 minuto en despertar.** La primera
+  visita despues de un rato se queda esperando. No esta roto.
+- **Las sesiones del panel mueren en cada suspension**: quien revise tendra que autenticarse casi
+  cada vez.
+- **La cadencia de intentos del panel tambien se reinicia al despertar.** Es el mismo «falla
+  abierto» en version temporal, y **va al THREAT-MODEL** como riesgo residual.
+- **La EIPD hay que reescribirla en un punto**: con estas plataformas no se puede afirmar «no se
+  registran IPs», solo «nosotros no las registramos». Netlify y Render procesan IPs en su borde y
+  ninguno lo desactiva desde un plan gratuito; hay que nombrarlos como **encargados del
+  tratamiento**. Por nuestro lado sigue siendo cierto: uvicorn arranca con `--no-access-log`.
