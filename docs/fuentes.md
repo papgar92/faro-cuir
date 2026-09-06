@@ -81,7 +81,7 @@ hueco invisible.
 | TODO(verificar) | Galicia | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | **BOCM** (Boletín Oficial de la Comunidad de Madrid) | Comunidad de Madrid | sumario `https://www.bocm.es/boletin/CM_Boletin_BOCM/{aaaa/mm/dd}/BOCM-{aaaammdd}.xml` · texto: el `url_xml` que declara el propio sumario | **API (XML) en las dos fases**, verificado el 2026-09-06 descargando tres días seguidos | No | **TODO(verificar)** — no se localizó declaración de reutilización; no se deduce (regla de oro 8) | **Baja** — es la única candidata cuyo sumario se pide **solo con la fecha**, sin resolver antes un número de edición; sus dos trampas están en el ADR 0034 | **INTEGRADA** (ADR 0034), quinta fuente; 73 disposiciones el día verificado, de ellas **27 municipales** |
 | TODO(verificar) | Región de Murcia | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
-| TODO(verificar) | Comunidad Foral de Navarra | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
+| **BON** (Boletín Oficial de Navarra) | Comunidad Foral de Navarra | sumario `https://bon.navarra.es/es/boletin/-/sumario/{aaaa}/{numero}` · texto `.../es/anuncio/-/texto/{aaaa}/{numero}/{orden}` | **HTML en las dos fases** — la primera fuente del **nivel C** (ADR 0036), verificado el 2026-09-06 | No | **TODO(verificar)** — no se localizó declaración de reutilización; no se deduce (regla de oro 8) | **Alta** — no tiene calendario, su búsqueda por fecha **miente**, y la fecha se resuelve por bisección sobre el número de boletín leyendo la cabecera que declara cada candidato | **INTEGRADA** (ADR 0036), séptima fuente |
 | **BOPV** (Boletín Oficial del País Vasco) | País Vasco / Euskadi | calendario `https://www.euskadi.eus/bopv2/datos/{mmaaaa}.shtml` · sumario `.../{aaaa}/{mm}/s{aa}_{nnnn}.xml` · texto `.../{aaaa}/{mm}/{aa}{orden}a.xml` | **API (XML) en las dos fases**, verificado el 2026-09-06 descargando calendario, sumario y cuerpos | No | **TODO(verificar)** — no se localizó declaración de reutilización; no se deduce (regla de oro 8) | **Media** — el mejor XML de las seis, a cambio de una petición más: la fecha se resuelve por el calendario del mes. Y **un día puede traer dos ediciones** | **INTEGRADA** (ADR 0035), sexta fuente |
 | TODO(verificar) | La Rioja | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 
@@ -271,6 +271,50 @@ sueltas entre los pares título/orden, y la subsección se reinicia al cambiar d
 cuerpo no tiene contenedor: el articulado son hermanos de los metadatos, así que la derivación de
 texto se invierte y lo que se hace es **excluir los metadatos conocidos**.
 
+### El BON, integrado: la primera fuente cuyo articulado es una página web (ADR 0036)
+
+Séptima fuente y sexta autonómica. Entra porque el humano lo pidió —«necesitamos a Navarra sí o
+sí»— y porque con ella el proyecto define **tres niveles de cuerpo** en vez de dar por hecho que
+todo llega en XML:
+
+| Nivel | Formato | Derivación | Fuentes |
+|---|---|---|---|
+| A | XML estructurado | `pipeline/texto.py` | BOE, DOGC, BOA, BOCYL, BOCM, BOPV |
+| B | PDF | capa de texto (ADR 0026) | DOGC, las que solo salen en PDF |
+| C | **HTML de portal** | `pipeline/texto_html.py` | **BON** |
+
+**El nivel es del documento, no de la comunidad**, y eso lo decidió el contraejemplo que ya
+teníamos en casa: el DOGC publica unas normas en XML y otras solo en PDF, así que Cataluña
+estaría en dos grupos a la vez. Lo decide `services/cuerpo.py` mirando los bytes archivados,
+igual que ya hacía con el PDF.
+
+**Lo que hace admisible el nivel C son sus tres obligaciones** (ADR 0036): contenedor declarado
+en una lista cerrada, canario de tamaño, y caída a `ilegible` si falla cualquiera de los dos. De
+un HTML sin contenedor declarado **no se extrae nada**, y eso es lo que mantiene en pie la
+protección del ADR 0020: la página de error del DOGC sigue siendo `ilegible`, con un test que lo
+fija usando la real.
+
+**Cuatro particularidades del BON, y la primera es la que engaña:**
+
+1. **Su búsqueda por fecha miente.** `?anio=&mes=&dia=` existe y devuelve siempre el último
+   boletín publicado: pedirle el 10 de enero de 2024 da lo mismo, byte por byte, que pedirle
+   cualquier otro día. Es la trampa del RSS del BOCYL otra vez, y se descubre igual — pidiendo
+   dos días distintos y comparando, no leyendo la documentación.
+2. **Lo que sí hay es que cada sumario declara su cabecera**: `BOLETÍN Nº 6 - 9 de enero de
+   2024`. Eso es lo que hace archivable esta fuente. La fecha se resuelve por **bisección sobre
+   el número de boletín**, leyendo la cabecera de cada candidato: la fecha nunca se supone.
+3. **Un día puede traer dos boletines**, como el BOPV: el 253 y el 254 son los dos del 16 de
+   diciembre de 2024, y el 254 trae una sola disposición. El BON los etiqueta
+   (`- EXTRAORDINARIO`), cosa que el BOPV no hace.
+4. **El atributo `title` del enlace lleva comillas sin escapar**, así que el título se lee del
+   texto del enlace y no del atributo.
+
+**Y la séptima forma distinta de decir «aquí no hay boletín»: HTTP 200 con una página vacía.**
+
+**Su coste, dicho antes de lanzarlo:** resolver una fecha son hasta 16 peticiones de ~100 KB. La
+pasada diaria casi siempre gasta una, porque el índice lista los cuatro últimos con su fecha;
+**un backfill del BON es caro**.
+
 ### Las candidatas sondeadas y su estado — 2026-08-29, revisado el 2026-09-06
 
 Sondeadas pidiéndoles un día concreto, no leyendo su documentación. Es la misma disciplina del
@@ -280,7 +324,7 @@ ADR 0019 y vuelve a ser lo que separa «tiene portal de datos abiertos» de «se
 |---|---|---|
 | **BOA** (Aragón) | Sumario y texto íntegro en XML, una petición, por fecha exacta | **INTEGRADA** (ADR 0028) |
 | **BOCYL** (Castilla y León) | Sumario HTML por fecha + XML por disposición, direccionable por identificador | **INTEGRADA** (ADR 0029) |
-| BON (Navarra) | Sumario HTML por **número de edición**, y declara su propia fecha. Su `?anio=&mes=&dia=` **ignora la fecha** y sirve siempre el último. Cuerpos **solo en HTML**, que choca con la raya del ADR 0029 | **La primera candidata si algún día el límite sube a siete** |
+| **BON** (Navarra) | Sumario HTML por número de edición que **declara su propia fecha**. Su `?anio=&mes=&dia=` ignora la fecha y sirve siempre el último. Cuerpos **solo en HTML** | **INTEGRADA** (ADR 0036) — el límite subió a siete |
 | BOC (Canarias) | Índice HTML | Pendiente |
 | DOE (Extremadura) | Índice HTML | Pendiente |
 | BORM (Murcia) | PDF del boletín | Pendiente — PDF: permitido por 6.1, pero es la vía cara |

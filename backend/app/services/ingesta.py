@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ingest import boa, bocm, bocyl, boe, bopv, dogc
+from app.ingest import boa, bocm, bocyl, boe, bon, bopv, dogc
 from app.ingest.boe import Sumario
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
@@ -249,6 +249,41 @@ def ingerir_sumario_bopv(
                 sumario=sumario,
                 contenido=contenido,
                 url_original=bopv.url_sumario(fecha, edicion),
+                almacen_root=almacen_root,
+            )
+        )
+    return tuple(resultados)
+
+
+def ingerir_sumario_bon(
+    session: Session,
+    *,
+    fuente_id: int,
+    fecha: datetime.date,
+    almacen_root: Path,
+    client: httpx.Client | None = None,
+) -> tuple[ResultadoIngesta, ...]:
+    """Lo mismo para el BON (ADR 0036), séptima fuente y sexta autonómica.
+
+    La segunda que puede devolver más de un resultado: Navarra también publica extraordinarios
+    el mismo día (los boletines 253 y 254 son los dos del 16 de diciembre de 2024).
+
+    **Y la más cara de resolver**: el BON no publica calendario y su búsqueda por fecha miente,
+    así que la fecha se resuelve por bisección sobre el número de boletín, leyendo la cabecera
+    que declara cada candidato. Hasta `bon.MAX_SONDEOS` peticiones por día.
+    """
+    numeros = bon.resolver_ediciones(fecha, client=client)
+    resultados = []
+    for numero in numeros:
+        contenido = bon.descargar_sumario(fecha, numero, client=client)
+        sumario = bon.parsear_sumario(contenido, fecha, numero)
+        resultados.append(
+            _archivar_y_registrar(
+                session,
+                fuente_id=fuente_id,
+                sumario=sumario,
+                contenido=contenido,
+                url_original=bon.url_sumario(fecha.year, numero),
                 almacen_root=almacen_root,
             )
         )

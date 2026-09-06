@@ -39,7 +39,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ingest import boa, bocm, bocyl, bopv
+from app.ingest import boa, bocm, bocyl, bon, bopv
 from app.ingest.boe import SumarioInvalido
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
@@ -89,6 +89,10 @@ _VALIDADORES = {
     # El BOPV (ADR 0035) no declara fecha en el cuerpo, así que lo que se contrasta es su
     # `BOPVOrden` contra el que va dentro del identificador que acuñamos al leer el sumario.
     "BOPV-": bopv.parsear_cuerpo,
+    # El BON (ADR 0036) es del nivel HTML: su validador **no devuelve un árbol**, solo comprueba
+    # que la página trae la cabecera del boletín que se pidió. Quien convierte esa página en
+    # texto es `pipeline/texto_html.py`, con su contenedor declarado.
+    "BON-": bon.parsear_cuerpo,
 }
 
 

@@ -165,17 +165,23 @@ def _diffs(session: Session, norma_id: int) -> tuple[reglas.Diff, ...]:
     )
 
 
-def _evidencia_json(veredicto: reglas.Veredicto, *, ahora: datetime.datetime) -> dict[str, object]:
+def _evidencia_json(
+    veredicto: reglas.Veredicto, *, ahora: datetime.datetime, derivacion: str
+) -> dict[str, object]:
     """Lo que hace falta para que un tercero rebata el veredicto sin ejecutar nuestro código.
 
     Las dos versiones van dentro y no solo en `norma`: una fila de `deteccion` tiene que poder
     leerse sola. Sin `version_texto_plano` los offsets no significan nada, porque no se sabría
     sobre qué derivación se midieron.
+
+    Y desde el ADR 0036 hay **tres niveles de derivación** —XML, PDF y HTML—, así que la versión
+    sola ya no termina la frase: `derivacion` dice cuál de los tres produjo este texto.
     """
     return {
         "regla": veredicto.regla,
         "version_reglas": veredicto.version_reglas,
         "version_texto_plano": VERSION_TEXTO_PLANO,
+        "derivacion": derivacion,
         "normas_vigiladas": list(veredicto.normas_vigiladas),
         # ADR 0024. Va junto a `normas_vigiladas` porque hace el mismo trabajo: decirle al
         # gate humano por qué esta detección merece que alguien la mire.
@@ -292,7 +298,9 @@ def aplicar(
                     norma.identificador_oficial,
                     reglas.VERSION_REGLAS,
                 )
-            deteccion.evidencia_json = _evidencia_json(veredicto, ahora=ahora)
+            deteccion.evidencia_json = _evidencia_json(
+                veredicto, ahora=ahora, derivacion=cuerpo.derivacion
+            )
             con_veredicto += 1
             por_regla[veredicto.regla] = por_regla.get(veredicto.regla, 0) + 1
 

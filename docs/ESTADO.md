@@ -3195,3 +3195,70 @@ mientras se añade una fuente es cómo se pierde uno.
 3. Sigue abierto lo de antes: etiquetar los 32 borradores del gold set (tiempo humano), la
    pantalla de Metodología (7.6), la alerta de `BOE-A-2026-16172`, los preceptos por
    norma-vehículo y publicar `fuente` en `DocumentoResumen`.
+
+---
+
+### Séptima fuente: Navarra, y tres niveles de cuerpo en vez de uno — 2026-09-06 (ADR 0036)
+
+Lo pediste así: «necesitamos a Navarra sí o sí, podemos hacer una regla aparte para estas CCAA
+que no tienen en XML, tenemos que adaptar las normas por comunidad, o englobar comunidades por el
+tipo de cuerpo (HTML, XML, etc) y tener normas según esto».
+
+**Se adopta tu segunda opción con una corrección: el nivel es del DOCUMENTO, no de la
+comunidad.** Agrupar por CCAA se rompe con la fuente que llevamos más tiempo ingiriendo — el
+DOGC publica unas normas en XML y otras solo en PDF (ADR 0026), así que Cataluña estaría en dos
+grupos a la vez. Lo decide `services/cuerpo.py` mirando los bytes archivados, que es lo que ya
+hacía con el PDF: «el formato se decide por el contenido, no por la extensión ni por la fuente».
+
+| Nivel | Formato | Derivación | Fuentes |
+|---|---|---|---|
+| A | XML | `pipeline/texto.py` | BOE, DOGC, BOA, BOCYL, BOCM, BOPV |
+| B | PDF | capa de texto (ADR 0026) | DOGC, las que solo salen en PDF |
+| C | **HTML de portal** | `pipeline/texto_html.py` | **BON** |
+
+#### Por qué esto no rompe la raya del ADR 0029
+
+Aquella frase decía «el texto que una alerta cite sale siempre del XML», pero **lo que protegía
+no era el XML**: el proyecto ya admitía PDF. La regla real siempre fue *evidencia de un recorte
+declarado y reproducible, no de raspar lo que haya*. El nivel C paga por entrar con **tres
+obligaciones**: contenedor declarado en lista cerrada, canario de tamaño, y caída a `ilegible`
+si falla cualquiera de los dos.
+
+**La primera mantiene en pie el ADR 0020.** De aquel caso llegaron 172 páginas de error del DOGC
+archivadas como normas, y lo único que impidió que entraran fue que `xml_safe` no sabía leerlas.
+Ahora hay una rama que sí sabe leer HTML, así que **hay un test con la página de error real** que
+comprueba que sigue dando cero caracteres. Es el que hay que mirar antes de tocar este nivel.
+
+#### Navarra, verificada en vivo
+
+- **Su búsqueda por fecha miente**: devuelve siempre el último boletín, byte por byte. La trampa
+  del RSS del BOCYL otra vez.
+- Lo que sí hay: **cada sumario declara su cabecera**, así que la fecha se resuelve por
+  **bisección sobre el número de boletín** leyendo la cabecera de cada candidato.
+- **Un día puede traer dos boletines**, como el País Vasco: el 253 y el 254 son los dos del 16 de
+  diciembre de 2024. La interfaz de tupla del ADR 0035 lo cubrió **sin tocar nada**, que es para
+  lo que se hizo uniforme, y es la primera vez que se cobra sola.
+- **Un número que no existe da 200 con página vacía**, no 404. Séptima forma distinta.
+- Descargando: 2024-12-16 dos boletines (48 y 1 disposiciones); 2024-01-09 uno con 44; y los
+  cuerpos HTML dan 72.804 y 52.387 caracteres por el contenedor declarado.
+
+**Un defecto propio que cazó su test:** el barrido de vecinos se paraba al llegar al tope de
+sondeos **sin decir nada**, o sea truncaba la lista de ediciones en silencio. Perder un
+extraordinario por ahí habría sido perder justo lo que este ADR entra a proteger.
+
+#### Estado
+
+**Siete fuentes de 61.** `ruff`, `ruff format`, `mypy` y **813 tests**. El guardarraíl de la
+sección 8 sube de 6 a 7 y gana un criterio: **una fuente de nivel C entra solo si su articulado
+no existe en ningún formato documental**.
+
+#### Siguiente
+
+1. **Decir en la web qué se vigila y qué no**, aprobado en la misma petición. `CoberturaTotal` ya
+   pinta una marca por fuente y se alimenta de la API, así que dirá «7 de 61» sola; falta
+   **nombrar cuáles** y decir lo que no es obvio: que en **Asturias y Castilla y León el eje
+   referencial no puede dispararse** porque no tienen ley autonómica LGTBI. **~20k**
+2. **Backfill de las tres nuevas.** BOCM y BOPV son baratas; **el BON es caro** (hasta 16
+   peticiones por día resuelto). **~10k**
+3. Sigue abierto: gold set, pantalla de Metodología, la alerta de `BOE-A-2026-16172`, los
+   preceptos por norma-vehículo y publicar `fuente` en `DocumentoResumen`.

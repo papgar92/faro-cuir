@@ -52,6 +52,7 @@ FUENTES: dict[
     "bocyl": (TipoFuente.BOLETIN_AUTONOMICO, "CL", ingesta.ingerir_sumario_bocyl),
     "bocm": (TipoFuente.BOLETIN_AUTONOMICO, "MD", ingesta.ingerir_sumario_bocm),
     "bopv": (TipoFuente.BOLETIN_AUTONOMICO, "PV", ingesta.ingerir_sumario_bopv),
+    "bon": (TipoFuente.BOLETIN_AUTONOMICO, "NC", ingesta.ingerir_sumario_bon),
 }
 
 FUENTES_SOPORTADAS = tuple(FUENTES)

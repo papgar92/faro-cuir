@@ -88,6 +88,10 @@ DEFAULT_ALLOWLIST: frozenset[str] = frozenset(
         # porque el portal reescribe entre `www.euskadi.eus` y `www.euskadi.eus/web01-bopv`
         # según la ruta, y `fetch` revalida cada salto.
         "euskadi.eus",
+        # --- BON, séptima fuente y sexta autonómica (ADR 0036) ------------------------------
+        # Índice, sumario y cuerpo salen del mismo host. Es la primera fuente del nivel HTML:
+        # de aquí sale articulado, así que el recorte va declarado en `pipeline/texto_html.py`.
+        "bon.navarra.es",
     }
 )
 
