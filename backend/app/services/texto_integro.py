@@ -39,7 +39,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ingest import boa, bocm, bocyl
+from app.ingest import boa, bocm, bocyl, bopv
 from app.ingest.boe import SumarioInvalido
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
@@ -86,6 +86,9 @@ _VALIDADORES = {
     # llevan su guion final.
     "BOCM-": bocm.parsear_cuerpo,
     "BOCYL-": bocyl.parsear_cuerpo,
+    # El BOPV (ADR 0035) no declara fecha en el cuerpo, así que lo que se contrasta es su
+    # `BOPVOrden` contra el que va dentro del identificador que acuñamos al leer el sumario.
+    "BOPV-": bopv.parsear_cuerpo,
 }
 
 

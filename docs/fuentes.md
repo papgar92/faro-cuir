@@ -82,7 +82,7 @@ hueco invisible.
 | **BOCM** (Boletín Oficial de la Comunidad de Madrid) | Comunidad de Madrid | sumario `https://www.bocm.es/boletin/CM_Boletin_BOCM/{aaaa/mm/dd}/BOCM-{aaaammdd}.xml` · texto: el `url_xml` que declara el propio sumario | **API (XML) en las dos fases**, verificado el 2026-09-06 descargando tres días seguidos | No | **TODO(verificar)** — no se localizó declaración de reutilización; no se deduce (regla de oro 8) | **Baja** — es la única candidata cuyo sumario se pide **solo con la fecha**, sin resolver antes un número de edición; sus dos trampas están en el ADR 0034 | **INTEGRADA** (ADR 0034), quinta fuente; 73 disposiciones el día verificado, de ellas **27 municipales** |
 | TODO(verificar) | Región de Murcia | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Comunidad Foral de Navarra | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
-| TODO(verificar) | País Vasco / Euskadi | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
+| **BOPV** (Boletín Oficial del País Vasco) | País Vasco / Euskadi | calendario `https://www.euskadi.eus/bopv2/datos/{mmaaaa}.shtml` · sumario `.../{aaaa}/{mm}/s{aa}_{nnnn}.xml` · texto `.../{aaaa}/{mm}/{aa}{orden}a.xml` | **API (XML) en las dos fases**, verificado el 2026-09-06 descargando calendario, sumario y cuerpos | No | **TODO(verificar)** — no se localizó declaración de reutilización; no se deduce (regla de oro 8) | **Media** — el mejor XML de las seis, a cambio de una petición más: la fecha se resuelve por el calendario del mes. Y **un día puede traer dos ediciones** | **INTEGRADA** (ADR 0035), sexta fuente |
 | TODO(verificar) | La Rioja | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 
 ### El DOGC, integrado: lo que hubo que aprender (ADR 0019 y 0020)
@@ -242,6 +242,35 @@ administración y hasta hoy el sistema solo veía dos.
 de la lista vacía del DOGC, la portada del BOA y la página corta del BOCYL, resulta que la
 respuesta cómoda también existe.
 
+### El BOPV, integrado: el mejor XML de las seis, y el índice que estaba en un iframe (ADR 0035)
+
+Sexta fuente y quinta autonómica. Sirve **XML en las dos fases** y su cuerpo es el más limpio de
+todos. La razón de que no estuviera integrada mucho antes es que su sumario **no declara de qué
+día es** y solo se pide por número de edición: sin poder comprobar que el boletín que llegó es el
+del día pedido, el archivo de la 6.5 no puede afirmar lo que afirma.
+
+**El índice fecha → edición existe y estaba escondido**: es el calendario del mes que la propia
+web del BOPV carga en un `<iframe>`, `/bopv2/datos/{mm}{aaaa}.shtml`, **1,5 KB**, con dos arrays
+de JavaScript emparejados por posición. Se lee con expresión regular, nunca ejecutando el
+JavaScript (regla de oro 1). Hay datos hasta enero de 2024, así que el backfill también funciona.
+El descarte que este mismo documento anotó por la mañana duró unas horas.
+
+**El hallazgo que valía la ronda entera: un día puede traer DOS boletines.** Sondeados los 33
+meses con datos, cinco días traen dos ediciones (2024-04-08, 2025-10-24, 2025-11-03, 2025-12-01 y
+2026-05-04): **uno cada siete meses**. Y `enlaces` es una lista *de listas*, así que quien la lea
+como si fuera de cadenas se queda con la primera y pierde la segunda entera, en silencio.
+
+Qué es la segunda edición, mirando la del 4 de mayo de 2026: **485 bytes, una sola disposición,
+sección DISPOSICIONES GENERALES, órgano LEHENDAKARITZA** — un Decreto del lehendakari. El
+contenido de ese en concreto es inocuo, pero la forma es la que importa: una edición
+extraordinaria lleva una norma sola, del máximo rango, en la sección de disposiciones generales.
+Es el canal por el que sale algo con prisa.
+
+**Y dos particularidades más:** el sumario es plano (sección, subsección y organismo son cabeceras
+sueltas entre los pares título/orden, y la subsección se reinicia al cambiar de sección), y el
+cuerpo no tiene contenedor: el articulado son hermanos de los metadatos, así que la derivación de
+texto se invierte y lo que se hace es **excluir los metadatos conocidos**.
+
 ### Las candidatas sondeadas y su estado — 2026-08-29, revisado el 2026-09-06
 
 Sondeadas pidiéndoles un día concreto, no leyendo su documentación. Es la misma disciplina del
@@ -251,11 +280,11 @@ ADR 0019 y vuelve a ser lo que separa «tiene portal de datos abiertos» de «se
 |---|---|---|
 | **BOA** (Aragón) | Sumario y texto íntegro en XML, una petición, por fecha exacta | **INTEGRADA** (ADR 0028) |
 | **BOCYL** (Castilla y León) | Sumario HTML por fecha + XML por disposición, direccionable por identificador | **INTEGRADA** (ADR 0029) |
-| BON (Navarra) | Sumario HTML por **número de edición**, y **declara su propia fecha** —lo que le falta al BOPV—. Su `?anio=&mes=&dia=` **ignora la fecha** y sirve siempre el último. Cuerpos **solo en HTML** | Ver ADR 0035 |
+| BON (Navarra) | Sumario HTML por **número de edición**, y declara su propia fecha. Su `?anio=&mes=&dia=` **ignora la fecha** y sirve siempre el último. Cuerpos **solo en HTML**, que choca con la raya del ADR 0029 | **La primera candidata si algún día el límite sube a siete** |
 | BOC (Canarias) | Índice HTML | Pendiente |
 | DOE (Extremadura) | Índice HTML | Pendiente |
 | BORM (Murcia) | PDF del boletín | Pendiente — PDF: permitido por 6.1, pero es la vía cara |
-| BOPV (Euskadi) | **El mejor XML de todas las sondeadas**: sumario `s{aa}_{nnnn}.xml` y cuerpo `{aa}{orden}a.xml`. Pero su sumario **no declara su propia fecha** y solo se pide por número de edición | Descartada por ahora — ver ADR 0034 |
+| **BOPV** (Euskadi) | El mejor XML de todas. Su sumario no declara su fecha, pero **sí existe un índice fecha → edición**: el calendario del mes, `{mmaaaa}.shtml`, 1,5 KB, con datos hasta 2024 | **INTEGRADA** (ADR 0035) — el descarte del ADR 0034 duró unas horas |
 | DOGV (C. Valenciana) | Responde 200 por rango de fechas, pero **el listado lo genera JavaScript**: el HTML servido no trae ni un enlace a disposición | Descartada — exigiría un navegador sin cabeza, que este proyecto no tiene |
 | **BOCM** (Madrid) | Sumario XML por fecha pura y cuerpo XML por identificador. **La nota de 2026-08-29 («el XML por disposición da 500») era falsa a 2026-09-06** | **INTEGRADA** (ADR 0034) |
 | BOJA (Andalucía) | El HTML **declara que suprime contenido** | Descartada — choca con 7.1 |

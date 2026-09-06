@@ -3114,3 +3114,84 @@ lleva 969 normas y cero detecciones porque Castilla y León no tiene ley autonó
    esta sesión con 56,3 KB, o sea que ya estaba). La entrada del 2026-08-30 que lo avisa sigue
    vigente y la receta escrita es sacar **un bloque entero**, no recortar frases. No se ha tocado
    aquí a propósito: podar guardarraíles mientras se añade una fuente es cómo se pierde uno.
+
+---
+
+### ✅ Sexta fuente: el BOPV, y un boletín que se estaba perdiendo — 2026-09-06 (ADR 0035)
+
+La segunda de las dos comunidades que pediste. Y la que ha destapado un fallo que no era del
+BOPV: era del modelo.
+
+#### El descarte de esta mañana estaba mal
+
+El ADR 0034 descartó el BOPV hace unas horas con este motivo: *«su sumario no declara su propia
+fecha, así que no hay forma de comprobar que el boletín que llegó es el del día pedido»*. Era
+cierto y aun así el descarte estaba mal, porque **el índice fecha → edición sí existe**: es el
+calendario del mes que la propia web carga en un `<iframe>`, `/bopv2/datos/{mm}{aaaa}.shtml`,
+**1,5 KB**, con dos arrays de JavaScript. Se encontró leyendo el HTML de una disposición buscando
+otra cosa. Hay datos hasta enero de 2024, así que el backfill también funciona.
+
+Se lee con expresión regular y **nunca ejecutando el JavaScript**: es código de una fuente
+externa (regla de oro 1).
+
+#### El hallazgo que valía la ronda entera
+
+**Un día puede traer DOS boletines.** Sondeados los 33 meses con datos entre enero de 2024 y
+septiembre de 2026, cinco días traen dos ediciones —2024-04-08, 2025-10-24, 2025-11-03,
+2025-12-01 y 2026-05-04—: **uno cada siete meses**. Y `enlaces` es una lista *de listas*, así que
+leerla como si fuera de cadenas se queda con la primera y **pierde la segunda entera, en
+silencio**.
+
+Qué es la segunda edición, mirando la del 4 de mayo de 2026 y descargándola: **485 bytes, una
+sola disposición, sección DISPOSICIONES GENERALES, órgano LEHENDAKARITZA** — un Decreto del
+lehendakari. El contenido de ese en concreto es inocuo (luto oficial), pero **la forma es la que
+importa**: una edición extraordinaria lleva una norma sola, del máximo rango, en la sección de
+disposiciones generales. Es el canal por el que sale algo con prisa, y por tanto exactamente lo
+que este proyecto existe para no perderse.
+
+**Eso ha cambiado una interfaz, no solo un módulo.** `services/ingesta.py` devuelve ahora
+`tuple[ResultadoIngesta, ...]` en las **seis** fuentes, y `worker/run.py` recorre las ediciones
+para las etapas acotadas a un documento (fase 2, prefiltro, extracción, clasificación); las que
+barren toda la tabla —versionado y encolado— se quedan fuera del bucle. Uniforme y no un caso
+especial del BOPV a propósito: «un día trae uno o más boletines» es una propiedad del dominio, y
+el BOJA también publica extraordinarios.
+
+#### Lo que se ha hecho
+
+`ingest/bopv.py` con sus 16 tests, `ingerir_sumario_bopv`, la fila de `fuente`
+(`b3d5f80a1c47`), `euskadi.eus` en la allowlist, el validador de cuerpo, la rama de
+`pipeline/texto.py`, `--fuente bopv` y el paso en la ingesta diaria de Actions.
+
+**Verificado en vivo**: el 2026-09-04 da una edición con 22 disposiciones; el **2026-05-04 da las
+dos**, con sus 25 y su 1; el domingo da `SumarioNoDisponible`. Y un cuerpo real de cada una baja,
+se valida por su `BOPVOrden` y se deriva a texto.
+
+#### Dos particularidades más
+
+- **El sumario es plano**: sección, subsección y organismo son cabeceras sueltas entre los pares
+  título/orden. Y **la subsección se reinicia al cambiar de sección** — hay secciones que no la
+  traen, y sin el reinicio heredarían la anterior. Misma familia que el bug del título del BOCYL.
+- **El cuerpo no tiene contenedor**: el articulado son *hermanos* de los metadatos, así que
+  `texto_plano` invierte la derivación y **excluye los cinco metadatos conocidos** en vez de
+  señalar el articulado. Una etiqueta nueva entra como ruido (barato) en vez de quedarse fuera
+  (articulado perdido en silencio): es la asimetría de la 7.1.
+
+#### Dónde queda el proyecto
+
+**Seis fuentes de 61**, y el guardarraíl ampliado de la sección 8 **agotado**. La séptima
+necesita otra decisión tuya, no otra migración. Navarra (BON) queda documentada como la primera
+candidata si eso pasa; su pega es que sus cuerpos son HTML y nada más, y eso choca con la raya
+del ADR 0029 — **decisión que se ha dejado sin tomar a propósito**, porque mover un guardarraíl
+mientras se añade una fuente es cómo se pierde uno.
+
+#### Siguiente
+
+1. **Ser honestos en la web sobre la cobertura.** Es lo que más vale ahora mismo, más que una
+   séptima fuente: 6 de 61, con nivel local solo en Madrid, y cuatro comunidades donde el eje
+   referencial dispara y una (Castilla y León) donde no puede. La página de cobertura tiene que
+   decir «estas 6 sí, estas 11 todavía no». **~20k**
+2. **Backfill de las dos nuevas.** Ni el BOCM ni el BOPV tienen todavía su `backfill_*.sh`, así
+   que hoy solo verán lo que publiquen a partir de mañana. **~10k**
+3. Sigue abierto lo de antes: etiquetar los 32 borradores del gold set (tiempo humano), la
+   pantalla de Metodología (7.6), la alerta de `BOE-A-2026-16172`, los preceptos por
+   norma-vehículo y publicar `fuente` en `DocumentoResumen`.

@@ -83,6 +83,11 @@ DEFAULT_ALLOWLIST: frozenset[str] = frozenset(
         # Sumario y cuerpo, los dos XML, salen del mismo host. Entra `www.bocm.es` por el
         # dominio raíz, que es como `_host_allowed` admite subdominios reales.
         "bocm.es",
+        # --- BOPV, sexta fuente y quinta autonómica (ADR 0035) ------------------------------
+        # Calendario, sumario y cuerpo salen los tres del mismo host. Entra por el dominio raíz
+        # porque el portal reescribe entre `www.euskadi.eus` y `www.euskadi.eus/web01-bopv`
+        # según la ruta, y `fetch` revalida cada salto.
+        "euskadi.eus",
     }
 )
 
