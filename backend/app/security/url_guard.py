@@ -79,6 +79,10 @@ DEFAULT_ALLOWLIST: frozenset[str] = frozenset(
         # --- BOCYL, cuarta fuente y tercera autonómica (ADR 0029) ---------------------------
         # Sumario (HTML) y cuerpo (XML) salen del mismo host, como en el BOA.
         "bocyl.jcyl.es",
+        # --- BOCM, quinta fuente y cuarta autonómica (ADR 0034) -----------------------------
+        # Sumario y cuerpo, los dos XML, salen del mismo host. Entra `www.bocm.es` por el
+        # dominio raíz, que es como `_host_allowed` admite subdominios reales.
+        "bocm.es",
     }
 )
 

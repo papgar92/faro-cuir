@@ -3027,3 +3027,90 @@ relaja ningún control**: los que protegen son el timeout de lectura y `MAX_RESP
 6. **Publicar `fuente` en `DocumentoResumen`** (~3 líneas de backend, cambio de API pública): sin
    ella el selector de boletines no puede decir de qué fuente es cada uno sin descifrar el
    prefijo del identificador, que **lo pone la fuente y no nosotros**.
+
+---
+
+### ✅ Quinta fuente: el BOCM, y con él entra el nivel local — 2026-09-06 (ADR 0034)
+
+El humano lo pidió así: *«aunque no lleguemos a todas las comunidades sí que quiero llegar al
+máximo posible. Veo que para cada boletín hay que seguir una "lectura" distinta, quizás haya que
+hacer un lector especializado en cada CCAA. Ve a por 2 CCAA más de ser posible, las que estén más
+digitalizadas.»*
+
+Lo de la «lectura distinta» ya era la arquitectura —`ingest/` lleva un módulo por fuente desde el
+ADR 0019— y esta ronda lo confirma otra vez. Lo que había que hacer era **sondear**, no leer
+portales, y eso ha corregido la auditoría del 2026-08-29 en dos entradas.
+
+#### El sondeo (2026-09-06), que es lo que decidió
+
+| Fuente | Sumario | Cuerpo | ¿Por fecha? |
+|---|---|---|---|
+| **BOCM** (Madrid) | **XML** | **XML** | **Sí, y solo con la fecha** |
+| BOPV (País Vasco) | XML | XML | No, y **su sumario no declara su propia fecha** |
+| BON (Navarra) | HTML | **HTML y nada más** | No, por número de edición |
+| DOGV (C. Valenciana) | HTML **generado por JS** | — | El listado no está en el HTML servido |
+| BOJA (Andalucía) | HTML | — | No |
+| DOE (Extremadura) / DOG (Galicia) | 403 / 404 | — | — |
+
+**Dos correcciones a lo que había escrito:**
+
+- «BOCM: el XML por disposición da 500» **era falso a día de hoy**. El BOCM sirve XML por los dos
+  lados y es el **único** candidato cuyo sumario se pide solo con la fecha.
+- El BOPV tiene **el mejor XML de todos los sondeados** y aun así se descarta: su sumario no dice
+  de qué día es, así que no hay forma de comprobar que el boletín que llegó es el que se pidió.
+  Para el archivo de la 6.5 eso no es un inconveniente, es un descarte.
+
+#### Lo que se ha hecho
+
+`ingest/bocm.py` con sus 11 tests sobre XML real recortado, `ingerir_sumario_bocm`, la fila de
+`fuente` (`a7c1e94b2d38`), `bocm.es` en la allowlist, el validador de cuerpo en `texto_integro`,
+`--fuente bocm` en el worker y el paso en la ingesta diaria de Actions.
+
+**Verificado en vivo, no solo con la fixture**: el 2026-09-04 baja por `url_guard`, se parsea y
+da 73 disposiciones; el domingo 2026-09-06 da `SumarioNoDisponible`. Gate local completo: `ruff`,
+`ruff format`, `mypy` y **772 tests en verde**.
+
+#### Los tres hallazgos que valía la pena medir
+
+1. **El BOCM trae el nivel local, que llevaba 0 de 43 fuentes.** Madrid es uniprovincial y no
+   tiene BOP, así que sus ayuntamientos publican aquí: **27 de las 73 disposiciones del día
+   verificado son municipales**, el 37 %. La sección 1 describe tres niveles de administración y
+   hasta hoy el sistema solo veía dos.
+2. **Su sumario repite la lista entera en triángulo**: 2.701 elementos `<disposicion>` para 73
+   reales (73·74/2 = 2.701 exactamente), de ahí que pese 2,9 MB en vez de ~80 KB. Sin deduplicar,
+   la fase 2 pediría 2.701 cuerpos y el archivo tendría 37 copias de cada norma.
+3. **`<fecha_publicacion>` es el día anterior**, en los tres días comprobados. Es la fecha de
+   cierre de la edición. Apoyarse en el campo de nombre obvio habría archivado la fuente entera
+   desplazada un día **sin que fallara nada visiblemente**, que es la corrupción concreta que la
+   6.5 existe para impedir. Hay un test que lo fija y que dice por qué, para que no lo
+   «arreglen» después.
+
+Y una cosa que no costó nada y merece decirse: **el cuerpo del BOCM tiene la forma del BOE**, así
+que `pipeline/texto.texto_plano` lo leyó sin tocar una línea y `VERSION_TEXTO_PLANO` no sube. Es
+la primera fuente que no obliga a enseñarle al proyecto una manera nueva de decir «aquí está el
+articulado».
+
+#### El guardarraíl de la sección 8, cambiado
+
+Con el BOCM se **agota** el límite de cinco fuentes de la primera iteración. El humano lo amplió a
+**seis**, y el guardarraíl no desaparece: sube de número y **gana el criterio que de verdad
+protegía**. Una fuente entra si (a) está sondeada, (b) su sumario permite comprobar que el día que
+llegó es el que se pidió, y (c) su comunidad tiene norma vigilada — la lección del BOCYL, que
+lleva 969 normas y cero detecciones porque Castilla y León no tiene ley autonómica LGTBI.
+
+#### Siguiente
+
+1. **La sexta fuente** (ADR 0035). El sondeo deja al **BON de Navarra** como la única que se
+   puede pedir por edición **y** declara su propia fecha; su pega es que sus cuerpos son **HTML y
+   nada más**, y eso choca con la raya del ADR 0029: *el texto que una alerta llegue a citar sale
+   siempre del XML*. Es una decisión, no una implementación. **~25k**
+2. **Ser honestos en la web sobre la cobertura**: con 5 de 61, y con el nivel local dentro de una
+   sola comunidad, «cobertura por CCAA» ya no significa lo mismo en Madrid que en las demás.
+   Decir «estas 5 sí, estas 12 todavía no» vale más que la sexta fuente. **~20k**
+3. Sigue abierto lo de antes: etiquetar los 32 borradores del gold set (tiempo humano), la
+   pantalla de Metodología (7.6), la alerta de `BOE-A-2026-16172`, los preceptos por
+   norma-vehículo y publicar `fuente` en `DocumentoResumen`.
+4. **`CLAUDE.md` sigue por encima de su límite** (57,1 KB contra los ~55 de su cabecera; entró en
+   esta sesión con 56,3 KB, o sea que ya estaba). La entrada del 2026-08-30 que lo avisa sigue
+   vigente y la receta escrita es sacar **un bloque entero**, no recortar frases. No se ha tocado
+   aquí a propósito: podar guardarraíles mientras se añade una fuente es cómo se pierde uno.

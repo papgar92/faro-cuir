@@ -79,7 +79,7 @@ hueco invisible.
 | TODO(verificar) | Comunitat Valenciana | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Extremadura | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Galicia | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
-| TODO(verificar) | Comunidad de Madrid | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
+| **BOCM** (Boletín Oficial de la Comunidad de Madrid) | Comunidad de Madrid | sumario `https://www.bocm.es/boletin/CM_Boletin_BOCM/{aaaa/mm/dd}/BOCM-{aaaammdd}.xml` · texto: el `url_xml` que declara el propio sumario | **API (XML) en las dos fases**, verificado el 2026-09-06 descargando tres días seguidos | No | **TODO(verificar)** — no se localizó declaración de reutilización; no se deduce (regla de oro 8) | **Baja** — es la única candidata cuyo sumario se pide **solo con la fecha**, sin resolver antes un número de edición; sus dos trampas están en el ADR 0034 | **INTEGRADA** (ADR 0034), quinta fuente; 73 disposiciones el día verificado, de ellas **27 municipales** |
 | TODO(verificar) | Región de Murcia | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | Comunidad Foral de Navarra | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
 | TODO(verificar) | País Vasco / Euskadi | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) | TODO(verificar) |
@@ -211,7 +211,38 @@ por fecha deja cero disposiciones. El BOE contesta 404, el DOGC una lista vacía
 **Ninguna lo documenta, y es la primera pregunta que hay que hacerle a una fuente nueva** — en el
 BOA, no habérsela hecho costó que cada fin de semana abortara un bloque entero de backfill.
 
-### Las candidatas sondeadas y su estado — 2026-08-29
+### El BOCM, integrado: la primera fuente que no enseñó nada nuevo, y la primera con nivel local (ADR 0034)
+
+Quinta fuente y cuarta autonómica. Es **la más barata desde el BOE** y por un motivo concreto:
+su sumario diario se pide **solo con la fecha** —`BOCM-AAAAMMDD.xml`, sin número de edición de
+por medio—, y su cuerpo tiene *exactamente* la forma del BOE (`documento > metadatos, analisis,
+texto`), así que `pipeline/texto.texto_plano` lo leyó sin tocar una línea y `VERSION_TEXTO_PLANO`
+no sube. Es la primera fuente que no obliga a enseñarle al proyecto una manera nueva de decir
+«aquí está el articulado».
+
+**Lo que sí trae de nuevo es el nivel local.** Madrid es uniprovincial y no tiene BOP, así que
+sus ayuntamientos publican aquí sus ordenanzas: del día verificado (2026-09-04), **27 de las 73
+disposiciones son municipales**, el 37 %. La sección 1 de `CLAUDE.md` describe tres niveles de
+administración y hasta hoy el sistema solo veía dos.
+
+**Dos trampas verificadas, y la segunda envenena el archivo sin hacer ruido:**
+
+1. **El sumario repite su lista entera, en triángulo.** 2.701 elementos `<disposicion>` para 73
+   disposiciones reales: la primera aparece 73 veces, la segunda 72, la tercera 71… (73·74/2 =
+   2.701 exactamente). De ahí que el fichero pese 2,9 MB en vez de ~80 KB. Las copias son
+   idénticas, comprobado, así que deduplicar por identificador es seguro; sin deduplicar, la fase
+   2 pediría 2.701 cuerpos y el archivo tendría 37 copias de cada norma.
+2. **`<fecha_publicacion>` es el día ANTERIOR**, sistemáticamente: `BOCM-20260904` declara
+   `2026/09/03`, `BOCM-20260903` declara `2026/09/02`, `BOCM-20260901` declara `2026/08/31`. Es
+   la fecha de cierre de la edición, no la de portada. Apoyarse en el campo del nombre obvio
+   habría archivado toda la fuente desplazada un día sin que fallara nada visiblemente. Se
+   contrasta contra `<identificador>`, que sí cuadra.
+
+**Y la quinta manera distinta de decir «hoy no hay boletín»: 404**, la misma que el BOE. Después
+de la lista vacía del DOGC, la portada del BOA y la página corta del BOCYL, resulta que la
+respuesta cómoda también existe.
+
+### Las candidatas sondeadas y su estado — 2026-08-29, revisado el 2026-09-06
 
 Sondeadas pidiéndoles un día concreto, no leyendo su documentación. Es la misma disciplina del
 ADR 0019 y vuelve a ser lo que separa «tiene portal de datos abiertos» de «se puede ingerir».
@@ -220,19 +251,22 @@ ADR 0019 y vuelve a ser lo que separa «tiene portal de datos abiertos» de «se
 |---|---|---|
 | **BOA** (Aragón) | Sumario y texto íntegro en XML, una petición, por fecha exacta | **INTEGRADA** (ADR 0028) |
 | **BOCYL** (Castilla y León) | Sumario HTML por fecha + XML por disposición, direccionable por identificador | **INTEGRADA** (ADR 0029) |
-| BON (Navarra) | Sumario HTML de 113 KB; no se localizó interfaz de datos | Pendiente |
+| BON (Navarra) | Sumario HTML por **número de edición**, y **declara su propia fecha** —lo que le falta al BOPV—. Su `?anio=&mes=&dia=` **ignora la fecha** y sirve siempre el último. Cuerpos **solo en HTML** | Ver ADR 0035 |
 | BOC (Canarias) | Índice HTML | Pendiente |
 | DOE (Extremadura) | Índice HTML | Pendiente |
 | BORM (Murcia) | PDF del boletín | Pendiente — PDF: permitido por 6.1, pero es la vía cara |
-| BOPV (Euskadi) | Sumario HTML por **número de boletín**, no por fecha | Pendiente — falta resolver fecha → número |
-| DOGV (C. Valenciana) | 404 en la ruta de sumario probada | Descartada por ahora |
-| BOCM (Madrid) | RSS de 20 sumarios + HTML; el XML por disposición da 500 | Integrable con esfuerzo (ADR 0019) |
+| BOPV (Euskadi) | **El mejor XML de todas las sondeadas**: sumario `s{aa}_{nnnn}.xml` y cuerpo `{aa}{orden}a.xml`. Pero su sumario **no declara su propia fecha** y solo se pide por número de edición | Descartada por ahora — ver ADR 0034 |
+| DOGV (C. Valenciana) | Responde 200 por rango de fechas, pero **el listado lo genera JavaScript**: el HTML servido no trae ni un enlace a disposición | Descartada — exigiría un navegador sin cabeza, que este proyecto no tiene |
+| **BOCM** (Madrid) | Sumario XML por fecha pura y cuerpo XML por identificador. **La nota de 2026-08-29 («el XML por disposición da 500») era falsa a 2026-09-06** | **INTEGRADA** (ADR 0034) |
 | BOJA (Andalucía) | El HTML **declara que suprime contenido** | Descartada — choca con 7.1 |
 | BOIB (Illes Balears) | Front XHTML; el único acceso al texto localizado es PDF | Pendiente |
 | DOG (Galicia), BOPA (Asturias) | 404 en las rutas probadas | Pendiente |
 | **BORM (Murcia)** | **Captcha de Radware ante la petición del texto** | **Descartada, y NO por formato** — ver abajo |
 
-**Queda un hueco** dentro del límite de cinco fuentes de la sección 8.
+**El límite de cinco de la sección 8 queda agotado con el BOCM**, y el humano lo amplió a seis
+el 2026-09-06 («quiero llegar al máximo posible»), con un criterio nuevo escrito en esa misma
+sección: una fuente entra si está sondeada, si su sumario permite **comprobar que el día que
+llegó es el que se pidió**, y si su comunidad tiene norma vigilada.
 
 **El BORM merece su propia línea porque su motivo no es técnico.** Su portal responde a la
 petición del texto con una página de captcha. Sortearla sería eludir una detección de bots

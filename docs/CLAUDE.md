@@ -266,10 +266,11 @@ esa inmutabilidad es parte del valor: es el archivo de lo que realmente se publi
 Estás ingiriendo XML, HTML y PDF de fuentes externas que no controlas. Esa es la superficie de
 ataque principal. Trátalo así.
 
-**Hoy son cuatro integradas de las 61 registradas** —BOE, DOGC, BOA y BOCYL (ADR 0019, 0028 y
-0029)—, y cada una ha traído su propia forma de romper: el DOGC mete el articulado dentro de un
-atributo XML, el BOA sirve su portada los días sin boletín y el BOCYL obliga a raspar HTML. **El
-número de fuentes importa menos que el hecho de que ninguna se comporta como la anterior.**
+**Hoy son cinco integradas de las 61 registradas** —BOE, DOGC, BOA, BOCYL y BOCM (ADR 0019,
+0028, 0029 y 0034)—, y cada una ha traído su propia forma de romper: el DOGC mete el articulado
+dentro de un atributo XML, el BOA sirve su portada los días sin boletín, el BOCYL obliga a raspar
+HTML y el BOCM repite su sumario entero 37 veces y llama `fecha_publicacion` al día anterior.
+**El número de fuentes importa menos que el hecho de que ninguna se comporta como la anterior.**
 
 ### 6.1 Parseo de contenido no confiable
 - **XXE:** `defusedxml` siempre. Prohibido `xml.etree` o `lxml` sin endurecer. Entidades
@@ -737,7 +738,14 @@ Si te encuentras haciendo cualquiera de estas, para:
   del diff.
 - **Celery / colas distribuidas / microservicios.** Es un proyecto de 6 semanas. Un worker cron
   idempotente basta.
-- Más de 5 fuentes en la primera iteración. Con 5 se demuestra; el resto, documentado.
+- ~~Más de 5 fuentes en la primera iteración.~~ — **ampliado a 6 por el humano el 2026-09-06**:
+  «aunque no lleguemos a todas las comunidades sí que quiero llegar al máximo posible». **El
+  guardarraíl no desaparece, sube de número y gana un criterio**, que es lo que de verdad
+  protegía: una fuente entra si (a) está **sondeada**, no leída en su documentación (ADR 0019),
+  (b) su sumario permite **comprobar que el día que llegó es el que se pidió** —sin eso el
+  archivo de la 6.5 no puede afirmar nada— y (c) la comunidad tiene **norma vigilada**, o se
+  añade superficie sin añadir vigilancia referencial (la lección del BOCYL, ADR 0034). Lo que
+  esta sección protege sigue siendo el plazo: **6 y se para**, la séptima necesita otra decisión.
 - **Eje semántico por embeddings** (7.3, eje 3). Depende del gold set y no cabe en el plazo.
   Hueco reservado y documentado; nada de implementarlo "ya que estamos".
 - **Fine-tuning, RAG, o cambiar de modelo buscando calidad.** Antes de tocar el modelo hay que
@@ -753,9 +761,9 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
 - **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
-  consecuencias. **Están todos escritos del 0001 al 0033** y su título dice de qué van: `ls
+  consecuencias. **Están todos escritos del 0001 al 0034** y su título dice de qué van: `ls
   docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
-  **El siguiente número libre es el 0034.** No queda ninguno reservado.
+  **El siguiente número libre es el 0035.** No queda ninguno reservado.
   Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
   (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada, con el **0031** que
   lo lleva un paso más allá) y **0027** (el límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
@@ -787,8 +795,8 @@ psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
 # Calidad (lo que corre el CI)
 ruff check . && ruff format --check . && mypy backend/app && pytest --cov
 
-# Ingesta manual (una fecha concreta). Las cuatro fuentes integradas:
-#   boe | dogc | boa | bocyl   (la tabla FUENTES de worker/run.py manda)
+# Ingesta manual (una fecha concreta). Las cinco fuentes integradas:
+#   boe | dogc | boa | bocyl | bocm   (la tabla FUENTES de worker/run.py manda)
 python -m worker.run --fuente boe --fecha 2024-12-19
 python -m worker.run --fuente bocyl --fecha 2024-01-10
 
