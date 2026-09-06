@@ -40,7 +40,7 @@ concurrency:
 jobs:
   ingesta:
     runs-on: ubuntu-latest
-    # El día entero de las cuatro fuentes medido son ~20 min; el tope está para que una fuente
+    # El día entero de las siete fuentes medido son ~20 min; el tope está para que una fuente
     # que se quede colgada no consuma horas de runner, no porque se espere llegar cerca.
     timeout-minutes: 120
 
@@ -79,9 +79,9 @@ jobs:
         working-directory: backend
         run: alembic upgrade head
 
-      # --- Las cuatro fuentes integradas (6, ADR 0019, 0028 y 0029) ------------------------
+      # --- Las siete fuentes integradas (6, ADR 0019, 0028, 0029, 0034, 0035 y 0036) ------
       # Un paso por fuente y no un bucle: en la interfaz de Actions se ve de un vistazo cuál se
-      # cayó. `!cancelled()` hace que un boletín caído no impida ingerir los otros tres, pero
+      # cayó. `!cancelled()` hace que un boletín caído no impida ingerir los otros cinco, pero
       # **el job acaba en rojo igual** — que es lo que exige 6.9.6. Un día sin boletín (domingo,
       # festivo) no es un fallo y el worker ya sale con 0.
       - name: BOE
@@ -102,6 +102,27 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: backend
         run: python -m worker.run --fuente bocyl --sin-extraccion ${FECHA:+--fecha "$FECHA"}
+
+      # El sumario del BOCM pesa 2,9 MB porque repite su lista entera 37 veces (ADR 0034). Se
+      # deduplica al parsear, así que lo caro es la descarga del sumario, no la fase 2.
+      - name: BOCM
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: python -m worker.run --fuente bocm --sin-extraccion ${FECHA:+--fecha "$FECHA"}
+
+      # Dos peticiones antes del sumario: el calendario del mes resuelve la fecha a su edición
+      # (ADR 0035). Un día puede traer DOS boletines y el worker recorre los dos.
+      - name: BOPV
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: python -m worker.run --fuente bopv --sin-extraccion ${FECHA:+--fecha "$FECHA"}
+
+      # El BON no tiene calendario y su busqueda por fecha miente, asi que cada dia se resuelve
+      # por biseccion sobre el numero de boletin (ADR 0036). Va el ultimo porque es el mas caro.
+      - name: BON
+        if: ${{ !cancelled() }}
+        working-directory: backend
+        run: python -m worker.run --fuente bon --sin-extraccion ${FECHA:+--fecha "$FECHA"}
 
       # --- Mantenimiento, en el orden en que se alimentan ---------------------------------
       # Fase 2 antes que nada: descarga el texto íntegro que falte de TODA la tabla y reevalúa

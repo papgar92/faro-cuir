@@ -39,7 +39,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ingest import boa, bocyl
+from app.ingest import boa, bocm, bocyl, bon, bopv
 from app.ingest.boe import SumarioInvalido
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.norma import Norma
@@ -69,13 +69,31 @@ _CABECERAS = {"Accept": "application/xml"}
 #     disposición de al lado. Lo que sí puede llegar es otra cosa bajo la misma URL: una página
 #     de error, o un documento resellado con otra fecha. Se comprueba la `<fechaPublicacion>`,
 #     que va dentro del propio identificador y no cuesta ni una petición.
+#   * **El BOCM está en el mismo caso que el BOCYL** (ADR 0034), y con un motivo añadido: su
+#     cuerpo declara su propio `<metadatos><identificador>`, así que la comprobación es una
+#     igualdad exacta y no una reconstrucción de fecha. Lo que **no** se compara nunca es su
+#     `<fecha_publicacion>`, que en esa fuente es el día anterior; el porqué, en `ingest/bocm.py`.
 #
 # El BOE y el DOGC no necesitan validador: su URL nombra la disposición y su cuerpo no declara
 # una fecha con la que contrastarla.
 #
 # El fallo va por la vía normal del módulo: no se archiva, no se crea fila, y la norma vuelve
 # sola a la cola de la próxima pasada.
-_VALIDADORES = {"BOA-": boa.parsear_cuerpo, "BOCYL-": bocyl.parsear_cuerpo}
+_VALIDADORES = {
+    "BOA-": boa.parsear_cuerpo,
+    # Antes que "BOC" a secas nunca: los prefijos se comparan con `startswith`, así que
+    # `BOCM-` y `BOCYL-` tienen que ser distinguibles entre sí, y lo son porque los dos
+    # llevan su guion final.
+    "BOCM-": bocm.parsear_cuerpo,
+    "BOCYL-": bocyl.parsear_cuerpo,
+    # El BOPV (ADR 0035) no declara fecha en el cuerpo, así que lo que se contrasta es su
+    # `BOPVOrden` contra el que va dentro del identificador que acuñamos al leer el sumario.
+    "BOPV-": bopv.parsear_cuerpo,
+    # El BON (ADR 0036) es del nivel HTML: su validador **no devuelve un árbol**, solo comprueba
+    # que la página trae la cabecera del boletín que se pidió. Quien convierte esa página en
+    # texto es `pipeline/texto_html.py`, con su contenedor declarado.
+    "BON-": bon.parsear_cuerpo,
+}
 
 
 def _validar_cuerpo(contenido: bytes, identificador: str) -> None:

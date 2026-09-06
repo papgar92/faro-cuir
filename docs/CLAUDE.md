@@ -266,10 +266,22 @@ esa inmutabilidad es parte del valor: es el archivo de lo que realmente se publi
 Estás ingiriendo XML, HTML y PDF de fuentes externas que no controlas. Esa es la superficie de
 ataque principal. Trátalo así.
 
-**Hoy son cuatro integradas de las 61 registradas** —BOE, DOGC, BOA y BOCYL (ADR 0019, 0028 y
-0029)—, y cada una ha traído su propia forma de romper: el DOGC mete el articulado dentro de un
-atributo XML, el BOA sirve su portada los días sin boletín y el BOCYL obliga a raspar HTML. **El
-número de fuentes importa menos que el hecho de que ninguna se comporta como la anterior.**
+**Hoy son siete integradas de las 61 registradas** —BOE, DOGC, BOA, BOCYL, BOCM, BOPV y BON
+(ADR 0019, 0028, 0029, 0034, 0035 y 0036)—, y cada una ha traído su propia forma de romper: el
+DOGC mete el articulado dentro de un atributo XML, el BOA sirve su portada los días sin boletín,
+el BOCM repite su sumario 37 veces y llama `fecha_publicacion` al día anterior, el BOPV publica
+dos boletines el mismo día unas cinco veces cada 33 meses, y **la búsqueda por fecha del BOCYL y
+la del BON mienten las dos**: devuelven siempre el último boletín, diga lo que diga el parámetro.
+**El número de fuentes importa menos que el hecho de que ninguna se comporta como la anterior.**
+
+**Y el cuerpo llega en tres formatos, no en uno** (ADR 0036). El nivel lo decide
+`services/cuerpo.py` mirando los bytes archivados, **no la comunidad** —el DOGC ya publica unas
+normas en XML y otras solo en PDF—: **A** XML (`pipeline/texto.py`), **B** PDF (capa de texto,
+ADR 0026) y **C** HTML de portal (`pipeline/texto_html.py`). El nivel C es el único con
+obligaciones propias, y son las que lo hacen admisible: **contenedor declarado en una lista
+cerrada, canario de tamaño, y caída a `ilegible` si falla cualquiera de los dos.** De un HTML sin
+contenedor declarado no se extrae nada, que es lo que mantiene en pie la protección del ADR 0020:
+una página de error sigue siendo `ilegible`, y hay un test con la real que lo fija.
 
 ### 6.1 Parseo de contenido no confiable
 - **XXE:** `defusedxml` siempre. Prohibido `xml.etree` o `lxml` sin endurecer. Entidades
@@ -737,7 +749,17 @@ Si te encuentras haciendo cualquiera de estas, para:
   del diff.
 - **Celery / colas distribuidas / microservicios.** Es un proyecto de 6 semanas. Un worker cron
   idempotente basta.
-- Más de 5 fuentes en la primera iteración. Con 5 se demuestra; el resto, documentado.
+- ~~Más de 5 fuentes en la primera iteración.~~ — **ampliado a 7 por el humano el 2026-09-06**
+  («necesitamos a Navarra sí o sí»); antes ese mismo día había subido de 5 a 6:
+  «aunque no lleguemos a todas las comunidades sí que quiero llegar al máximo posible». **El
+  guardarraíl no desaparece, sube de número y gana un criterio**, que es lo que de verdad
+  protegía: una fuente entra si (a) está **sondeada**, no leída en su documentación (ADR 0019),
+  (b) su sumario permite **comprobar que el día que llegó es el que se pidió** —sin eso el
+  archivo de la 6.5 no puede afirmar nada— y (c) la comunidad tiene **norma vigilada**, o se
+  añade superficie sin añadir vigilancia referencial (la lección del BOCYL, ADR 0034). Y una de
+  **nivel C** (HTML, ADR 0036) entra solo si su articulado **no existe en ningún formato
+  documental**: si hay XML o PDF, se usa ese. Lo que esta sección protege sigue siendo el plazo:
+  **7 y se para** —agotado con el BON—, y la octava necesita otra decisión tuya.
 - **Eje semántico por embeddings** (7.3, eje 3). Depende del gold set y no cabe en el plazo.
   Hueco reservado y documentado; nada de implementarlo "ya que estamos".
 - **Fine-tuning, RAG, o cambiar de modelo buscando calidad.** Antes de tocar el modelo hay que
@@ -753,9 +775,9 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
 - **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
-  consecuencias. **Están todos escritos del 0001 al 0033** y su título dice de qué van: `ls
+  consecuencias. **Están todos escritos del 0001 al 0036** y su título dice de qué van: `ls
   docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
-  **El siguiente número libre es el 0034.** No queda ninguno reservado.
+  **El siguiente número libre es el 0037.** No queda ninguno reservado.
   Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
   (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada, con el **0031** que
   lo lleva un paso más allá) y **0027** (el límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
@@ -787,8 +809,10 @@ psql -c "SELECT conrelid::regclass, conname FROM pg_constraint
 # Calidad (lo que corre el CI)
 ruff check . && ruff format --check . && mypy backend/app && pytest --cov
 
-# Ingesta manual (una fecha concreta). Las cuatro fuentes integradas:
-#   boe | dogc | boa | bocyl   (la tabla FUENTES de worker/run.py manda)
+# Ingesta manual (una fecha concreta). Las siete fuentes integradas:
+#   boe | dogc | boa | bocyl | bocm | bopv | bon   (la tabla FUENTES de worker/run.py manda)
+# OJO con `bon`: no tiene calendario y su busqueda por fecha miente, asi que cada dia se resuelve
+# por biseccion sobre el numero de boletin (hasta 16 peticiones). Un backfill suyo es caro.
 python -m worker.run --fuente boe --fecha 2024-12-19
 python -m worker.run --fuente bocyl --fecha 2024-01-10
 

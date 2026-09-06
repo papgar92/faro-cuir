@@ -3027,3 +3027,238 @@ relaja ningún control**: los que protegen son el timeout de lectura y `MAX_RESP
 6. **Publicar `fuente` en `DocumentoResumen`** (~3 líneas de backend, cambio de API pública): sin
    ella el selector de boletines no puede decir de qué fuente es cada uno sin descifrar el
    prefijo del identificador, que **lo pone la fuente y no nosotros**.
+
+---
+
+### ✅ Quinta fuente: el BOCM, y con él entra el nivel local — 2026-09-06 (ADR 0034)
+
+El humano lo pidió así: *«aunque no lleguemos a todas las comunidades sí que quiero llegar al
+máximo posible. Veo que para cada boletín hay que seguir una "lectura" distinta, quizás haya que
+hacer un lector especializado en cada CCAA. Ve a por 2 CCAA más de ser posible, las que estén más
+digitalizadas.»*
+
+Lo de la «lectura distinta» ya era la arquitectura —`ingest/` lleva un módulo por fuente desde el
+ADR 0019— y esta ronda lo confirma otra vez. Lo que había que hacer era **sondear**, no leer
+portales, y eso ha corregido la auditoría del 2026-08-29 en dos entradas.
+
+#### El sondeo (2026-09-06), que es lo que decidió
+
+| Fuente | Sumario | Cuerpo | ¿Por fecha? |
+|---|---|---|---|
+| **BOCM** (Madrid) | **XML** | **XML** | **Sí, y solo con la fecha** |
+| BOPV (País Vasco) | XML | XML | No, y **su sumario no declara su propia fecha** |
+| BON (Navarra) | HTML | **HTML y nada más** | No, por número de edición |
+| DOGV (C. Valenciana) | HTML **generado por JS** | — | El listado no está en el HTML servido |
+| BOJA (Andalucía) | HTML | — | No |
+| DOE (Extremadura) / DOG (Galicia) | 403 / 404 | — | — |
+
+**Dos correcciones a lo que había escrito:**
+
+- «BOCM: el XML por disposición da 500» **era falso a día de hoy**. El BOCM sirve XML por los dos
+  lados y es el **único** candidato cuyo sumario se pide solo con la fecha.
+- El BOPV tiene **el mejor XML de todos los sondeados** y aun así se descarta: su sumario no dice
+  de qué día es, así que no hay forma de comprobar que el boletín que llegó es el que se pidió.
+  Para el archivo de la 6.5 eso no es un inconveniente, es un descarte.
+
+#### Lo que se ha hecho
+
+`ingest/bocm.py` con sus 11 tests sobre XML real recortado, `ingerir_sumario_bocm`, la fila de
+`fuente` (`a7c1e94b2d38`), `bocm.es` en la allowlist, el validador de cuerpo en `texto_integro`,
+`--fuente bocm` en el worker y el paso en la ingesta diaria de Actions.
+
+**Verificado en vivo, no solo con la fixture**: el 2026-09-04 baja por `url_guard`, se parsea y
+da 73 disposiciones; el domingo 2026-09-06 da `SumarioNoDisponible`. Gate local completo: `ruff`,
+`ruff format`, `mypy` y **772 tests en verde**.
+
+#### Los tres hallazgos que valía la pena medir
+
+1. **El BOCM trae el nivel local, que llevaba 0 de 43 fuentes.** Madrid es uniprovincial y no
+   tiene BOP, así que sus ayuntamientos publican aquí: **27 de las 73 disposiciones del día
+   verificado son municipales**, el 37 %. La sección 1 describe tres niveles de administración y
+   hasta hoy el sistema solo veía dos.
+2. **Su sumario repite la lista entera en triángulo**: 2.701 elementos `<disposicion>` para 73
+   reales (73·74/2 = 2.701 exactamente), de ahí que pese 2,9 MB en vez de ~80 KB. Sin deduplicar,
+   la fase 2 pediría 2.701 cuerpos y el archivo tendría 37 copias de cada norma.
+3. **`<fecha_publicacion>` es el día anterior**, en los tres días comprobados. Es la fecha de
+   cierre de la edición. Apoyarse en el campo de nombre obvio habría archivado la fuente entera
+   desplazada un día **sin que fallara nada visiblemente**, que es la corrupción concreta que la
+   6.5 existe para impedir. Hay un test que lo fija y que dice por qué, para que no lo
+   «arreglen» después.
+
+Y una cosa que no costó nada y merece decirse: **el cuerpo del BOCM tiene la forma del BOE**, así
+que `pipeline/texto.texto_plano` lo leyó sin tocar una línea y `VERSION_TEXTO_PLANO` no sube. Es
+la primera fuente que no obliga a enseñarle al proyecto una manera nueva de decir «aquí está el
+articulado».
+
+#### El guardarraíl de la sección 8, cambiado
+
+Con el BOCM se **agota** el límite de cinco fuentes de la primera iteración. El humano lo amplió a
+**seis**, y el guardarraíl no desaparece: sube de número y **gana el criterio que de verdad
+protegía**. Una fuente entra si (a) está sondeada, (b) su sumario permite comprobar que el día que
+llegó es el que se pidió, y (c) su comunidad tiene norma vigilada — la lección del BOCYL, que
+lleva 969 normas y cero detecciones porque Castilla y León no tiene ley autonómica LGTBI.
+
+#### Siguiente
+
+1. **La sexta fuente** (ADR 0035). El sondeo deja al **BON de Navarra** como la única que se
+   puede pedir por edición **y** declara su propia fecha; su pega es que sus cuerpos son **HTML y
+   nada más**, y eso choca con la raya del ADR 0029: *el texto que una alerta llegue a citar sale
+   siempre del XML*. Es una decisión, no una implementación. **~25k**
+2. **Ser honestos en la web sobre la cobertura**: con 5 de 61, y con el nivel local dentro de una
+   sola comunidad, «cobertura por CCAA» ya no significa lo mismo en Madrid que en las demás.
+   Decir «estas 5 sí, estas 12 todavía no» vale más que la sexta fuente. **~20k**
+3. Sigue abierto lo de antes: etiquetar los 32 borradores del gold set (tiempo humano), la
+   pantalla de Metodología (7.6), la alerta de `BOE-A-2026-16172`, los preceptos por
+   norma-vehículo y publicar `fuente` en `DocumentoResumen`.
+4. **`CLAUDE.md` sigue por encima de su límite** (57,1 KB contra los ~55 de su cabecera; entró en
+   esta sesión con 56,3 KB, o sea que ya estaba). La entrada del 2026-08-30 que lo avisa sigue
+   vigente y la receta escrita es sacar **un bloque entero**, no recortar frases. No se ha tocado
+   aquí a propósito: podar guardarraíles mientras se añade una fuente es cómo se pierde uno.
+
+---
+
+### ✅ Sexta fuente: el BOPV, y un boletín que se estaba perdiendo — 2026-09-06 (ADR 0035)
+
+La segunda de las dos comunidades que pediste. Y la que ha destapado un fallo que no era del
+BOPV: era del modelo.
+
+#### El descarte de esta mañana estaba mal
+
+El ADR 0034 descartó el BOPV hace unas horas con este motivo: *«su sumario no declara su propia
+fecha, así que no hay forma de comprobar que el boletín que llegó es el del día pedido»*. Era
+cierto y aun así el descarte estaba mal, porque **el índice fecha → edición sí existe**: es el
+calendario del mes que la propia web carga en un `<iframe>`, `/bopv2/datos/{mm}{aaaa}.shtml`,
+**1,5 KB**, con dos arrays de JavaScript. Se encontró leyendo el HTML de una disposición buscando
+otra cosa. Hay datos hasta enero de 2024, así que el backfill también funciona.
+
+Se lee con expresión regular y **nunca ejecutando el JavaScript**: es código de una fuente
+externa (regla de oro 1).
+
+#### El hallazgo que valía la ronda entera
+
+**Un día puede traer DOS boletines.** Sondeados los 33 meses con datos entre enero de 2024 y
+septiembre de 2026, cinco días traen dos ediciones —2024-04-08, 2025-10-24, 2025-11-03,
+2025-12-01 y 2026-05-04—: **uno cada siete meses**. Y `enlaces` es una lista *de listas*, así que
+leerla como si fuera de cadenas se queda con la primera y **pierde la segunda entera, en
+silencio**.
+
+Qué es la segunda edición, mirando la del 4 de mayo de 2026 y descargándola: **485 bytes, una
+sola disposición, sección DISPOSICIONES GENERALES, órgano LEHENDAKARITZA** — un Decreto del
+lehendakari. El contenido de ese en concreto es inocuo (luto oficial), pero **la forma es la que
+importa**: una edición extraordinaria lleva una norma sola, del máximo rango, en la sección de
+disposiciones generales. Es el canal por el que sale algo con prisa, y por tanto exactamente lo
+que este proyecto existe para no perderse.
+
+**Eso ha cambiado una interfaz, no solo un módulo.** `services/ingesta.py` devuelve ahora
+`tuple[ResultadoIngesta, ...]` en las **seis** fuentes, y `worker/run.py` recorre las ediciones
+para las etapas acotadas a un documento (fase 2, prefiltro, extracción, clasificación); las que
+barren toda la tabla —versionado y encolado— se quedan fuera del bucle. Uniforme y no un caso
+especial del BOPV a propósito: «un día trae uno o más boletines» es una propiedad del dominio, y
+el BOJA también publica extraordinarios.
+
+#### Lo que se ha hecho
+
+`ingest/bopv.py` con sus 16 tests, `ingerir_sumario_bopv`, la fila de `fuente`
+(`b3d5f80a1c47`), `euskadi.eus` en la allowlist, el validador de cuerpo, la rama de
+`pipeline/texto.py`, `--fuente bopv` y el paso en la ingesta diaria de Actions.
+
+**Verificado en vivo**: el 2026-09-04 da una edición con 22 disposiciones; el **2026-05-04 da las
+dos**, con sus 25 y su 1; el domingo da `SumarioNoDisponible`. Y un cuerpo real de cada una baja,
+se valida por su `BOPVOrden` y se deriva a texto.
+
+#### Dos particularidades más
+
+- **El sumario es plano**: sección, subsección y organismo son cabeceras sueltas entre los pares
+  título/orden. Y **la subsección se reinicia al cambiar de sección** — hay secciones que no la
+  traen, y sin el reinicio heredarían la anterior. Misma familia que el bug del título del BOCYL.
+- **El cuerpo no tiene contenedor**: el articulado son *hermanos* de los metadatos, así que
+  `texto_plano` invierte la derivación y **excluye los cinco metadatos conocidos** en vez de
+  señalar el articulado. Una etiqueta nueva entra como ruido (barato) en vez de quedarse fuera
+  (articulado perdido en silencio): es la asimetría de la 7.1.
+
+#### Dónde queda el proyecto
+
+**Seis fuentes de 61**, y el guardarraíl ampliado de la sección 8 **agotado**. La séptima
+necesita otra decisión tuya, no otra migración. Navarra (BON) queda documentada como la primera
+candidata si eso pasa; su pega es que sus cuerpos son HTML y nada más, y eso choca con la raya
+del ADR 0029 — **decisión que se ha dejado sin tomar a propósito**, porque mover un guardarraíl
+mientras se añade una fuente es cómo se pierde uno.
+
+#### Siguiente
+
+1. **Ser honestos en la web sobre la cobertura.** Es lo que más vale ahora mismo, más que una
+   séptima fuente: 6 de 61, con nivel local solo en Madrid, y cuatro comunidades donde el eje
+   referencial dispara y una (Castilla y León) donde no puede. La página de cobertura tiene que
+   decir «estas 6 sí, estas 11 todavía no». **~20k**
+2. **Backfill de las dos nuevas.** Ni el BOCM ni el BOPV tienen todavía su `backfill_*.sh`, así
+   que hoy solo verán lo que publiquen a partir de mañana. **~10k**
+3. Sigue abierto lo de antes: etiquetar los 32 borradores del gold set (tiempo humano), la
+   pantalla de Metodología (7.6), la alerta de `BOE-A-2026-16172`, los preceptos por
+   norma-vehículo y publicar `fuente` en `DocumentoResumen`.
+
+---
+
+### Séptima fuente: Navarra, y tres niveles de cuerpo en vez de uno — 2026-09-06 (ADR 0036)
+
+Lo pediste así: «necesitamos a Navarra sí o sí, podemos hacer una regla aparte para estas CCAA
+que no tienen en XML, tenemos que adaptar las normas por comunidad, o englobar comunidades por el
+tipo de cuerpo (HTML, XML, etc) y tener normas según esto».
+
+**Se adopta tu segunda opción con una corrección: el nivel es del DOCUMENTO, no de la
+comunidad.** Agrupar por CCAA se rompe con la fuente que llevamos más tiempo ingiriendo — el
+DOGC publica unas normas en XML y otras solo en PDF (ADR 0026), así que Cataluña estaría en dos
+grupos a la vez. Lo decide `services/cuerpo.py` mirando los bytes archivados, que es lo que ya
+hacía con el PDF: «el formato se decide por el contenido, no por la extensión ni por la fuente».
+
+| Nivel | Formato | Derivación | Fuentes |
+|---|---|---|---|
+| A | XML | `pipeline/texto.py` | BOE, DOGC, BOA, BOCYL, BOCM, BOPV |
+| B | PDF | capa de texto (ADR 0026) | DOGC, las que solo salen en PDF |
+| C | **HTML de portal** | `pipeline/texto_html.py` | **BON** |
+
+#### Por qué esto no rompe la raya del ADR 0029
+
+Aquella frase decía «el texto que una alerta cite sale siempre del XML», pero **lo que protegía
+no era el XML**: el proyecto ya admitía PDF. La regla real siempre fue *evidencia de un recorte
+declarado y reproducible, no de raspar lo que haya*. El nivel C paga por entrar con **tres
+obligaciones**: contenedor declarado en lista cerrada, canario de tamaño, y caída a `ilegible`
+si falla cualquiera de los dos.
+
+**La primera mantiene en pie el ADR 0020.** De aquel caso llegaron 172 páginas de error del DOGC
+archivadas como normas, y lo único que impidió que entraran fue que `xml_safe` no sabía leerlas.
+Ahora hay una rama que sí sabe leer HTML, así que **hay un test con la página de error real** que
+comprueba que sigue dando cero caracteres. Es el que hay que mirar antes de tocar este nivel.
+
+#### Navarra, verificada en vivo
+
+- **Su búsqueda por fecha miente**: devuelve siempre el último boletín, byte por byte. La trampa
+  del RSS del BOCYL otra vez.
+- Lo que sí hay: **cada sumario declara su cabecera**, así que la fecha se resuelve por
+  **bisección sobre el número de boletín** leyendo la cabecera de cada candidato.
+- **Un día puede traer dos boletines**, como el País Vasco: el 253 y el 254 son los dos del 16 de
+  diciembre de 2024. La interfaz de tupla del ADR 0035 lo cubrió **sin tocar nada**, que es para
+  lo que se hizo uniforme, y es la primera vez que se cobra sola.
+- **Un número que no existe da 200 con página vacía**, no 404. Séptima forma distinta.
+- Descargando: 2024-12-16 dos boletines (48 y 1 disposiciones); 2024-01-09 uno con 44; y los
+  cuerpos HTML dan 72.804 y 52.387 caracteres por el contenedor declarado.
+
+**Un defecto propio que cazó su test:** el barrido de vecinos se paraba al llegar al tope de
+sondeos **sin decir nada**, o sea truncaba la lista de ediciones en silencio. Perder un
+extraordinario por ahí habría sido perder justo lo que este ADR entra a proteger.
+
+#### Estado
+
+**Siete fuentes de 61.** `ruff`, `ruff format`, `mypy` y **813 tests**. El guardarraíl de la
+sección 8 sube de 6 a 7 y gana un criterio: **una fuente de nivel C entra solo si su articulado
+no existe en ningún formato documental**.
+
+#### Siguiente
+
+1. **Decir en la web qué se vigila y qué no**, aprobado en la misma petición. `CoberturaTotal` ya
+   pinta una marca por fuente y se alimenta de la API, así que dirá «7 de 61» sola; falta
+   **nombrar cuáles** y decir lo que no es obvio: que en **Asturias y Castilla y León el eje
+   referencial no puede dispararse** porque no tienen ley autonómica LGTBI. **~20k**
+2. **Backfill de las tres nuevas.** BOCM y BOPV son baratas; **el BON es caro** (hasta 16
+   peticiones por día resuelto). **~10k**
+3. Sigue abierto: gold set, pantalla de Metodología, la alerta de `BOE-A-2026-16172`, los
+   preceptos por norma-vehículo y publicar `fuente` en `DocumentoResumen`.
