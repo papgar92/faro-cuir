@@ -18,7 +18,10 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  # La MISMA version que el CI (.github/workflows/ci.yml) y que `package.json`.
+  # `jsdom@30` exige `^22.22.2 || ^24.15.0`, y con Node 20 la compilacion de Netlify
+  # y el job del CI se caian los dos por el mismo sitio. Tres sitios, un numero.
+  NODE_VERSION = "24"
 
 # --- El proxy que conserva el mismo origen -------------------------------------------------
 #

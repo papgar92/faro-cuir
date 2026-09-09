@@ -249,7 +249,13 @@ eso la CSP puede decir `default-src 'self'` sin nombrar a nadie. Comprobado en e
 
 ## 2. La web en Netlify
 
-1. Crear cuenta y **Add new site -> Import an existing project**, apuntando al repositorio.
+1. Crear cuenta y, en la pestaña **Projects**, **importar el repositorio de GitHub**. (Netlify
+   renombro «Sites» a «Projects»; si lees «Add new site» en una guia antigua, es esto.) Le puedes
+   dar acceso solo a `faro-cuir`, no hace falta a todos los repositorios.
+   **En la pantalla de opciones de compilacion no toques nada**: Netlify ya habra leido
+   `netlify.toml` y traera puestos el directorio base, el comando y el de publicacion. Lo que se
+   escriba ahi a mano vive en su panel y no en el repositorio, que es justo lo que este fichero
+   existe para evitar.
    Netlify lee `netlify.toml`: no hay que teclear ni el comando de compilacion ni el directorio.
 2. Desplegar y comprobar **tres cosas, en este orden**:
    - Que la pagina carga **con estilos**. Si se viera sin ellos, es la CSP: mirar la consola del

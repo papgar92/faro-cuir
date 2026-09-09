@@ -6,6 +6,71 @@ on:
   pull_request:
 
 jobs:
+  # El frontend NO entraba en el CI hasta el 2026-09-05, y se notó: llevaba tiempo sin compilar
+  # limpio -un import sin usar en `MapaPage`- sin que nadie lo supiera, y `vitest` aparecía en la
+  # tabla de stack de CLAUDE.md sin estar en `package.json`. O sea que ninguna de las seis
+  # pantallas tenía una sola prueba, ni siquiera la comprobación de que existe el tipo.
+  #
+  # Job aparte y no pasos dentro de `quality` a propósito: son dos cadenas de herramientas
+  # distintas y corren en paralelo, así que el CI no tarda más. Y cuando algo se rompe, el nombre
+  # del job ya dice de qué lado está.
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # **Node 24, y el numero importa.** El job se estreno con el 20 y `vitest` reventó con
+      # `webidl.util.markAsUncloneable is not a function`: es `undici` dentro de `jsdom` pidiendo
+      # una API que el 20 no tiene. `jsdom@30` declara `engines: ^22.22.2 || ^24.15.0`, pero
+      # `npm ci` solo AVISA de eso, no lo bloquea — asi que en local pasaba (Node 24) y aqui no.
+      #
+      # La misma version esta en `netlify.toml` y declarada en `package.json`. Tres sitios y un
+      # numero: si alguno se queda atras, vuelve a fallar solo aqui.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` y no `npm install`: instala exactamente el lock, sin resolver versiones nuevas
+      # en el servidor. Una dependencia que cambia sola entre el commit y el CI es justo lo que
+      # la sección 3 quiere evitar.
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: tsc (comprobación de tipos)
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: vitest
+        working-directory: frontend
+        run: npm test
+
+      # La compilación es la última comprobación y no es redundante con `tsc`: Vite resuelve las
+      # importaciones de verdad, así que aquí es donde se ve una ruta rota o un fichero de
+      # `public/` que no existe.
+      - name: Compilación de producción
+        working-directory: frontend
+        run: npm run build
+
+      # Que las tipografías viajen al build es una propiedad de PRIVACIDAD, no de empaquetado:
+      # si faltaran, el navegador se las pediría a Google y la IP de cada visitante viajaría a un
+      # tercero, que es lo que la 6.4 no admite (ADR 0033). Se comprueba aquí porque es
+      # exactamente el tipo de cosa que se rompe en un refactor sin que nadie lo mire.
+      - name: La web no depende de ningún tercero
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          test "$(ls dist/fonts/*.woff2 | wc -l)" -eq 8
+          if grep -rqE '(href|src)="https?://|url\(["'"'"']?https?://' dist/index.html dist/assets/*.css; then
+            echo "Hay una carga desde un origen externo en el build:"
+            grep -roE '(href|src)="https?://[^"]+|url\(["'"'"']?https?://[^)"'"'"']+' dist/index.html dist/assets/*.css
+            exit 1
+          fi
+          echo "8 woff2 propias y ninguna carga externa"
+
   quality:
     runs-on: ubuntu-latest
 
