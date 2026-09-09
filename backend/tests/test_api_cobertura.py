@@ -49,14 +49,20 @@ def client(sesion_db: Session) -> Iterator[TestClient]:
         yield cliente
 
 
-def _fuente(session: Session, *, codigo: str | None, activa: bool = True) -> Fuente:
+def _fuente(
+    session: Session,
+    *,
+    codigo: str | None,
+    activa: bool = True,
+    formato: FormatoFuente = FormatoFuente.API,
+) -> Fuente:
     fuente = Fuente(
         nombre=f"Boletín {codigo or 'estatal'}",
         tipo=TipoFuente.BOLETIN_AUTONOMICO if codigo else TipoFuente.BOE,
         ambito_territorial=AmbitoTerritorial.AUTONOMICO if codigo else AmbitoTerritorial.ESTATAL,
         ccaa="Catalunya" if codigo else None,
         ccaa_codigo=codigo,
-        formato=FormatoFuente.API,
+        formato=formato,
         url_base="https://ejemplo.invalid/",
         licencia_reutil=None,
         activa=activa,
@@ -283,3 +289,64 @@ def test_la_linea_base_cubre_las_diecisiete_comunidades(client: TestClient) -> N
     con_marco = [c for c in por_ccaa if c["leyes_vigentes"] or c["sin_ley_autonomica"]]
 
     assert len(con_marco) == 17
+
+
+# --- Decir CUÁLES, no solo cuántas ----------------------------------------------------------
+#
+# El humano lo aprobó el 2026-09-06: la web tiene que decir qué se vigila y qué no. Un recuento
+# («7 de 61») se lee como una promesa de progreso; una lista con nombres se lee como lo que es.
+
+
+def test_publica_el_nombre_de_cada_fuente_que_se_esta_vigilando(
+    client: TestClient, sesion_db: Session
+) -> None:
+    _fuente(sesion_db, codigo=None)
+    _fuente(sesion_db, codigo="CT")
+    # Una inactiva: está registrada y **no** se está leyendo. No puede aparecer en esta lista o
+    # la lista diría que se vigila algo que no se vigila, que es justo lo que viene a arreglar.
+    _fuente(sesion_db, codigo="AN", activa=False)
+    sesion_db.commit()
+
+    cuerpo = client.get("/api/cobertura").json()
+
+    nombres = [f["nombre"] for f in cuerpo["fuentes_vigiladas"]]
+    assert nombres == ["Boletín CT", "Boletín estatal"]
+    assert cuerpo["vigiladas"] == 2
+    assert cuerpo["conocidas"] == 3
+
+
+def test_el_formato_del_cuerpo_se_publica_y_no_se_disimula(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """`html` significa que la evidencia se recorta de una página, no de un documento (ADR 0036).
+
+    Eso cambia lo que se puede prometer de esa fuente —un rediseño del portal la puede dejar
+    ilegible de un día para otro—, así que se publica. Taparlo con una etiqueta cómoda sería lo
+    contrario de la 6.9.6.
+    """
+    _fuente(sesion_db, codigo="NC", formato=FormatoFuente.HTML)
+    sesion_db.commit()
+
+    fuentes = client.get("/api/cobertura").json()["fuentes_vigiladas"]
+
+    assert [(f["ccaa_codigo"], f["formato"]) for f in fuentes] == [("NC", "html")]
+
+
+def test_cuenta_las_comunidades_donde_el_eje_referencial_no_puede_dispararse(
+    client: TestClient, sesion_db: Session
+) -> None:
+    """Asturias y Castilla y León no tienen ley autonómica LGTBI, así que allí la vigilancia es
+    media por construcción (7.3).
+
+    Es el hecho menos obvio de esta respuesta: sin él, «Castilla y León: 0 alertas» se lee como
+    tranquilidad, cuando en realidad se lee mucho peor. El detalle por comunidad ya viajaba; lo
+    que faltaba era el total, para que una portada pueda decirlo sin recorrer las diecisiete.
+    """
+    _fuente(sesion_db, codigo="CT")
+    sesion_db.commit()
+
+    cuerpo = client.get("/api/cobertura").json()
+
+    assert cuerpo["ccaa_sin_ley_autonomica"] == 2
+    sin_ley = [c["ccaa_codigo"] for c in cuerpo["por_ccaa"] if c["sin_ley_autonomica"]]
+    assert sorted(sin_ley) == ["AS", "CL"]

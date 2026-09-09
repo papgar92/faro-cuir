@@ -3262,3 +3262,42 @@ no existe en ningún formato documental**.
    peticiones por día resuelto). **~10k**
 3. Sigue abierto: gold set, pantalla de Metodología, la alerta de `BOE-A-2026-16172`, los
    preceptos por norma-vehículo y publicar `fuente` en `DocumentoResumen`.
+
+---
+
+### La web dice ahora qué se vigila y qué no — 2026-09-06 (aprobado en la misma petición)
+
+*«Sí, puedes incluir en la web lo que comentas.»* Lo que se comentaba era que con 7 de 61 fuentes
+lo que más vale no es una octava, es **decir la verdad de lo que hay**.
+
+Buena parte ya estaba construida y se alimenta de la API —`CoberturaTotal` pinta una marca por
+fuente y dice «X de Y»—, así que pasará a decir 7 de 61 sola. **Lo que faltaba era decir
+cuáles**, y dos cosas que callarlas era peor:
+
+1. **Los nombres.** «7 de 61» se lee como una promesa de progreso; siete boletines con nombre y
+   cincuenta y cuatro en blanco se leen como lo que son. Y la única pregunta que se hace quien
+   entra aquí —«¿está la mía?»— dejaba de contestarse por el color de un mapa.
+2. **Dónde el eje referencial no puede dispararse.** Asturias y Castilla y León no tienen ley
+   autonómica LGTBI, así que allí no hay norma propia que alguien pueda modificar y solo trabaja
+   el vocabulario (7.3). Sin decirlo, «Castilla y León: 0 alertas» se lee como tranquilidad, y
+   se lee mucho peor. El dato ya viajaba por comunidad; lo que faltaba era el total, para que la
+   portada pueda decirlo sin recorrer las diecisiete.
+3. **De dónde sale la evidencia de cada fuente.** `formato: html` significa que se recorta de una
+   página de portal y no de un documento estructurado (ADR 0036): un rediseño la puede dejar
+   ilegible de un día para otro. Es una promesa más débil que la de las otras seis, y **se marca
+   solo esa** — una etiqueta en cada línea deja de leerse.
+
+`GET /api/cobertura` gana `fuentes_vigiladas` (nombre, comunidad, formato, hasta cuándo llega) y
+`ccaa_sin_ley_autonomica`. Es un **cambio de API pública**, aditivo.
+
+**Tres tests nuevos lo fijan**, y son los que evitan que la honestidad se caiga en un refactor:
+que una fuente inactiva **no** aparezca en la lista de vigiladas, que el `formato` se publique
+sin disimular, y que el recuento de comunidades sin ley sea 2 con Asturias y Castilla y León
+nombradas. No hay test de renderizado: el frontend no tiene librería para montar componentes y
+**no se añade una dependencia por esto** (sección 3); la garantía vive en la API.
+
+**Un fallo mío que conviene no repetir:** esta rama salió de un `main` local desactualizado, así
+que no llevaba el frontend en el CI (PR #7, ya mergeado) y aquí ni siquiera había vitest. El CI
+del PR no lo delató porque GitHub prueba **el resultado del merge**, no la rama. Es el mismo
+patrón que ya ha mordido cuatro veces: *funciona en mi contexto, no fuera de él*. Arreglado
+trayendo `main` a la rama antes de seguir.
