@@ -28,6 +28,7 @@ from app.models.norma import Norma
 from app.pipeline.citas import extraer_referencias_citadas
 from app.pipeline.referencias import ReferenciaAnterior, extraer_referencias_anteriores
 from app.pipeline.texto import texto_plano
+from app.pipeline.texto_html import es_html, texto_de_html
 from app.pipeline.watchlist import Watchlist
 from app.security import pdf_safe, xml_safe
 from app.security.hashing import UnsafeStoragePath
@@ -62,6 +63,15 @@ class Cuerpo:
     """El texto íntegro derivado de una norma y las referencias que declara."""
 
     texto: str
+    # **Con qué nivel se derivó este cuerpo** (ADR 0036): `xml`, `pdf` o `html`. Viaja a la
+    # evidencia junto a `version_texto_plano` porque un offset sin saber sobre qué derivación se
+    # midió no es reproducible (7.5), y con tres niveles la constante sola ya no lo dice.
+    #
+    # **No sustituye a `VERSION_TEXTO_PLANO` en las columnas de reprocesado.** Esas siguen
+    # llevando una sola versión para toda la capa: una por documento haría que las normas de los
+    # otros dos niveles parecieran caducadas en cada pasada, que es el bucle infinito contra el
+    # que avisa `services/prefiltro.py`.
+    derivacion: str
     # **Dos orígenes, un solo tipo** (ADR 0022):
     #
     # - El bloque `<analisis>`, que se lee de la **raíz** del documento y no del texto derivado:
@@ -141,7 +151,33 @@ def leer_cuerpo(
             if lista is not None
             else ()
         )
-        return Cuerpo(texto=texto_pdf, referencias=citadas_pdf)
+        return Cuerpo(texto=texto_pdf, derivacion="pdf", referencias=citadas_pdf)
+
+    # Tercer nivel (ADR 0036): HTML de portal, para las fuentes que no publican el cuerpo en
+    # ningún formato documental. Va **antes** de `xml_safe` porque un XHTML podría parsear como
+    # XML y entonces se derivaría el árbol entero —menú y pie incluidos— en vez del recorte.
+    #
+    # **Esto no relaja el ADR 0020**: `texto_de_html` solo extrae de los contenedores declarados
+    # en `pipeline/texto_html.CONTENEDORES`. Una página de error del portal no trae ninguno, así
+    # que devuelve vacío y la norma sigue siendo `ilegible` exactamente igual que antes.
+    if es_html(contenido):
+        texto_html = texto_de_html(contenido)
+        if not texto_html:
+            logger.error(
+                "El cuerpo archivado de %s es HTML sin ningún contenedor declarado (o demasiado "
+                "corto): se marca ilegible y se reintentará.",
+                norma.identificador_oficial,
+            )
+            raise CuerpoIlegible(norma.identificador_oficial)
+        # Sin referencias de metadato, por lo mismo que en el PDF: una página HTML no trae el
+        # bloque `<analisis>` del BOE. Aquí el eje referencial solo puede venir de las citas del
+        # propio texto (ADR 0022).
+        citadas_html = (
+            extraer_referencias_citadas(texto_html, lista, norma.titulo or "")
+            if lista is not None
+            else ()
+        )
+        return Cuerpo(texto=texto_html, derivacion="html", referencias=citadas_html)
 
     try:
         raiz = xml_safe.parse(contenido)
@@ -166,4 +202,8 @@ def leer_cuerpo(
     citadas = (
         extraer_referencias_citadas(texto, lista, norma.titulo or "") if lista is not None else ()
     )
-    return Cuerpo(texto=texto, referencias=extraer_referencias_anteriores(raiz) + citadas)
+    return Cuerpo(
+        texto=texto,
+        derivacion="xml",
+        referencias=extraer_referencias_anteriores(raiz) + citadas,
+    )

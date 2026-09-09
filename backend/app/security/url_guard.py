@@ -79,6 +79,19 @@ DEFAULT_ALLOWLIST: frozenset[str] = frozenset(
         # --- BOCYL, cuarta fuente y tercera autonómica (ADR 0029) ---------------------------
         # Sumario (HTML) y cuerpo (XML) salen del mismo host, como en el BOA.
         "bocyl.jcyl.es",
+        # --- BOCM, quinta fuente y cuarta autonómica (ADR 0034) -----------------------------
+        # Sumario y cuerpo, los dos XML, salen del mismo host. Entra `www.bocm.es` por el
+        # dominio raíz, que es como `_host_allowed` admite subdominios reales.
+        "bocm.es",
+        # --- BOPV, sexta fuente y quinta autonómica (ADR 0035) ------------------------------
+        # Calendario, sumario y cuerpo salen los tres del mismo host. Entra por el dominio raíz
+        # porque el portal reescribe entre `www.euskadi.eus` y `www.euskadi.eus/web01-bopv`
+        # según la ruta, y `fetch` revalida cada salto.
+        "euskadi.eus",
+        # --- BON, séptima fuente y sexta autonómica (ADR 0036) ------------------------------
+        # Índice, sumario y cuerpo salen del mismo host. Es la primera fuente del nivel HTML:
+        # de aquí sale articulado, así que el recorte va declarado en `pipeline/texto_html.py`.
+        "bon.navarra.es",
     }
 )
 

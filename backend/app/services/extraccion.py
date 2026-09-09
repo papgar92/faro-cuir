@@ -309,6 +309,9 @@ def aplicar(
                 # saber sobre qué derivación y con qué criterio se midió no es reproducible.
                 "anclas": anclas,
                 "version_texto_plano": VERSION_TEXTO_PLANO,
+                # Con tres niveles de derivación (ADR 0036), la versión sola no dice sobre qué
+                # texto se midieron los offsets. Esto lo completa.
+                "derivacion": cuerpo.derivacion,
                 "version_anclaje": VERSION_ANCLAJE,
                 # Sobre cuánto documento se pronunció el modelo. Sin esto, «el extractor no
                 # encontró nada» no se distingue de «el extractor no lo miró», y sobre la cola

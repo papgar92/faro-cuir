@@ -43,11 +43,16 @@ logger = logging.getLogger("worker")
 # colaba, con tres deja de colar y la cuarta se añadiría por copia. Cada fila dice las tres
 # cosas que distinguen una fuente: qué tipo es, qué comunidad la publica (None = estatal) y
 # quién sabe leerla.
-FUENTES: dict[str, tuple[TipoFuente, str | None, Callable[..., ingesta.ResultadoIngesta]]] = {
+FUENTES: dict[
+    str, tuple[TipoFuente, str | None, Callable[..., tuple[ingesta.ResultadoIngesta, ...]]]
+] = {
     "boe": (TipoFuente.BOE, None, ingesta.ingerir_sumario_boe),
     "dogc": (TipoFuente.BOLETIN_AUTONOMICO, "CT", ingesta.ingerir_sumario_dogc),
     "boa": (TipoFuente.BOLETIN_AUTONOMICO, "AR", ingesta.ingerir_sumario_boa),
     "bocyl": (TipoFuente.BOLETIN_AUTONOMICO, "CL", ingesta.ingerir_sumario_bocyl),
+    "bocm": (TipoFuente.BOLETIN_AUTONOMICO, "MD", ingesta.ingerir_sumario_bocm),
+    "bopv": (TipoFuente.BOLETIN_AUTONOMICO, "PV", ingesta.ingerir_sumario_bopv),
+    "bon": (TipoFuente.BOLETIN_AUTONOMICO, "NC", ingesta.ingerir_sumario_bon),
 }
 
 FUENTES_SOPORTADAS = tuple(FUENTES)
@@ -333,6 +338,37 @@ def _versionar(session) -> versionado.ResumenVersionado:  # type: ignore[no-unty
     )
 
 
+def _registrar_ingesta(resultado: ingesta.ResultadoIngesta) -> None:
+    """Qué ha pasado con un sumario. Era código suelto al final de la pasada; se saca aquí
+    porque desde el ADR 0035 hay que decirlo **una vez por edición**, y un día del BOPV puede
+    traer dos."""
+    if resultado.creado:
+        logger.info(
+            "Ingerido %s (%s items, %s normas nuevas) sha256=%s -> %s",
+            resultado.sumario.identificador,
+            len(resultado.sumario.items),
+            resultado.normas_creadas,
+            resultado.sha256,
+            resultado.ruta_almacen,
+        )
+    elif resultado.normas_creadas:
+        # El documento ya estaba pero le faltaban normas: una ingesta anterior se quedó a
+        # medias y esta la ha completado. Decir "nada que hacer" aquí sería mentir en el log.
+        logger.info(
+            "El documento %s (id=%s) ya estaba, pero le faltaban normas: %s añadidas.",
+            resultado.sumario.identificador,
+            resultado.documento_id,
+            resultado.normas_creadas,
+        )
+    else:
+        logger.info(
+            "Ya estaba ingerido %s (documento id=%s) con sus %s normas; nada que hacer.",
+            resultado.sumario.identificador,
+            resultado.documento_id,
+            len(resultado.sumario.items),
+        )
+
+
 def _encolar_revision(session) -> servicio_revision.ResumenEncolado:  # type: ignore[no-untyped-def]
     """Etapa 6: mete en la cola del gate humano lo que el clasificador dejó con veredicto.
 
@@ -523,7 +559,7 @@ def _ingerir_dia(  # noqa: C901
             return 2
 
         try:
-            resultado = ingerir(
+            resultados = ingerir(
                 session,
                 fuente_id=fuente.id,
                 fecha=fecha,
@@ -543,108 +579,93 @@ def _ingerir_dia(  # noqa: C901
             logger.error("No se pudo ingerir el sumario del %s: %s", fecha, exc)
             return 1
 
-        # Fase 2 (ADR 0011 y 0015): el texto íntegro del día entero, **antes** del prefiltro.
-        # El orden no es negociable: el prefiltro sobre el título solo puede dejar normas en
-        # `pendiente` (7.1), así que ejecutarlo antes de tener los cuerpos significa no
-        # descartar ni promocionar nada. Cuesta ~10 s por día de BOE (ADR 0011).
-        resumen_fase2 = texto_integro.descargar(
-            session,
-            almacen_root=settings.almacen_root,
-            pausa=settings.fase2_pausa_segundos,
-            limite=settings.fase2_max_por_ejecucion,
-            documento_id=resultado.documento_id,
-        )
+        # **Un día puede traer más de un boletín.** El BOPV publica dos ediciones el mismo día
+        # unas cinco veces cada 33 meses (ADR 0035), y es donde cae un extraordinario. Las etapas
+        # que van acotadas a un documento se recorren por edición; las que barren toda la tabla
+        # —el versionado y el encolado— se quedan fuera del bucle, que es donde tienen sentido.
+        for resultado in resultados:
+            # Fase 2 (ADR 0011 y 0015): el texto íntegro del día entero, **antes** del prefiltro.
+            # El orden no es negociable: el prefiltro sobre el título solo puede dejar normas en
+            # `pendiente` (7.1), así que ejecutarlo antes de tener los cuerpos significa no
+            # descartar ni promocionar nada. Cuesta ~10 s por día de BOE (ADR 0011).
+            resumen_fase2 = texto_integro.descargar(
+                session,
+                almacen_root=settings.almacen_root,
+                pausa=settings.fase2_pausa_segundos,
+                limite=settings.fase2_max_por_ejecucion,
+                documento_id=resultado.documento_id,
+            )
 
-        # Etapa 1 del pipeline, en la misma pasada que la ingesta. Va aquí y no en un cron
-        # aparte porque es determinista y barato (no toca la red ni el LLM): separarlo solo
-        # añadiría una ventana en la que hay normas ingeridas que nadie ha mirado todavía.
-        resumen = servicio_prefiltro.aplicar(
-            session, almacen_root=settings.almacen_root, documento_id=resultado.documento_id
-        )
+            # Etapa 1 del pipeline, en la misma pasada que la ingesta. Va aquí y no en un cron
+            # aparte porque es determinista y barato (no toca la red ni el LLM): separarlo solo
+            # añadiría una ventana en la que hay normas ingeridas que nadie ha mirado todavía.
+            resumen = servicio_prefiltro.aplicar(
+                session, almacen_root=settings.almacen_root, documento_id=resultado.documento_id
+            )
+
+            # Etapa 3, acoplada a la misma pasada por la misma razón: sin esto habría una ventana
+            # con normas relevantes y nadie las habría mirado. Ya no toca la red (lee el cuerpo
+            # del almacén, ADR 0015) pero sí el LLM (Ollama local, ADR 0008) y puede tardar; es
+            # aceptable en un worker cron diario, no lo sería en una petición HTTP.
+            # `--sin-extraccion` es lo que hace viable un backfill (133,9 s por norma, ADR 0011).
+            # Lo que se salta **no se pierde**: la cola del extractor es una consulta —normas en
+            # cola sin `deteccion`— así que una pasada normal posterior las recoge todas.
+            resumen_extraccion = (
+                servicio_extraccion.ResumenExtraccion(
+                    evaluadas=0, extraidas=0, fallidas=0, punteros=0
+                )
+                if sin_extraccion
+                else servicio_extraccion.aplicar(
+                    session,
+                    ProveedorOllama(),
+                    almacen_root=settings.almacen_root,
+                    documento_id=resultado.documento_id,
+                )
+            )
+
+            # Etapa 4 (ADR 0016): el catálogo de reglas sobre el texto archivado. Va **después**
+            # del extractor y no antes por una sola razón: así puede contar cuántos de los
+            # punteros que el modelo citó quedan corroborados por el archivo. El veredicto no
+            # depende de eso —las reglas leen el texto, no la extracción— pero el diagnóstico sí,
+            # y es lo único que puede contestar si el modelo ve supresiones que las reglas no ven.
+            # Es barato: ni red ni LLM, solo leer del almacén.
+            resumen_clasificacion = servicio_clasificacion.aplicar(
+                session,
+                almacen_root=settings.almacen_root,
+                documento_id=resultado.documento_id,
+            )
+
+            # El log va aquí dentro y no al final: con dos ediciones, un solo resumen diría la
+            # mitad de lo que ha pasado y parecería que la otra no se ingirió.
+            _registrar_ingesta(resultado)
+            _registrar_fase2(resumen_fase2)
+            # El embudo se registra siempre, incluso cuando no se creó nada: es la cifra que dice
+            # cuánto trabajo se ahorra el extractor, y perderla en las reejecuciones dejaría el
+            # log sin la única métrica interesante de esta etapa.
+            _registrar_embudo(resumen, reaplicado=False)
+            logger.info(
+                "Extracción (prompt %s): %s pendientes, %s extraídas, %s fallidas, "
+                "%s punteros (preceptos citados sin texto, ADR 0016).",
+                VERSION_PROMPT,
+                resumen_extraccion.evaluadas,
+                resumen_extraccion.extraidas,
+                resumen_extraccion.fallidas,
+                resumen_extraccion.punteros,
+            )
+            _registrar_clasificacion(resumen_clasificacion)
 
         # Versionado (ADR 0018): el texto anterior de lo que las normas modifican, desde el
         # consolidado del BOE. Barre **toda** la tabla y no solo el documento del día, y esa es
         # justo la razón de que exista como etapa y no como un paso más de la ingesta: la
         # consolidación llega con retraso, así que lo que hoy se puede completar casi nunca es lo
         # de hoy, sino lo de días anteriores. Sale a la red, con el tope y la pausa de 6.2.
-        resumen_versionado = _versionar(session)
-
-        # Etapa 3, acoplada a la misma pasada por la misma razón: sin esto habría una ventana
-        # con normas relevantes y nadie las habría mirado. Ya no toca la red (lee el cuerpo del
-        # almacén, ADR 0015) pero sí el LLM (Ollama local, ADR 0008) y puede tardar; es
-        # aceptable en un worker cron diario, no lo sería en una petición HTTP.
-        # `--sin-extraccion` es lo que hace viable un backfill (133,9 s por norma, ADR 0011).
-        # Lo que se salta **no se pierde**: la cola del extractor es una consulta —normas en
-        # cola sin `deteccion`— así que una pasada normal posterior las recoge todas.
-        resumen_extraccion = (
-            servicio_extraccion.ResumenExtraccion(evaluadas=0, extraidas=0, fallidas=0, punteros=0)
-            if sin_extraccion
-            else servicio_extraccion.aplicar(
-                session,
-                ProveedorOllama(),
-                almacen_root=settings.almacen_root,
-                documento_id=resultado.documento_id,
-            )
-        )
-
-        # Etapa 4 (ADR 0016): el catálogo de reglas sobre el texto archivado. Va **después**
-        # del extractor y no antes por una sola razón: así puede contar cuántos de los
-        # punteros que el modelo citó quedan corroborados por el archivo. El veredicto no
-        # depende de eso —las reglas leen el texto, no la extracción— pero el diagnóstico sí,
-        # y es lo único que puede contestar si el modelo ve supresiones que las reglas no ven.
-        # Es barato: ni red ni LLM, solo leer del almacén.
-        resumen_clasificacion = servicio_clasificacion.aplicar(
-            session,
-            almacen_root=settings.almacen_root,
-            documento_id=resultado.documento_id,
-        )
+        _registrar_versionado(_versionar(session))
 
         # Etapa 6 (regla de oro 4, ADR 0003 y 0017). Barre **toda** la tabla y no solo el
         # documento del día a propósito: la cola es el inventario de lo que falta por revisar,
         # y un veredicto de anteayer que se quedó sin encolar seguiría sin encolarse nunca.
         _encolar_revision(session)
 
-    if resultado.creado:
-        logger.info(
-            "Ingerido %s (%s items, %s normas nuevas) sha256=%s -> %s",
-            resultado.sumario.identificador,
-            len(resultado.sumario.items),
-            resultado.normas_creadas,
-            resultado.sha256,
-            resultado.ruta_almacen,
-        )
-    elif resultado.normas_creadas:
-        # El documento ya estaba pero le faltaban normas: una ingesta anterior se quedó a
-        # medias y esta la ha completado. Decir "nada que hacer" aquí sería mentir en el log.
-        logger.info(
-            "El documento %s (id=%s) ya estaba, pero le faltaban normas: %s añadidas.",
-            resultado.sumario.identificador,
-            resultado.documento_id,
-            resultado.normas_creadas,
-        )
-    else:
-        logger.info(
-            "Ya estaba ingerido %s (documento id=%s) con sus %s normas; nada que hacer.",
-            resultado.sumario.identificador,
-            resultado.documento_id,
-            len(resultado.sumario.items),
-        )
-    _registrar_fase2(resumen_fase2)
-    # El embudo se registra siempre, incluso cuando no se creó nada: es la cifra que dice
-    # cuánto trabajo se ahorra el extractor, y perderla en las reejecuciones dejaría el log
-    # sin la única métrica interesante de esta etapa.
-    _registrar_embudo(resumen, reaplicado=False)
-    logger.info(
-        "Extracción (prompt %s): %s pendientes, %s extraídas, %s fallidas, "
-        "%s punteros (preceptos citados sin texto, ADR 0016).",
-        VERSION_PROMPT,
-        resumen_extraccion.evaluadas,
-        resumen_extraccion.extraidas,
-        resumen_extraccion.fallidas,
-        resumen_extraccion.punteros,
-    )
-    _registrar_versionado(resumen_versionado)
-    _registrar_clasificacion(resumen_clasificacion)
     return 0
 
 

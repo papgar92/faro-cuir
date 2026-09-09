@@ -109,6 +109,33 @@ class CoberturaCcaa(BaseModel):
     leyes_vigentes: list[LeyVigente] = Field(default_factory=list)
 
 
+class FuenteVigilada(BaseModel):
+    """Un boletín que el sistema **sí** está leyendo hoy, con su nombre.
+
+    Existe porque «7 de 61» no es lo mismo que decir **cuáles**. Un recuento se lee como una
+    promesa de progreso; una lista con siete nombres y el resto en blanco se lee como lo que es.
+    Quien consulte esta herramienta tiene derecho a saber si su comunidad está dentro sin tener
+    que deducirlo del color de un mapa.
+
+    **`formato` viaja a propósito, aunque parezca un detalle de implementación.** Desde el ADR
+    0036 el cuerpo llega en tres niveles, y `html` significa que la evidencia se recorta de una
+    página de portal y no de un documento estructurado. Eso cambia lo que se puede prometer sobre
+    esa fuente —un rediseño la puede dejar ilegible de un día para otro— y esconderlo detrás de
+    una etiqueta cómoda sería lo contrario de la 6.9.6.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    nombre: str
+    # `None` para el BOE, que no pertenece a ninguna comunidad.
+    ccaa_codigo: str | None
+    # `api` | `rss` | `html` | `pdf`. Ver arriba: no es decoración.
+    formato: str
+    # La fecha del boletín más reciente que se le ha archivado. `None` = ninguno todavía. Es lo
+    # que distingue «integrada» de «integrada y funcionando».
+    ultima_publicacion: datetime.date | None = None
+
+
 class Cobertura(BaseModel):
     """Respuesta completa: el total y el desglose por comunidad.
 
@@ -130,4 +157,15 @@ class Cobertura(BaseModel):
     # franja de la portada decía «100 documentos archivados» con 162 en el almacén. Un total es
     # un agregado, y los agregados de este sistema viven en esta ruta.
     documentos: int
+    # Las que están vivas, con nombre y apellidos. Ver `FuenteVigilada`: el recuento sin la lista
+    # deja al lector sin saber si lo suyo está dentro.
+    fuentes_vigiladas: list[FuenteVigilada] = Field(default_factory=list)
+    # Cuántas comunidades no tienen ley autonómica LGTBI, así que **el eje referencial no puede
+    # dispararse allí sobre una norma propia** (7.3). Es media vigilancia por construcción, y es
+    # el hecho menos obvio de esta respuesta: sin él, «Castilla y León: 0 alertas» se lee como
+    # tranquilidad cuando en realidad se lee mucho peor.
+    #
+    # El detalle por comunidad ya viaja en `CoberturaCcaa.sin_ley_autonomica`; esto es el total,
+    # para que una portada pueda decirlo sin recorrer las diecisiete.
+    ccaa_sin_ley_autonomica: int = 0
     por_ccaa: list[CoberturaCcaa]

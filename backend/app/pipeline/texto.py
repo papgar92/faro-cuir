@@ -96,8 +96,44 @@ def texto_plano(raiz: Element) -> str:
         #
         # `VERSION_TEXTO_PLANO` tampoco sube por esto, por lo mismo que en el caso del BOA.
         cuerpo = raiz.find("./contenido/texto")
+    if cuerpo is None:
+        # BOPV (ADR 0035): aquí **no hay contenedor que buscar**. El articulado son hermanos
+        # directos de los metadatos bajo `<DOCUMENTO>` —`BOPVDetalle`, `BOPVClave`, `BOPVFirma*`
+        # junto a `BOPVSeccion`, `BOPVOrganismo`, `BOPVTitulo`, `BOPVOrden`—, así que la
+        # derivación se invierte: en vez de señalar el articulado, se **excluyen los metadatos**.
+        #
+        # La asimetría es deliberada y es la misma de 7.1: una etiqueta nueva que no conozcamos
+        # entra en el texto (ruido, barato) en vez de quedarse fuera (articulado perdido, y
+        # perdido en silencio). Sin esto caería al árbol completo y el prefiltro léxico vería el
+        # título y el organismo como si fueran articulado, que es la misma fuente de falsos
+        # positivos que el `<analisis>` del BOE.
+        #
+        # `VERSION_TEXTO_PLANO` tampoco sube por esto, por lo mismo que en el BOA y el BOCYL: no
+        # cambia cómo se deriva nada ya archivado, solo enseña a leer una forma nueva.
+        texto_bopv = _texto_bopv(raiz)
+        if texto_bopv:
+            return texto_bopv
     objetivo = cuerpo if cuerpo is not None else raiz
     fragmentos = (fragmento.strip() for fragmento in objetivo.itertext())
+    return " ".join(f for f in fragmentos if f)
+
+
+# Los metadatos del cuerpo del BOPV, que son hermanos del articulado y no antepasados suyos.
+_METADATOS_BOPV = frozenset(
+    {"BOPVSeccion", "BOPVSubseccion", "BOPVOrganismo", "BOPVOrden", "BOPVTitulo"}
+)
+
+
+def _texto_bopv(raiz: Element) -> str:
+    """El articulado de un cuerpo del BOPV: todo menos sus cinco etiquetas de metadatos."""
+    if raiz.tag != "DOCUMENTO" or raiz.find("./BOPVOrden") is None:
+        return ""
+    fragmentos = (
+        fragmento.strip()
+        for hijo in raiz
+        if hijo.tag not in _METADATOS_BOPV
+        for fragmento in hijo.itertext()
+    )
     return " ".join(f for f in fragmentos if f)
 
 

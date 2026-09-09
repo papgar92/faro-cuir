@@ -235,6 +235,26 @@ export interface CoberturaCcaaApi {
   leyes_vigentes: LeyVigenteApi[];
 }
 
+/**
+ * Un boletín que el sistema **sí** está leyendo hoy. Espejo de `schemas/cobertura.FuenteVigilada`.
+ *
+ * Existe porque «7 de 61» no es lo mismo que decir **cuáles**. Un recuento se lee como una
+ * promesa de progreso; una lista con siete nombres y el resto en blanco se lee como lo que es.
+ */
+export interface FuenteVigiladaApi {
+  nombre: string;
+  /** `null` para el BOE, que no pertenece a ninguna comunidad. */
+  ccaa_codigo: string | null;
+  /**
+   * `api` | `rss` | `html` | `pdf`. **No es decoración**: desde el ADR 0036 el cuerpo llega en
+   * tres niveles, y `html` significa que la evidencia se recorta de una página de portal y no de
+   * un documento estructurado. Eso cambia lo que se puede prometer de esa fuente.
+   */
+  formato: string;
+  /** Fecha del boletín más reciente archivado. `null` = ninguno. Distingue «integrada» de «viva». */
+  ultima_publicacion: string | null;
+}
+
 export interface CoberturaApi {
   conocidas: number;
   vigiladas: number;
@@ -246,6 +266,15 @@ export interface CoberturaApi {
    * franja de la portada dijera «100 documentos archivados» con 162 en el almacén.
    */
   documentos: number;
+  /** Las que están vivas, con nombre. Ver `FuenteVigiladaApi`. */
+  fuentes_vigiladas: FuenteVigiladaApi[];
+  /**
+   * Cuántas comunidades no tienen ley autonómica LGTBI, así que **el eje referencial no puede
+   * dispararse allí** sobre una norma propia. Es media vigilancia por construcción, y es el
+   * hecho menos obvio de esta respuesta: sin él, «Castilla y León: 0 alertas» se lee como
+   * tranquilidad cuando en realidad se lee mucho peor.
+   */
+  ccaa_sin_ley_autonomica: number;
   por_ccaa: CoberturaCcaaApi[];
 }
 

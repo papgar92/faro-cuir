@@ -23,7 +23,13 @@ from app.models.documento import Documento, TipoDocumento
 from app.models.fuente import Fuente
 from app.models.norma import EstadoPrefiltro, Norma
 from app.pipeline import watchlist
-from app.schemas.cobertura import Cobertura, CoberturaCcaa, CoberturaNivel, LeyVigente
+from app.schemas.cobertura import (
+    Cobertura,
+    CoberturaCcaa,
+    CoberturaNivel,
+    FuenteVigilada,
+    LeyVigente,
+)
 
 router = APIRouter(prefix="/api", tags=["cobertura"])
 
@@ -214,11 +220,38 @@ def obtener_cobertura(session: Session = Depends(get_session)) -> Cobertura:
         select(func.count()).select_from(Documento).where(Documento.tipo == TipoDocumento.SUMARIO)
     )
 
+    # **Cuáles**, no solo cuántas. Se consulta aparte de la agregación de arriba a propósito: esa
+    # agrupa por comunidad y ámbito para contar, y aquí hace falta la fila entera de cada fuente
+    # viva. Ordenadas por nombre para que la lista de la web sea estable entre peticiones.
+    vigiladas_filas = session.execute(
+        select(Fuente.nombre, Fuente.ccaa_codigo, Fuente.formato)
+        .where(Fuente.activa)
+        .order_by(Fuente.nombre)
+    ).all()
+    ultimas = _ultima_publicacion(session)
+    fuentes_vigiladas = [
+        FuenteVigilada(
+            nombre=nombre,
+            ccaa_codigo=codigo,
+            formato=str(formato),
+            # Por comunidad y no por fuente: hoy hay una fuente activa por comunidad, así que
+            # coincide. El día que haya dos, esta fecha pasará a ser la de la comunidad y habrá
+            # que consultarla por `fuente_id` — queda dicho aquí en vez de descubrirse entonces.
+            ultima_publicacion=ultimas.get(codigo),
+        )
+        for nombre, codigo, formato in vigiladas_filas
+    ]
+
     return Cobertura(
         conocidas=conocidas_total,
         vigiladas=vigiladas_total,
         normas=normas_total,
         ilegibles=ilegibles_total,
         documentos=documentos or 0,
+        fuentes_vigiladas=fuentes_vigiladas,
+        # El total de comunidades donde el eje referencial no puede dispararse sobre una norma
+        # propia (7.3). Sale del mismo `sin_ley` que ya se usa arriba, así que no hay dos fuentes
+        # de verdad para el mismo hecho.
+        ccaa_sin_ley_autonomica=len(sin_ley),
         por_ccaa=sorted(por_ccaa.values(), key=lambda c: c.ccaa_codigo),
     )
