@@ -3384,7 +3384,24 @@ que es la cara — hasta 16 peticiones por día resuelto solo para saber qué bo
 vigilan y cuáles no, **la ingesta de la nube está caída** por el cupo de Backblaze, y el arreglo
 está escrito y verificado pero **sin mergear**.
 
-### 2. Lo primero que hay que mirar: ¿sigue caída la nube?
+### 2. Lo primero que hay que mirar: ¿funcionó el arreglo del cupo?
+
+> **EL ARREGLO DEL ADR 0037 ESTÁ MERGEADO PERO SIN VALIDAR, y hay que saberlo antes de sacar
+> conclusiones.** Se mergeó el 2026-09-10 y la ingesta relanzada justo después **volvió a fallar
+> con el mismo `Class B cap exceeded`**. Eso NO significa que el arreglo no sirva: el cupo de B2
+> es **diario**, y las pasadas fallidas de ese mismo día ya se lo habían gastado antes de que el
+> arreglo existiera. Con la cuota agotada, cualquier pasada falla igual.
+>
+> **La prueba de verdad es la primera pasada programada con cuota nueva** (06:30 UTC). Si esa
+> pasa, el arreglo vale; si vuelve a caer, no basta y hay que ir a por lo de abajo.
+>
+> Cuentas estimadas por pasada **con el arreglo puesto**: ~120 lecturas del versionado + hasta
+> 500 de la fase 2 ≈ **620 transacciones Class B**, contra un cupo gratuito de 2.500. Debería
+> caber con holgura. Si no cabe, el siguiente sospechoso es la fase 2, que escribe cada cuerpo
+> y **acto seguido lo relee** para prefiltrarlo: son dos transacciones por norma nueva, y esa
+> relectura probablemente se puede evitar pasando el contenido que ya está en memoria.
+
+### 2 bis. Comandos para comprobarlo
 
 ```bash
 gh run list --workflow=ingesta.yml --limit 3
