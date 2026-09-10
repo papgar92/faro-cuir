@@ -3301,3 +3301,200 @@ que no llevaba el frontend en el CI (PR #7, ya mergeado) y aquí ni siquiera hab
 del PR no lo delató porque GitHub prueba **el resultado del merge**, no la rama. Es el mismo
 patrón que ya ha mordido cuatro veces: *funciona en mi contexto, no fuera de él*. Arreglado
 trayendo `main` a la rama antes de seguir.
+
+---
+
+### La ingesta de la nube se cayó por el cupo de Backblaze, y era un defecto nuestro — 2026-09-09 (ADR 0037)
+
+Al mergear las tres comunidades nuevas y lanzar la ingesta salió `Cannot download file, download
+bandwidth or transaction (Class B) cap exceeded`. **No lo rompió el merge**: la pasada programada
+de esa misma mañana ya fallaba. Llevaba cayendo y nadie lo había mirado.
+
+#### La causa, medida
+
+`services/versionado.poblar` llama a `_objetivos()` por cada norma de su cola, y `_objetivos`
+**lee el cuerpo archivado**. Sobre la base del día:
+
+| | |
+|---|---|
+| Normas en la cola del versionado | **928** |
+| De esas, con el eje referencial disparado | **120** |
+| Leídas del almacén cada día para devolver una tupla vacía | **808** |
+
+Y no una vez: `versionado_intentado_en` solo se escribe cuando la norma llega a consultarse
+contra el BOE, o sea **nunca** para esas 808, así que volvían a leerse al día siguiente.
+
+#### El agujero conceptual, que es lo que hay que llevarse
+
+La 6.2 pone dos frenos —tope y pausa— **sobre las peticiones a fuentes externas**, y los pone
+bien. Lo que nadie puso es un freno sobre las lecturas del **archivo propio**, porque cuando se
+escribió el archivo era un disco local y leerlo era gratis.
+
+**El ADR 0032 movió el archivo a un servicio con cuota y no revisó quién lo recorre entero.**
+Mover un recurso de local a remoto no es solo cambiar dónde está: es cambiar qué cuesta tocarlo.
+
+#### El arreglo, y por qué es sin pérdida
+
+`_cola` filtra por el eje referencial. Las dos condiciones son la misma: `es_modificativa and
+buscar(id)` en el versionado, `es_modificativa and contiene(id)` en el eje 2 del prefiltro, sobre
+las mismas referencias del mismo cuerpo.
+
+Pero eso es un razonamiento, y un razonamiento puede tener un agujero. **Se comprobó contra el
+corpus real**: se recorrieron las 808 que el filtro descarta ejecutando `_objetivos` sobre cada
+una. **Cero tenían objetivos.** Una equivalencia razonada que además se mide es lo que separa
+esto de una optimización con los dedos cruzados.
+
+Más el freno que faltaba de raíz: `versionado_max_lecturas_por_ejecucion`. Con el filtro puesto
+no debería morder nunca — está para el día que alguien amplíe esa cola sin saber lo que cuesta.
+
+**Lo que funcionó como se diseñó:** `AlmacenRemotoCaido` no hereda de `OSError`, así que el fallo
+paró la pasada en alto en vez de marcar miles de normas como `ilegible`. Esa distinción de tipos
+del ADR 0032 impidió que un problema de facturación corrompiera el embudo.
+
+#### Y el punto de partida local, que era lo pedido
+
+Hecho, con una trampa que había que ver antes: **el `.env` de esta máquina apunta a Neon y a
+Backblaze**, así que un backfill lanzado tal cual habría escrito en el bucket que justamente hay
+que dejar respirar. Por eso existe `docker-compose.local.yml`, que apunta base y archivo a local
+y **hay que pedirlo por su nombre** — un `override.yml` habría cambiado el significado de
+`docker compose up` sin que nadie lo escribiera.
+
+Tres guiones nuevos de backfill: seis meses para Madrid y País Vasco, y **tres para Navarra**,
+que es la cara — hasta 16 peticiones por día resuelto solo para saber qué boletín toca.
+
+#### Siguiente
+
+1. **Persistir `referencias_watchlist`.** El prefiltro ya calcula qué normas vigiladas toca cada
+   una y **no lo guarda**. Persistirlo bajaría las lecturas de ~120 a **cero**; pide columna y
+   migración. **~15k**
+2. **Revisar qué más recorre el archivo entero** ahora que leerlo cuesta. **~10k**
+3. Sigue abierto: gold set, pantalla de Metodología, `BOE-A-2026-16172`, preceptos por
+   norma-vehículo, y publicar `fuente` en `DocumentoResumen`.
+
+---
+
+## ⇨ CÓMO RETOMAR ESTO DESDE CERO — escrito el 2026-09-09
+
+> Sesión larga y con cosas a medias. Esto es lo que hay que saber **antes de tocar nada**, en el
+> orden en que hace falta. Si algo de aquí contradice lo de más arriba, manda esto: es lo último.
+
+### 1. Estado en una frase
+
+**Siete fuentes integradas** (BOE, DOGC, BOA, BOCYL, BOCM, BOPV, BON), la web ya dice cuáles se
+vigilan y cuáles no, **la ingesta de la nube está caída** por el cupo de Backblaze, y el arreglo
+está escrito y verificado pero **sin mergear**.
+
+### 2. Lo primero que hay que mirar: ¿sigue caída la nube?
+
+```bash
+gh run list --workflow=ingesta.yml --limit 3
+gh run view <id> --json jobs --jq '.jobs[0].steps[] | "\(.conclusion)  \(.name)"'
+```
+
+Si falla con `Class B cap exceeded`, es el incidente del ADR 0037 y el arreglo está en la rama
+`task/33-versionado-no-lee-el-archivo-entero`. **El cupo de B2 se reinicia cada día**, así que un
+día puede parecer sano y volver a caer al siguiente: que una pasada pase no significa que esté
+arreglado, solo que ese día se gastó menos.
+
+### 3. Lo que está a medias
+
+| Qué | Dónde | Estado |
+|---|---|---|
+| Arreglo del versionado (ADR 0037) | rama `task/33-versionado-no-lee-el-archivo-entero` | commiteado, **sin PR ni merge** |
+| Backfill local de BOCM, BOPV y BON | contenedor `worker`, en segundo plano | **corriendo**, reanudable |
+| Medición de la quinta fuente | PR #8 | **abierto sin mergear**, ya superado por los hechos |
+
+**El PR #8 quedó obsoleto**: proponía elegir *una* quinta fuente y al final entraron tres. Lo que
+sigue valiendo de él es el script `scripts/medir_fuentes_pendientes.py` y el hallazgo de que
+Castilla y León tiene cero detecciones por no tener ley autonómica. Decidir si se mergea, se
+rehace o se cierra.
+
+### 4. Cómo levantar el entorno local (y por qué NO basta `docker compose up`)
+
+**El `.env` de la máquina apunta a Neon y a Backblaze**, no a local. Es lo que hace falta para
+operar la nube desde aquí, y es exactamente lo que convierte cualquier ingesta local en escritura
+en producción. Para trabajar:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+```
+
+Ese segundo fichero apunta la base al Postgres del compose y **vacía `ALMACEN_S3_BUCKET`**, que
+es lo único que mira `almacen_remoto.configurado()`. Comprobarlo antes de lanzar nada pesado:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T worker \
+  python -c "from app.services import almacen_remoto; print('remoto?', almacen_remoto.configurado())"
+```
+
+Tiene que decir `False`. Si dice `True`, **para**: estarías escribiendo en el bucket.
+
+La base local conserva el histórico (78.504 documentos del BOE, 3.295 BOA, 1.375 DOGC, 991
+BOCYL). El panel de revisión está en `http://localhost:5174` y la API en el `8010`.
+
+### 5. Los backfills: cómo ver si siguen vivos y cómo relanzarlos
+
+**Un `exec -d` NO sobrevive al reinicio del contenedor.** Hay que relanzarlos a mano, y es barato
+porque son reanudables por fichero de marcas:
+
+```bash
+# ¿Cuánto llevan?
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T worker \
+  sh -c 'for f in bocm bopv bon; do printf "%-5s " $f; grep -c "^--- fin bloque" /app/data/backfill-$f.log; done'
+
+# Relanzar (salta en segundos lo ya hecho)
+for f in bocm bopv bon; do
+  docker compose -f docker-compose.yml -f docker-compose.local.yml exec -d worker sh -c "sh /app/backfill_$f.sh"
+done
+```
+
+Rangos: **seis meses** (marzo–agosto 2026) para BOCM y BOPV, **tres** (junio–agosto) para BON.
+Ampliar es añadir líneas a la lista `for RANGO in` del guión correspondiente.
+
+**El BON es el caro**: no tiene calendario y su búsqueda por fecha miente, así que cada día se
+resuelve por bisección, hasta 16 peticiones de ~100 KB solo para saber qué boletín toca. Si hay
+que recortar algo por tiempo, se recorta ahí.
+
+### 6. Lo siguiente, por orden de valor
+
+1. **Mergear el ADR 0037 y confirmar que la nube deja de caerse.** Sin esto, la vigilancia diaria
+   no funciona y todo lo demás da igual. **~5k**
+2. **Persistir `referencias_watchlist`.** El prefiltro ya calcula qué normas vigiladas toca cada
+   una (`pipeline/prefiltro.py`, línea 433) y **no lo guarda**. Persistirlo llevaría las lecturas
+   del almacén de ~120 a **cero** y es la solución completa del incidente; el ADR 0037 solo puso
+   la mitad barata. Pide columna y migración. **~15k**
+3. **Revisar qué más recorre el archivo entero** ahora que leerlo cuesta dinero. El reclasificador
+   está bien acotado —su cola es 0 en régimen— pero conviene mirarlo con esta luz, y el ADR 0032
+   no lo hizo. **~10k**
+**Primer recuento, con el backfill a medias (2026-09-09):**
+
+| Fuente | Normas | En cola de revisión | Detecciones |
+|---|---|---|---|
+| Madrid (BOCM) | 258 | 0 | 0 |
+| Navarra (BON) | 294 | 1 | 0 |
+| País Vasco (BOPV) | 85 | 4 | 0 |
+
+**637 normas y cero detecciones.** Queda backfill por delante, pero el número se escribe ahora y
+no después de mirarlo con esperanza: es el ADR 0027 midiéndose solo. Solo el 7 % de las
+disposiciones modifican algo, y de esas solo cuentan las que tocan la watchlist. **Cero es un
+resultado posible y honesto**, y si al terminar sigue en cero eso es lo que hay que publicar, no
+un motivo para aflojar una regla.
+
+4. **Contar qué ha dado el backfill.** Cuántas normas por comunidad, cuántas en cola de revisión,
+   cuántas detecciones. Es el dato que dice si añadir tres fuentes sirvió de algo, y **hay que
+   decirlo aunque salga cero**: el ADR 0027 mide ~5 casos al año, así que cero es un resultado
+   posible y honesto. **~8k**
+5. Sigue abierto de antes: etiquetar los 32 borradores del gold set (tiempo humano, es el cuello
+   real), la pantalla de Metodología (7.6), la alerta de `BOE-A-2026-16172`, los preceptos por
+   norma-vehículo, y publicar `fuente` en `DocumentoResumen`.
+
+### 7. Deuda conocida que NO se ha tocado, a propósito
+
+- **`CLAUDE.md` está en ~59 KB, por encima de su límite de ~55.** Entró en esta sesión ya por
+  encima. La receta escrita en su cabecera es **sacar un bloque entero**, no recortar frases, y
+  hacerlo mientras se añaden fuentes es como se pierde un guardarraíl. Candidato natural: la
+  sección 6 tiene ya mucha narrativa de incidentes que podría vivir en los ADR.
+- **El guardarraíl de la sección 8 está agotado en 7 fuentes.** La octava necesita una decisión
+  del humano, no otra migración.
+- **Ninguna de las tres fuentes nuevas tiene datos en la nube**, solo en local. La nube ingiere a
+  partir del día que se arregle.

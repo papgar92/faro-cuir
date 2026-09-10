@@ -31,6 +31,12 @@ frontend/coverage/
 
 # Docker
 *.local.yml
+# EXCEPCION, y con motivo (ADR 0037): `docker-compose.local.yml` es lo que apunta la base y el
+# archivo a esta maquina en vez de a Neon y a Backblaze. **No lleva ni un secreto** -solo
+# referencias `${...}` que resuelve el `.env`- y sin el, cualquier ingesta lanzada en local
+# escribe en el bucket de produccion. Es conocimiento operativo, no configuracion personal:
+# dejarlo fuera del repo garantiza que la siguiente persona repita el error.
+!docker-compose.local.yml
 
 # Artefactos de datos ingeridos (nunca en el repo, van a almacenamiento propio)
 backend/data/

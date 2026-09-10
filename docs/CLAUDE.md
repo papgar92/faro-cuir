@@ -307,6 +307,13 @@ una URL sigue siendo el sumario oficial parseado. Añadir un límite de peticion
 y una pausa entre descargas — cortesía con la fuente y freno propio si un sumario manipulado
 declara miles de items.
 
+**Los dos frenos de esta seccion —tope por ejecucion y pausa— se pusieron sobre las peticiones
+a las fuentes externas, y desde el ADR 0032 eso ya no basta**: el archivo vive en un bucket con
+cuota, asi que **leer el archivo propio tambien cuesta**. El 2026-09-09 la ingesta de la nube se
+cayo por ahi —`--versionar` leia 928 cuerpos al dia, 808 de ellos incapaces de aportar nada— y
+el arreglo esta en el ADR 0037. Antes de dejar que una etapa recorra el archivo entero, hay que
+preguntarse cuanto cuesta ahora tocarlo.
+
 **Solo hay dos excepciones declaradas a esta allowlist**, y por el mismo motivo: el destino sale
 de la configuración, no de un documento. Son Ollama (6.9.2) y el almacén de objetos donde vive el
 archivo (ADR 0032). Las dos se validan al arrancar. Una tercera necesita su ADR.
@@ -775,9 +782,9 @@ Si te encuentras haciendo cualquiera de estas, para:
 - **Una rama por feature**, PR aunque trabajes solo (el historial se lee en la evaluación).
   Las tareas ejecutadas por el driver van en `task/NN-nombre` (sección 13.3).
 - **ADRs** en `docs/adr/NNNN-titulo.md`. Formato: contexto, decisión, alternativas,
-  consecuencias. **Están todos escritos del 0001 al 0036** y su título dice de qué van: `ls
+  consecuencias. **Están todos escritos del 0001 al 0037** y su título dice de qué van: `ls
   docs/adr/` es el índice, y duplicarlo aquí solo creaba dos listas que se desincronizan.
-  **El siguiente número libre es el 0037.** No queda ninguno reservado.
+  **El siguiente número libre es el 0038.** No queda ninguno reservado.
   Los cuatro que más se citan desde el código: **0011** (se descarga el día entero), **0013**
   (trazabilidad por offsets), **0023** (el verbo pegado a la norma vigilada, con el **0031** que
   lo lleva un paso más allá) y **0027** (el límite medido del eje referencial). El **0025** es el único implementado a medias: falta la
@@ -794,6 +801,19 @@ Si te encuentras haciendo cualquiera de estas, para:
 ```bash
 # Levantar todo: base de datos, backend, worker y la web (desde 2026-08-17 el frontend también
 # es un servicio del compose). PUERTOS FIJOS del host: web 5174, API 8010 (no 8000: ocupado).
+#
+# **PARA TRABAJAR EN LOCAL NO BASTA ESTO** (ADR 0037). El `.env` de la máquina apunta a Neon y a
+# Backblaze, que es lo que hace falta para operar la nube desde aquí y es exactamente lo que
+# convierte cualquier ingesta local en escritura en producción. Para trabajar:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# Ese fichero apunta la base al Postgres del compose y vacía `ALMACEN_S3_BUCKET`, que es lo único
+# que mira `almacen_remoto.configurado()`. Antes de lanzar nada pesado, comprobarlo:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T worker #     python -c "from app.services import almacen_remoto; print(almacen_remoto.configurado())"
+#
+# Tiene que decir False. Si dice True, para: estarías escribiendo en el bucket de producción.
 docker compose up --build
 
 # Backend en local
@@ -821,7 +841,10 @@ python -m worker.run --fuente bocyl --fecha 2024-01-10
 # es una consulta, así que una pasada normal posterior lo recoge.
 python -m worker.run --fuente boe --fecha 2024-11-15 --hasta 2024-12-16 --sin-extraccion
 
-# Reevaluar prefiltro tras subir VERSION_VOCABULARIO o VERSION_WATCHLIST
+# Reevaluar prefiltro tras subir VERSION_VOCABULARIO o VERSION_WATCHLIST.
+# **ORDEN OBLIGATORIO desde el ADR 0037: esto ANTES que `--versionar`.** La cola del versionado
+# se filtra ahora por el eje referencial que guarda el prefiltro, asi que una norma que toque
+# una vigilada nueva no entra alli hasta que se la reevalua aqui.
 python -m worker.run --reprefiltrar
 
 # Drenar la cola de la fase 2 (texto íntegro que falte de toda la tabla)
@@ -849,6 +872,12 @@ python -m worker.run --reclasificar
 docker compose exec -d worker sh //app/backfill.sh          # BOE
 docker compose exec -d worker sh //app/backfill_boa.sh      # BOA
 docker compose exec -d worker sh //app/backfill_bocyl.sh    # BOCYL
+# Y las tres nuevas, que se lanzan con el compose LOCAL (ver arriba). El BON es el caro: sin
+# calendario y con la busqueda por fecha rota, cada dia son hasta 16 peticiones solo para
+# resolver que boletin toca, asi que su backfill arranca con tres meses y no con seis.
+#   ... exec -d worker sh -c "sh /app/backfill_bocm.sh"   # BOCM
+#   ... exec -d worker sh -c "sh /app/backfill_bopv.sh"   # BOPV
+#   ... exec -d worker sh -c "sh /app/backfill_bon.sh"    # BON
 
 # Quién ha reformado a cada norma vigilada, preguntándoselo al consolidado del BOE (ADR 0018).
 # UNA petición por ley vigilada da su historial completo de reformas, sin backfillear años. NO

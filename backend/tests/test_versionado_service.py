@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.database import Base
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.fuente import AmbitoTerritorial, FormatoFuente, Fuente, TipoFuente
-from app.models.norma import EstadoPrefiltro, Norma, VersionNorma
+from app.models.norma import EjePrefiltro, EstadoPrefiltro, Norma, VersionNorma
 from app.pipeline import watchlist
 from app.pipeline.watchlist import NormaVigilada, Watchlist
 from app.security import hashing
@@ -102,6 +102,7 @@ def _norma_con_cuerpo(
     ident: str = REFORMA,
     contenido: bytes = CUERPO_REAL,
     estado: EstadoPrefiltro = EstadoPrefiltro.RELEVANTE,
+    ejes: list[str] | None = None,
 ) -> Norma:
     digest = hashing.sha256_hex(contenido)
     ruta = archivar(contenido, digest, almacen_root=almacen)
@@ -126,6 +127,10 @@ def _norma_con_cuerpo(
         documento_texto_id=cuerpo.id,
         prefiltro_estado=estado,
         prefiltro_terminos=[],
+        # **Por defecto, el eje referencial.** Desde el ADR 0037 la cola del versionado lo exige,
+        # y es coherente con la realidad: una norma que modifica una vigilada hace saltar ese eje
+        # por definicion (7.3). Se deja parametrizable para poder probar justamente lo contrario.
+        prefiltro_ejes=[EjePrefiltro.REFERENCIAL.value] if ejes is None else ejes,
         prefiltro_evaluado_en=datetime.datetime.now(datetime.UTC),
     )
     session.add(norma)
@@ -365,3 +370,68 @@ class TestColaNoSeMuereDeHambre:
 
         assert norma.versionado_intentos == 1
         assert norma.versionado_intentado_en is not None
+
+
+# --- El arreglo del ADR 0037: no leer el archivo entero cada dia ----------------------------
+#
+# El 2026-09-09 la ingesta de la nube empezo a caer con `Class B cap exceeded` de Backblaze. La
+# causa: esta etapa leia del almacen el cuerpo de las 928 normas de su cola todos los dias, y
+# 808 de ellas no podian dar nada por construccion. Con el archivo en un disco local eso era
+# gratis; en un bucket, cada lectura es una transaccion facturable.
+
+
+class TestNoLeerDeMas:
+    def test_una_norma_sin_eje_referencial_no_se_lee_del_almacen(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """El filtro que arregla el incidente, y por que es sin perdida.
+
+        `_objetivos` se queda con las referencias que cumplen `es_modificativa and buscar(id)`;
+        el eje 2 del prefiltro marca REFERENCIAL con el **mismo predicado** sobre las mismas
+        referencias del mismo cuerpo. Una norma sin ese eje tiene objetivos vacios por
+        construccion, asi que descartarla de la cola no pierde nada — y ahorra la lectura.
+        """
+        _norma_con_cuerpo(session, sumario, tmp_path, ejes=["lexico"])
+        session.commit()
+
+        resumen = _poblar(session, tmp_path, _cliente())
+
+        assert resumen.candidatas == 0
+        assert resumen.consultadas == 0
+
+    def test_con_el_eje_referencial_sigue_entrando(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """La otra mitad del filtro: lo que si puede dar algo tiene que seguir entrando.
+
+        Sin este test, el anterior se cumpliria igual con una cola vacia, que es la forma mas
+        facil de "arreglar" un consumo excesivo rompiendo la vigilancia.
+        """
+        _norma_con_cuerpo(session, sumario, tmp_path)
+        session.commit()
+
+        resumen = _poblar(session, tmp_path, _cliente())
+
+        assert resumen.consultadas == 1
+        assert resumen.filas > 0
+
+    def test_el_tope_de_lecturas_del_almacen_deja_el_resto_en_cola(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """El freno que faltaba de raiz (6.2), y que **no trunca en silencio**.
+
+        La 6.2 acotaba las peticiones a las fuentes externas y dejaba sin tope las lecturas del
+        archivo propio, porque cuando se escribio el archivo era un disco local. Este tope no
+        deberia morder nunca con el filtro anterior puesto: esta para el dia que alguien amplie
+        la cola sin saber lo que cuesta.
+        """
+        for indice in range(3):
+            _norma_con_cuerpo(session, sumario, tmp_path, ident=f"{REFORMA}-{indice}")
+        session.commit()
+
+        resumen = _poblar(session, tmp_path, _cliente(), max_lecturas=1)
+
+        # Una leida, y las otras dos contadas como pendientes: la cifra que dice cuanto queda
+        # es la que impide leer "1 consultada" como "ya esta".
+        assert resumen.consultadas == 1
+        assert resumen.pendientes_restantes == 2
