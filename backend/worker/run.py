@@ -335,6 +335,7 @@ def _versionar(session) -> versionado.ResumenVersionado:  # type: ignore[no-unty
         almacen_root=settings.almacen_root,
         pausa=settings.versionado_pausa_segundos,
         limite=settings.versionado_max_por_ejecucion,
+        max_lecturas=settings.versionado_max_lecturas_por_ejecucion,
     )
 
 

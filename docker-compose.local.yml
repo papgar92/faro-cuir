@@ -1,0 +1,44 @@
+# Modo LOCAL PURO: la base y el archivo de esta máquina, sin tocar Neon ni el bucket.
+#
+#     docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# ## Por qué hace falta un fichero y no basta con el `.env`
+#
+# Desde el ADR 0032 el `.env` de esta máquina apunta a **Neon y a Backblaze**, porque es lo que
+# hace falta para operar la nube desde aquí (migrar, mirar la base, subir el archivo). Eso está
+# bien para eso y **está mal para trabajar**: cualquier ingesta lanzada en local escribiría en el
+# bucket de producción y consumiría su cupo.
+#
+# Y el cupo es un límite real, no teórico: el 2026-09-09 la ingesta diaria de la nube empezó a
+# fallar con `Cannot download file, download bandwidth or transaction (Class B) cap exceeded`.
+# Un backfill lanzado desde aquí contra ese mismo bucket habría empeorado exactamente el
+# problema que hay que arreglar.
+#
+# ## Qué cambia, y por qué solo esto
+#
+# Dos variables, y ninguna más:
+#
+# - **`DATABASE_URL`** al Postgres del propio compose. El volumen `farocuir_db_data` sigue ahí
+#   con el histórico ingerido antes de la migración, así que esto no arranca de cero.
+# - **`ALMACEN_S3_BUCKET` vacío**. Es lo único que mira `almacen_remoto.configurado()`, así que
+#   vaciarlo conmuta el archivo a `backend/data/` sin tocar el resto de credenciales. No se
+#   borran las otras variables a propósito: si se vaciara el endpoint, el validador de arranque
+#   de `config.py` no tendría nada que validar y el fallo aparecería más tarde y peor.
+#
+# ## Por qué NO es un `docker-compose.override.yml`
+#
+# Un `override.yml` lo carga `docker compose` **solo por existir**, así que `docker compose up`
+# —el comando que documenta la sección 10 de CLAUDE.md— cambiaría de significado sin que nadie
+# lo escribiera en ningún sitio. Con un nombre propio hay que pedirlo, y quien lo pide sabe lo
+# que está pidiendo.
+
+services:
+  backend:
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ALMACEN_S3_BUCKET: ""
+
+  worker:
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ALMACEN_S3_BUCKET: ""

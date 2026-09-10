@@ -62,14 +62,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import Text, select
 from sqlalchemy.orm import Session
 
 from app.ingest import boe_consolidado
 from app.ingest.boe_consolidado import ConsolidadoError, NoConsolidado
 from app.models.documento import Documento, EstadoPipeline, TipoDocumento
 from app.models.fuente import Fuente, TipoFuente
-from app.models.norma import EstadoPrefiltro, Norma, VersionNorma
+from app.models.norma import EjePrefiltro, EstadoPrefiltro, Norma, VersionNorma
 from app.pipeline import watchlist
 from app.pipeline.watchlist import NormaVigilada
 from app.security import hashing, url_guard, xml_safe
@@ -112,7 +112,32 @@ _COLA = (EstadoPrefiltro.RELEVANTE, EstadoPrefiltro.SOSPECHA)
 
 def _cola(documento_id: int | None):  # type: ignore[no-untyped-def]
     consulta = select(Norma).where(
-        Norma.documento_texto_id.is_not(None), Norma.prefiltro_estado.in_(_COLA)
+        Norma.documento_texto_id.is_not(None),
+        Norma.prefiltro_estado.in_(_COLA),
+        # **Solo lo que disparó el eje referencial**, y esto no es una optimización: es que el
+        # resto no puede dar nada. Añadido el 2026-09-09, y el motivo importa más que el ahorro.
+        #
+        # `_objetivos` lee el cuerpo archivado y se queda con las referencias que cumplen
+        # `es_modificativa and lista.buscar(id)`. El eje 2 del prefiltro (`pipeline/prefiltro.py`)
+        # marca `REFERENCIAL` con **exactamente el mismo predicado**, sobre las mismas
+        # referencias del mismo cuerpo: `referencia.es_modificativa and lista.contiene(id)`. O
+        # sea que una norma sin ese eje tiene `_objetivos` vacío **por construcción**, no por
+        # probabilidad. Comprobado leyendo las dos condiciones, no supuesto.
+        #
+        # Lo que costaba no comprobarlo: sobre la base del 2026-09-09 esta cola tenía **928
+        # normas y solo 120 con el eje referencial**. Las otras 808 se leían del almacén todos
+        # los días para devolver una tupla vacía. Con el archivo en un bucket (ADR 0032) eso
+        # dejó de ser una lectura de disco gratis y pasó a ser una transacción facturable: la
+        # ingesta de la nube empezó a caer con `Class B cap exceeded` el 2026-09-09, y este era
+        # el consumidor principal.
+        #
+        # **LA DEPENDENCIA QUE ESTO CREA, ESCRITA PARA QUE NO SE DESCUBRA TARDE:** esta etapa
+        # pasa a depender de que el prefiltro se haya pasado con la watchlist vigente. Al subir
+        # `VERSION_WATCHLIST` hay que lanzar `--reprefiltrar` **antes** que `--versionar`, o las
+        # normas que toquen una vigilada nueva no entrarán aquí hasta que se reevalúen. Ese
+        # orden ya era el correcto por otros motivos; ahora además es obligatorio.
+        Norma.prefiltro_ejes.isnot(None),
+        Norma.prefiltro_ejes.cast(Text).like(f"%{EjePrefiltro.REFERENCIAL.value}%"),
     )
     if documento_id is not None:
         consulta = consulta.where(Norma.documento_id == documento_id)
@@ -222,6 +247,7 @@ def poblar(
     almacen_root: Path,
     pausa: float,
     limite: int,
+    max_lecturas: int | None = None,
     documento_id: int | None = None,
     client: httpx.Client | None = None,
 ) -> ResumenVersionado:
@@ -230,6 +256,11 @@ def poblar(
     Idempotente: la cola son las parejas (norma, norma vigilada) sin filas de versión, así que
     una segunda pasada sobre lo mismo no pide nada. `commit` por pareja, igual que la fase 2:
     una pasada larga que falle al final no puede tirar peticiones ya gastadas contra el BOE.
+
+    **`limite` y `max_lecturas` acotan cosas distintas y hacen falta los dos** (ADR 0037):
+    `limite` son las peticiones al BOE y `max_lecturas` son las lecturas del archivo. Cuando el
+    archivo vivía en un disco local, leerlo era gratis y solo hacía falta el primero; desde el
+    ADR 0032 vive en un bucket y cada lectura es una transacción facturable.
     """
     lista = watchlist.watchlist()
     # **El consolidado se archiva bajo la fuente de la que se descarga, no bajo la de la norma
@@ -252,7 +283,14 @@ def poblar(
     por_afectada: dict[str, int] = {}
     pendientes = 0
 
+    leidas = 0
     for norma in normas:
+        if max_lecturas is not None and leidas >= max_lecturas:
+            # Tope de lecturas del almacén. **No se trunca en silencio**: lo que queda se cuenta
+            # como pendiente y sale en el resumen, igual que el tope de peticiones al BOE.
+            pendientes += 1
+            continue
+        leidas += 1
         for vigilada in _objetivos(norma, almacen_root=almacen_root, lista=lista):
             if _ya_versionada(session, norma_id=norma.id, afectada=vigilada.identificador):
                 continue

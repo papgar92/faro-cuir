@@ -69,6 +69,20 @@ class Settings(BaseSettings):
     # Tope por ejecución, no cuota: lo que no entra hoy sigue en cola y entra mañana, porque la
     # cola es una consulta (¿hay ya filas de `version_norma` para esta pareja?) y no un estado.
     versionado_max_por_ejecucion: int = 20
+    # **Tope de LECTURAS DEL ALMACÉN por ejecución**, que es una cosa distinta del tope de
+    # arriba y hacía falta desde el ADR 0032 sin que nadie lo hubiera puesto.
+    #
+    # `versionado_max_por_ejecucion` acota las peticiones **al BOE**; no acotaba las lecturas del
+    # archivo, porque cuando se escribió el archivo era un disco local y leerlo era gratis. Con
+    # el archivo en un bucket (ADR 0032) cada lectura es una transacción facturable, y el
+    # 2026-09-09 la ingesta de la nube empezó a caer con `Class B cap exceeded`: el barrido leía
+    # el cuerpo de las 928 normas de su cola todos los días.
+    #
+    # El filtro por eje referencial de `services/versionado._cola` ya baja eso a ~120, así que
+    # este tope no debería morder nunca. **Está justamente para eso**: es el freno que sigue
+    # habiendo si algún día alguien amplía esa cola sin darse cuenta de lo que cuesta. Un límite
+    # que solo se nota cuando el diseño falla es lo que 6.2 llama freno propio.
+    versionado_max_lecturas_por_ejecucion: int = 400
 
     # --- Panel de revisión: el gate humano (ADR 0017) -----------------------------------
     # Sin valor por defecto y sin degradación posible: `security/panel.py` lanza si falta, con
