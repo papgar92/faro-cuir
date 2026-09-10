@@ -910,7 +910,11 @@ cd frontend && npm run dev -- --host 127.0.0.1
 El estado vive en un fichero aparte desde el 2026-08-09, porque este entra entero en el contexto
 de cada subagente y el historial era más de la mitad.
 
-- **Al retomar el proyecto**, `ESTADO.md` es lo primero que hay que leer.
+- **Al retomar el proyecto**, `ESTADO.md` es lo primero que hay que leer, y dentro de él la
+  sección **«CÓMO RETOMAR ESTO DESDE CERO»**, que está al final y es la única que describe el
+  estado *de ahora* en vez del historial. Empieza por su apartado 0 (cómo quedó la máquina) y por
+  el 2 (qué hay mergeado pero **sin validar**). Leer el fichero desde arriba es leer la historia
+  del proyecto, que es interesante y no es lo que hace falta para trabajar.
 - **Al cerrar un trabajo**, se actualiza `ESTADO.md`, no este fichero. Aquí solo se toca lo que
   cambia de verdad las reglas: el modelo de dominio, la seguridad, el pipeline.
 - **Las referencias a «sección 11» del repositorio siguen siendo válidas**: conserva su número,

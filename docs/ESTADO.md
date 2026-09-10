@@ -3373,7 +3373,46 @@ que es la cara — hasta 16 peticiones por día resuelto solo para saber qué bo
 
 ---
 
-## ⇨ CÓMO RETOMAR ESTO DESDE CERO — escrito el 2026-09-09
+## ⇨ CÓMO RETOMAR ESTO DESDE CERO — cierre del 2026-09-10
+
+> **Esto es lo primero que hay que leer al abrir una sesión nueva**, antes que el resto del
+> fichero y antes de tocar nada. Lo de arriba es historia; esto es el estado.
+
+### 0. Cómo quedó la máquina al cerrar
+
+- **Repositorio limpio y sincronizado**, en `main`. No hay trabajo sin guardar.
+- **Contenedores parados y la red eliminada** (`docker compose ... down`). El volumen
+  `farocuir_farocuir_db_data` **sobrevive**: la base local conserva el histórico completo y todo
+  lo ingerido ese día. Nada tiene la carpeta abierta.
+- **Los backfills se pararon a mitad del primer bloque.** Sus ficheros de marcas están **a cero**,
+  así que al relanzarlos repetirán agosto entero — y eso **no cuesta**: son idempotentes por el
+  `sha256`, así que un día ya ingerido se salta en segundos.
+
+Lo que llegaron a traer, del 1 de agosto al 4 de septiembre de 2026:
+
+| Fuente | Normas | En cola de revisión | Ilegibles |
+|---|---|---|---|
+| Madrid (BOCM) | 339 | 0 | **0** |
+| Navarra (BON) | 336 | 2 | **0** |
+| País Vasco (BOPV) | 105 | 6 | **0** |
+
+**Los ceros de la última columna son el dato que vale.** Navarra es la primera fuente de nivel
+HTML: si su contenedor declarado no casara, sus 336 normas estarían **todas** en `ilegible`. Que
+haya cero significa que el recorte del ADR 0036 funciona sobre un mes real, no solo sobre la
+fixture.
+
+### 0 bis. Si se movió la carpeta del proyecto
+
+El humano cerró la sesión para reorganizar el explorador de Windows, así que **la ruta puede haber
+cambiado**. Dos cosas:
+
+- El compose monta `./backend` y `./config` **por ruta relativa**, así que funciona igual desde
+  la ruta nueva; solo hay que lanzarlo desde allí.
+- Dentro va **`backend/data/`**: ~1,6 GB y ~84.000 ficheros, que es el archivo de la 6.5. Si el
+  movimiento se interrumpió a mitad, **comprobar la integridad antes de dar nada por bueno** —
+  ese archivo es lo que sostiene la mitad del proyecto.
+
+
 
 > Sesión larga y con cosas a medias. Esto es lo que hay que saber **antes de tocar nada**, en el
 > orden en que hace falta. Si algo de aquí contradice lo de más arriba, manda esto: es lo último.
@@ -3384,7 +3423,24 @@ que es la cara — hasta 16 peticiones por día resuelto solo para saber qué bo
 vigilan y cuáles no, **la ingesta de la nube está caída** por el cupo de Backblaze, y el arreglo
 está escrito y verificado pero **sin mergear**.
 
-### 2. Lo primero que hay que mirar: ¿sigue caída la nube?
+### 2. Lo primero que hay que mirar: ¿funcionó el arreglo del cupo?
+
+> **EL ARREGLO DEL ADR 0037 ESTÁ MERGEADO PERO SIN VALIDAR, y hay que saberlo antes de sacar
+> conclusiones.** Se mergeó el 2026-09-10 y la ingesta relanzada justo después **volvió a fallar
+> con el mismo `Class B cap exceeded`**. Eso NO significa que el arreglo no sirva: el cupo de B2
+> es **diario**, y las pasadas fallidas de ese mismo día ya se lo habían gastado antes de que el
+> arreglo existiera. Con la cuota agotada, cualquier pasada falla igual.
+>
+> **La prueba de verdad es la primera pasada programada con cuota nueva** (06:30 UTC). Si esa
+> pasa, el arreglo vale; si vuelve a caer, no basta y hay que ir a por lo de abajo.
+>
+> Cuentas estimadas por pasada **con el arreglo puesto**: ~120 lecturas del versionado + hasta
+> 500 de la fase 2 ≈ **620 transacciones Class B**, contra un cupo gratuito de 2.500. Debería
+> caber con holgura. Si no cabe, el siguiente sospechoso es la fase 2, que escribe cada cuerpo
+> y **acto seguido lo relee** para prefiltrarlo: son dos transacciones por norma nueva, y esa
+> relectura probablemente se puede evitar pasando el contenido que ya está en memoria.
+
+### 2 bis. Comandos para comprobarlo
 
 ```bash
 gh run list --workflow=ingesta.yml --limit 3
@@ -3400,9 +3456,10 @@ arreglado, solo que ese día se gastó menos.
 
 | Qué | Dónde | Estado |
 |---|---|---|
-| Arreglo del versionado (ADR 0037) | rama `task/33-versionado-no-lee-el-archivo-entero` | commiteado, **sin PR ni merge** |
-| Backfill local de BOCM, BOPV y BON | contenedor `worker`, en segundo plano | **corriendo**, reanudable |
-| Medición de la quinta fuente | PR #8 | **abierto sin mergear**, ya superado por los hechos |
+| Arreglo del versionado (ADR 0037) | `main` | **mergeado y SIN VALIDAR** — ver el apartado 2 |
+| Backfill local de BOCM, BOPV y BON | contenedor `worker` | **parado** al cerrar, reanudable con marcas a 0 |
+| Medición de la quinta fuente | **PR #8** | abierto, **ya superado por los hechos** |
+| Nota de cierre de sesión | **PR #11** | abierto; **si estás leyendo esto en `main`, ya se mergeó** |
 
 **El PR #8 quedó obsoleto**: proponía elegir *una* quinta fuente y al final entraron tres. Lo que
 sigue valiendo de él es el script `scripts/medir_fuentes_pendientes.py` y el hallazgo de que
