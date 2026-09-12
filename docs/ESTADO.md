@@ -3373,6 +3373,72 @@ que es la cara — hasta 16 peticiones por día resuelto solo para saber qué bo
 
 ---
 
+### ✅ El cupo está arreglado de verdad, y lo que quedaba en rojo era otra cosa — 2026-09-12 (ADR 0038)
+
+**El ADR 0037 vale.** La pasada programada del 2026-09-11 —la primera con cuota nueva de
+Backblaze, que es la prueba que dejó escrita el cierre anterior— salió **sin un solo `Class B cap
+exceeded` en todo el log**, y con ella volvieron los pasos que llevaban tres días cayéndose:
+
+| Paso | 09/09 | 10/09 | 11/09 |
+|---|---|---|---|
+| BOA · BOCM · BOPV | ❌ | ❌ | ✅ |
+| Texto íntegro (fase 2) | ❌ | ❌ | ✅ |
+| Versionado | ❌ | ❌ | ✅ |
+| BON | ✅ | ❌ | ❌ |
+
+El punto 1 de la lista de valor del cierre anterior queda cerrado: **la vigilancia diaria en la
+nube funciona**. Lo que sigue en rojo es el BON, y no por el cupo.
+
+#### Lo que tiró la pasada: un handshake
+
+```
+httpx.ConnectTimeout: _ssl.c:993: The handshake operation timed out
+  File "app/ingest/bon.py", line 274, in _bisecar
+```
+
+**Una** de las hasta 16 peticiones que el BON necesita para resolver qué boletín toca. Tirando del
+hilo salieron dos defectos, y ninguno es del BON:
+
+1. **Nadie cogía los errores de transporte.** `_ingerir_dia` atrapaba `SumarioNoDisponible`,
+   `UrlGuardError`, `XmlSafeError` y `BoeIngestError`; un `httpx.ConnectTimeout` no es ninguna de
+   las cuatro y **rompía el proceso con un traceback**. Y contradecía un comentario que está tres
+   líneas más arriba en `main`: «un fallo de red **no interrumpe el rango**». Era falso — un
+   backfill de seis meses se cortaba en el primer timeout.
+2. **No se reintentaba nada.** El único remedio contra un fallo de red era el timeout, y ya se
+   tocó el 2026-09-05 (5 s → 20 s). No era eso: el del 11 agotó los 20 s. **No fue una espera
+   corta, fue un intento que no se repitió.**
+
+#### Lo que se ha hecho
+
+- **`url_guard` reintenta los fallos de transporte, y solo esos.** `ESPERAS_REINTENTO = (1.0,
+  4.0)` — dos reintentos, hasta tres intentos. Va ahí y no en `bon.py` porque es la única puerta
+  de salida HTTP (ADR 0006): la regla se escribe y se prueba una vez, y vale para la octava fuente
+  también.
+- **La raya, que es lo único importante:** se reintenta lo que no obtuvo respuesta. **No** se
+  reintenta un rechazo del guardia —repetir una petición a una IP privada es repetir el intento de
+  SSRF—, ni un error de estado —un 404 no mejora insistiendo, y el BOCM lo lee como «no hubo
+  boletín»—, ni un corte a mitad del cuerpo.
+- **`FalloDeRed`, un tipo propio.** No hereda de `UrlGuardError` (aquello son rechazos y salen con
+  código 3; esto es que no contestaron) pero **sí de `httpx.TransportError`**, para que
+  `texto_integro`, `versionado` y `recuperacion_pdf` —que ya anotan y siguen con `except
+  httpx.HTTPError`— los sigan tratando igual. Es justo por eso que esos tres sobrevivieron al día
+  11 mientras el BON tiraba el job.
+- **`_ingerir_dia` sale con 1** en vez de reventar, y el bucle de días llega ya a la iteración
+  siguiente.
+- **Nueve tests.** Los que valen no son los que comprueban que reintenta, sino los cuatro que
+  comprueban **qué no se reintenta**: ese fallo no daría ningún síntoma visible, porque la
+  petición acaba rechazada igual.
+
+#### Lo que este cambio NO arregla, y hay que saberlo
+
+**El día 11 del BON sigue sin estar, y el sistema no tiene forma de darse cuenta solo.** La
+ingesta siempre pide «hoy»: un día que se cae no vuelve a intentarse nunca salvo
+`workflow_dispatch` a mano. Este cambio hace que un timeout deje de **crear** el hueco; no crea el
+mecanismo que rellena los que ya hay. Lo único que hoy los hace visibles es la página de
+cobertura, con `ultima_publicacion` por fuente — y hace falta que alguien la mire. Un barrido de
+los últimos N días por fuente es la solución y necesita su propio ADR: cuesta peticiones a diario
+para un caso raro, y esa cuenta hay que echarla.
+
 ## ⇨ CÓMO RETOMAR ESTO DESDE CERO — cierre del 2026-09-10
 
 > **Esto es lo primero que hay que leer al abrir una sesión nueva**, antes que el resto del
@@ -3415,24 +3481,30 @@ cambiado**. Dos cosas:
 
 
 > Sesión larga y con cosas a medias. Esto es lo que hay que saber **antes de tocar nada**, en el
-> orden en que hace falta. Si algo de aquí contradice lo de más arriba, manda esto: es lo último.
+> orden en que hace falta.
+>
+> **CUIDADO: este bloque ya NO es lo último.** Decía «si algo de aquí contradice lo de más arriba,
+> manda esto», y eso dejó de valer el 2026-09-12: la entrada justo encima (el cupo validado y el
+> ADR 0038) es posterior y **manda sobre lo que sigue**. Lo que ya se ha quedado atrás está
+> corregido en su sitio, aquí abajo, para que nadie tenga que cotejar dos versiones.
 
 ### 1. Estado en una frase
 
 **Siete fuentes integradas** (BOE, DOGC, BOA, BOCYL, BOCM, BOPV, BON), la web ya dice cuáles se
-vigilan y cuáles no, **la ingesta de la nube está caída** por el cupo de Backblaze, y el arreglo
-está escrito y verificado pero **sin mergear**.
+vigilan y cuáles no, y ~~**la ingesta de la nube está caída** por el cupo de Backblaze, y el
+arreglo está escrito y verificado pero **sin mergear**~~ **la ingesta de la nube vuelve a
+funcionar**: el arreglo del cupo se mergeó el 10 y quedó validado con la pasada del 11
+(2026-09-12, ADR 0038).
 
 ### 2. Lo primero que hay que mirar: ¿funcionó el arreglo del cupo?
 
-> **EL ARREGLO DEL ADR 0037 ESTÁ MERGEADO PERO SIN VALIDAR, y hay que saberlo antes de sacar
-> conclusiones.** Se mergeó el 2026-09-10 y la ingesta relanzada justo después **volvió a fallar
-> con el mismo `Class B cap exceeded`**. Eso NO significa que el arreglo no sirva: el cupo de B2
-> es **diario**, y las pasadas fallidas de ese mismo día ya se lo habían gastado antes de que el
-> arreglo existiera. Con la cuota agotada, cualquier pasada falla igual.
+> **YA ESTÁ MIRADO Y EL ARREGLO VALE (2026-09-12).** La pasada programada del 11 —la primera con
+> cuota nueva, que es la prueba que pedía este apartado— pasó **sin un solo `Class B cap
+> exceeded`**, y con ella volvieron BOA, BOCM, BOPV, la fase 2 y el versionado. Lo que quedó en
+> rojo fue el BON, y por otra cosa: un handshake TLS (ADR 0038, entrada de arriba).
 >
-> **La prueba de verdad es la primera pasada programada con cuota nueva** (06:30 UTC). Si esa
-> pasa, el arreglo vale; si vuelve a caer, no basta y hay que ir a por lo de abajo.
+> Se deja el apartado entero en pie y no se borra porque **el cupo de B2 es diario y esto puede
+> volver**; lo de abajo es el método para comprobarlo y las cuentas con las que contrastar.
 >
 > Cuentas estimadas por pasada **con el arreglo puesto**: ~120 lecturas del versionado + hasta
 > 500 de la fase 2 ≈ **620 transacciones Class B**, contra un cupo gratuito de 2.500. Debería
@@ -3456,7 +3528,8 @@ arreglado, solo que ese día se gastó menos.
 
 | Qué | Dónde | Estado |
 |---|---|---|
-| Arreglo del versionado (ADR 0037) | `main` | **mergeado y SIN VALIDAR** — ver el apartado 2 |
+| Arreglo del versionado (ADR 0037) | `main` | **mergeado y VALIDADO** el 2026-09-12 — ver el apartado 2 |
+| Reintento de los fallos de red (ADR 0038) | `main` | mergeado; **el día 11 del BON sigue sin recuperarse** |
 | Backfill local de BOCM, BOPV y BON | contenedor `worker` | **parado** al cerrar, reanudable con marcas a 0 |
 | Medición de la quinta fuente | **PR #8** | abierto, **ya superado por los hechos** |
 | Nota de cierre de sesión | **PR #11** | abierto; **si estás leyendo esto en `main`, ya se mergeó** |
@@ -3514,8 +3587,10 @@ que recortar algo por tiempo, se recorta ahí.
 
 ### 6. Lo siguiente, por orden de valor
 
-1. **Mergear el ADR 0037 y confirmar que la nube deja de caerse.** Sin esto, la vigilancia diaria
-   no funciona y todo lo demás da igual. **~5k**
+1. ~~**Mergear el ADR 0037 y confirmar que la nube deja de caerse.**~~ **HECHO el 2026-09-12**:
+   mergeado el 10, validado con la pasada del 11. De paso salió el ADR 0038 — un fallo de red ya
+   no cuesta un día de boletín. **Lo que queda vivo de aquí es recuperar los huecos que ya hay**:
+   el 11 del BON no está, y nada lo va a echar de menos solo.
 2. **Persistir `referencias_watchlist`.** El prefiltro ya calcula qué normas vigiladas toca cada
    una (`pipeline/prefiltro.py`, línea 433) y **no lo guarda**. Persistirlo llevaría las lecturas
    del almacén de ~120 a **cero** y es la solución completa del incidente; el ADR 0037 solo puso

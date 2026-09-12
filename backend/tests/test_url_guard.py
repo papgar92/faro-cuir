@@ -7,6 +7,8 @@ igual en CI sin salida a Internet.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import httpx
 import pytest
 
@@ -339,3 +341,143 @@ def test_fetch_propaga_los_errores_http_de_la_fuente() -> None:
             resolver=resolver_fijo(IP_PUBLICA),
             client=client,
         )
+
+
+# --- Reintento de los fallos de transporte (ADR 0038) -----------------------------------
+#
+# Lo que estos tests fijan no es «reintenta»: es DÓNDE está la raya. Un reintento que se
+# extendiera a los rechazos convertiría el guardia en un repetidor de peticiones bloqueadas, y
+# es un fallo que no daría ningún síntoma visible: la petición acaba rechazada igual.
+
+SIN_ESPERA: tuple[float, ...] = (0.0, 0.0)
+
+
+def test_un_fallo_de_transporte_se_reintenta_y_la_descarga_sale_adelante() -> None:
+    """El caso del 2026-09-11: un handshake que expira y a la segunda va."""
+    intentos = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal intentos
+        intentos += 1
+        if intentos == 1:
+            raise httpx.ConnectTimeout("_ssl.c:993: The handshake operation timed out")
+        return httpx.Response(200, content=b"<sumario/>")
+
+    with cliente_mock(handler) as client:
+        cuerpo = url_guard.fetch(
+            "https://boe.es/sumario",
+            allowlist=ALLOWLIST,
+            resolver=resolver_fijo(IP_PUBLICA),
+            client=client,
+            esperas_reintento=SIN_ESPERA,
+        )
+
+    assert cuerpo == b"<sumario/>"
+    assert intentos == 2
+
+
+def test_agotados_los_intentos_el_fallo_de_red_se_llama_por_su_nombre() -> None:
+    """No es un `UrlGuardError`: no rechazamos nada, es que no contestaron."""
+    intentos = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal intentos
+        intentos += 1
+        raise httpx.ConnectTimeout("sigue sin contestar")
+
+    with cliente_mock(handler) as client, pytest.raises(url_guard.FalloDeRed) as fallo:
+        url_guard.fetch(
+            "https://boe.es/sumario",
+            allowlist=ALLOWLIST,
+            resolver=resolver_fijo(IP_PUBLICA),
+            client=client,
+            esperas_reintento=SIN_ESPERA,
+        )
+
+    assert intentos == 3, "dos reintentos son tres intentos"
+    assert not isinstance(fallo.value, url_guard.UrlGuardError)
+
+
+def test_el_fallo_de_red_lo_siguen_viendo_los_que_ya_lo_trataban() -> None:
+    """`texto_integro`, `versionado` y `recuperacion_pdf` anotan y siguen con `httpx.HTTPError`.
+
+    Si `FalloDeRed` se saliera de esa jerarquía, un timedout por documento dejaría de anotarse y
+    pasaría a romper la pasada entera — al revés de lo que este cambio persigue.
+    """
+    assert issubclass(url_guard.FalloDeRed, httpx.HTTPError)
+
+
+def test_un_rechazo_del_guardia_no_se_reintenta_jamas() -> None:
+    """Repetir una petición a una IP privada es repetir el intento de SSRF."""
+    intentos = 0
+
+    def resolver_contando(hostname: str, port: int) -> list[str]:
+        nonlocal intentos
+        intentos += 1
+        return ["127.0.0.1"]
+
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover - no debe llamarse
+        raise AssertionError("no se debería haber enviado nada")
+
+    with cliente_mock(handler) as client, pytest.raises(PrivateAddressBlocked):
+        url_guard.fetch(
+            "https://boe.es/sumario",
+            allowlist=ALLOWLIST,
+            resolver=resolver_contando,
+            client=client,
+            esperas_reintento=SIN_ESPERA,
+        )
+
+    assert intentos == 1
+
+
+def test_un_error_de_estado_de_la_fuente_no_se_reintenta() -> None:
+    """Un 404 no mejora insistiendo, y el BOCM lo lee como «no hubo boletín» (`bocm.py:102`)."""
+    intentos = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal intentos
+        intentos += 1
+        return httpx.Response(404)
+
+    with cliente_mock(handler) as client, pytest.raises(httpx.HTTPStatusError):
+        url_guard.fetch(
+            "https://boe.es/no-existe",
+            allowlist=ALLOWLIST,
+            resolver=resolver_fijo(IP_PUBLICA),
+            client=client,
+            esperas_reintento=SIN_ESPERA,
+        )
+
+    assert intentos == 1
+
+
+def test_un_corte_a_mitad_del_cuerpo_no_se_reintenta_pero_se_nombra() -> None:
+    """Media descarga no se repite: se tipa, para que arriba no haga falta conocer httpx."""
+    intentos = 0
+
+    def cuerpo_que_se_corta() -> Iterator[bytes]:
+        yield b"<sumario>"
+        raise httpx.ReadTimeout("se cayó a mitad")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal intentos
+        intentos += 1
+        return httpx.Response(200, content=cuerpo_que_se_corta())
+
+    with cliente_mock(handler) as client, pytest.raises(url_guard.FalloDeRed):
+        url_guard.fetch(
+            "https://boe.es/sumario",
+            allowlist=ALLOWLIST,
+            resolver=resolver_fijo(IP_PUBLICA),
+            client=client,
+            esperas_reintento=SIN_ESPERA,
+        )
+
+    assert intentos == 1
+
+
+def test_las_esperas_por_defecto_son_dos_y_crecen() -> None:
+    """El número de reintentos es la longitud de la tupla: leerlo mal cambia el comportamiento."""
+    assert url_guard.ESPERAS_REINTENTO == (1.0, 4.0)
+    assert list(url_guard.ESPERAS_REINTENTO) == sorted(url_guard.ESPERAS_REINTENTO)
