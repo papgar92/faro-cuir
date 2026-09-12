@@ -11,7 +11,15 @@ from __future__ import annotations
 import datetime
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+from app.config import get_settings
+from app.database import Base
+from app.models.fuente import AmbitoTerritorial, FormatoFuente, Fuente, TipoFuente
+from app.security.url_guard import FalloDeRed
+from worker import run
 from worker.run import _dias, _parsear_argumentos
 
 
@@ -75,3 +83,76 @@ class TestArgumentos:
         """Y no dentro del bucle: un rango que empieza mal no puede llegar a pedirle nada al BOE."""
         with pytest.raises(SystemExit):
             _parsear_argumentos(["--fuente", "boe", "--fecha", "19-12-2024"])
+
+
+class TestUnFalloDeRedNoRompeLaPasada:
+    """El incidente del 2026-09-11, fijado (ADR 0038).
+
+    Un handshake TLS que expiró en el BON subió sin que nadie lo cogiera y **rompió el proceso
+    con un traceback**. Costó el día de Navarra entero, que nada recupera solo. Y en un rango
+    habría cortado el backfill a la mitad, aunque `main` promete lo contrario.
+    """
+
+    @staticmethod
+    def _entorno(monkeypatch: pytest.MonkeyPatch, revienta: Exception) -> None:
+        engine = create_engine(
+            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+        )
+        Base.metadata.create_all(engine)
+        fabrica = sessionmaker(bind=engine)
+        with fabrica() as sesion:
+            sesion.add(
+                Fuente(
+                    nombre="Boletín Oficial de Navarra",
+                    tipo=TipoFuente.BOLETIN_AUTONOMICO,
+                    ambito_territorial=AmbitoTerritorial.AUTONOMICO,
+                    ccaa="Navarra",
+                    ccaa_codigo="NC",
+                    formato=FormatoFuente.HTML,
+                    url_base="https://bon.navarra.es/",
+                    licencia_reutil=None,
+                    activa=True,
+                )
+            )
+            sesion.commit()
+
+        def ingerir_que_falla(*_args: object, **_kwargs: object) -> tuple[object, ...]:
+            raise revienta
+
+        monkeypatch.setattr(run, "SessionLocal", fabrica)
+        monkeypatch.setitem(
+            run.FUENTES, "bon", (TipoFuente.BOLETIN_AUTONOMICO, "NC", ingerir_que_falla)
+        )
+
+    def test_se_registra_y_se_sale_con_1_en_vez_de_reventar(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._entorno(monkeypatch, FalloDeRed("bon.navarra.es no contestó en 3 intentos"))
+
+        codigo = run._ingerir_dia(
+            datetime.date(2026, 9, 11),
+            get_settings(),
+            fuente_pedida="bon",
+            sin_extraccion=True,
+        )
+
+        assert codigo == 1
+
+    def test_no_se_confunde_con_un_control_de_seguridad(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Salida 3 es «la fuente nos devolvió algo que no aceptamos», y aquí no devolvió nada.
+
+        Si un timeout saliera con 3, el registro que existe para que un rechazo real no se pierda
+        entre los fallos rutinarios de red se llenaría de fallos rutinarios de red.
+        """
+        self._entorno(monkeypatch, FalloDeRed("se agotó el tiempo"))
+
+        codigo = run._ingerir_dia(
+            datetime.date(2026, 9, 11),
+            get_settings(),
+            fuente_pedida="bon",
+            sin_extraccion=True,
+        )
+
+        assert codigo != 3

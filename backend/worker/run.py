@@ -27,7 +27,7 @@ from app.llm.ollama import ProveedorOllama
 from app.llm.provider import VERSION_PROMPT
 from app.models.fuente import Fuente, TipoFuente
 from app.pipeline import prefiltro, reglas, texto, watchlist
-from app.security.url_guard import UrlGuardError
+from app.security.url_guard import FalloDeRed, UrlGuardError
 from app.security.xml_safe import XmlSafeError
 from app.services import clasificacion as servicio_clasificacion
 from app.services import extraccion as servicio_extraccion
@@ -570,6 +570,20 @@ def _ingerir_dia(  # noqa: C901
             # Salida 0: un día sin boletín es una respuesta válida del mundo, no un fallo.
             logger.info("%s", exc)
             return 0
+        except FalloDeRed as exc:
+            # **Va ANTES que `UrlGuardError` aunque no sean parientes, y el orden es intencional:**
+            # si algún día alguien lo hiciera subclase suya —tentador, porque sale del mismo
+            # módulo— este bloque seguiría cogiéndolo primero y un timeout no se registraría como
+            # hallazgo de seguridad.
+            #
+            # Salida 1, la de «hoy esta fuente no se ha ingerido»: es un fallo de verdad y el cron
+            # tiene que verlo en rojo, pero no es ni un día sin boletín (0) ni un control de
+            # seguridad (3). Sin este bloque la excepción subía hasta arriba y **rompía el proceso
+            # con un traceback**, que es lo que el 2026-09-11 tiró la pasada entera por un
+            # handshake del BON. En un rango también lo rompía: `main` promete que un fallo de red
+            # no interrumpe el backfill, y esa promesa no la cumplía nadie.
+            logger.error("La fuente %r no contestó el %s: %s", fuente_pedida, fecha, exc)
+            return 1
         except (UrlGuardError, XmlSafeError) as exc:
             # Un fallo de control de seguridad no es un error de ingesta cualquiera: significa
             # que la fuente nos ha devuelto algo que no deberíamos aceptar. Se registra

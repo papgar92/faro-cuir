@@ -21,19 +21,27 @@ Controles implementados:
 7. Tope de bytes aplicado mientras se lee el cuerpo, no confiando en `Content-Length`.
 8. Timeouts de conexión y de lectura.
 9. Conexión clavada a la IP ya validada (ver `fetch`, sobre DNS rebinding).
+
+Y una cosa que **no** es un control pero vive aquí por lo mismo que ellos —ser la única puerta
+de salida es lo que permite que la regla se cumpla en un solo sitio—: los fallos de transporte
+se reintentan, y los rechazos no. Ver `ESPERAS_REINTENTO` y `FalloDeRed`.
 """
 
 from __future__ import annotations
 
 import ipaddress
+import logging
 import socket
 import ssl
+import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 # Allowlist por defecto. Hoy solo el BOE, que es la única fuente verificada en
 # docs/fuentes.md. Cuando exista ingesta real de varias fuentes, esto debería derivarse de
@@ -119,6 +127,24 @@ MAX_REDIRECTS: int = 3
 # ingesta que se salta un día deja un hueco de vigilancia, que es el fallo que importa aquí.
 DEFAULT_TIMEOUT: httpx.Timeout = httpx.Timeout(15.0, connect=20.0)
 
+# **Esperas entre reintentos de transporte, en segundos. Su longitud es el número de
+# reintentos**: dos, o sea hasta tres intentos por petición.
+#
+# El 2026-09-11 la pasada diaria se cayó entera por UN handshake TLS que expiró en el BON, y el
+# día de Navarra se perdió sin que nada lo recuperara. Subir el timeout ya se probó el
+# 2026-09-05 (de 5 s a 20 s, arriba) y no es la respuesta a esto: no fue una espera corta, fue
+# un intento que no se repitió.
+#
+# El BON es además el más expuesto por construcción: no tiene calendario y resuelve cada día por
+# bisección (ADR 0036), así que hace hasta 16 peticiones donde las demás fuentes hacen una o dos.
+# Con 16 tiradas, que ninguna falle nunca no es una expectativa razonable.
+#
+# **Solo se reintenta lo que no obtuvo respuesta** (`httpx.TransportError`). Un rechazo del
+# guardia no se reintenta jamás —repetir una petición a una IP privada es repetir el ataque— y
+# un error de estado de la fuente tampoco: un 404 no mejora insistiendo, y ya hay quien lo
+# interpreta arriba (un 404 del BOCM significa «no hubo boletín», `bocm.py:102`).
+ESPERAS_REINTENTO: tuple[float, ...] = (1.0, 4.0)
+
 _REDIRECT_STATUS: frozenset[int] = frozenset({301, 302, 303, 307, 308})
 
 # Identificarse ante fuentes públicas es cortesía básica: si la ingesta molestara a alguien,
@@ -169,6 +195,25 @@ class TooManyRedirects(UrlGuardError):
 
 class ResponseTooLarge(UrlGuardError):
     pass
+
+
+class FalloDeRed(httpx.TransportError):
+    """La fuente no contestó, y no por haber contestado algo que rechacemos.
+
+    **No hereda de `UrlGuardError` a propósito, y la diferencia importa.** Aquella es la
+    familia de los rechazos: llegó algo y decidimos no aceptarlo, que es un hallazgo de
+    seguridad y `worker/run.py` lo reporta como tal (salida 3). Esto es lo contrario: no llegó
+    nada. Meterlo en la misma familia haría que un timeout de un servidor autonómico se
+    registrara como «CONTROL DE SEGURIDAD», y entonces el registro que existe para que un
+    rechazo real no se pierda entre los fallos rutinarios de red se llenaría exactamente de
+    fallos rutinarios de red.
+
+    Sí hereda de `httpx.TransportError`, que es lo que envuelve, para que los servicios que ya
+    tratan los fallos de red por documento y siguen (`texto_integro`, `versionado`,
+    `recuperacion_pdf`, los tres con `except httpx.HTTPError`) los sigan tratando igual. Un
+    tipo nuevo fuera de esa jerarquía habría convertido un fallo que hoy se anota y se
+    reintenta mañana en una pasada rota.
+    """
 
 
 @dataclass(frozen=True)
@@ -315,11 +360,22 @@ def _read_capped(response: httpx.Response, max_bytes: int) -> bytes:
     """
     total = 0
     chunks: list[bytes] = []
-    for chunk in response.iter_bytes():
-        total += len(chunk)
-        if total > max_bytes:
-            raise ResponseTooLarge(f"La respuesta supera el tope de {max_bytes} bytes")
-        chunks.append(chunk)
+    try:
+        for chunk in response.iter_bytes():
+            total += len(chunk)
+            if total > max_bytes:
+                raise ResponseTooLarge(f"La respuesta supera el tope de {max_bytes} bytes")
+            chunks.append(chunk)
+    except httpx.TransportError as exc:
+        # Un corte a mitad del cuerpo **no se reintenta** —lo que se repite en
+        # `_enviar_con_reintentos` es una petición que no llegó a contestar, no media descarga—
+        # pero sí se nombra igual que el resto de los fallos de red. Si saliera de aquí como
+        # excepción cruda de httpx, quien la recibe tendría que conocer httpx para distinguirla
+        # de un rechazo, y este módulo existe justo para que no haga falta.
+        raise FalloDeRed(
+            f"{response.request.url.host} cortó la respuesta a los {total} bytes "
+            f"({type(exc).__name__}: {exc})"
+        ) from exc
     return b"".join(chunks)
 
 
@@ -349,6 +405,48 @@ def _ensure_client(client: httpx.Client | None, hostname: str = "") -> Iterator[
         yield owned
 
 
+def _enviar_con_reintentos(
+    client: httpx.Client, request: httpx.Request, esperas: tuple[float, ...]
+) -> httpx.Response:
+    """`client.send` reintentando **solo** los fallos de transporte. Ver `ESPERAS_REINTENTO`.
+
+    Se reintenta el envío y no la lectura del cuerpo: lo que se repite es una petición que no
+    llegó a contestar, y así no hay ninguna respuesta a medio consumir de la que volver atrás.
+    Un corte a mitad del cuerpo sigue subiendo tal cual —lo tratan los servicios que ya lo
+    esperan— y no se disfraza de intento nuevo.
+
+    Que todas las peticiones del proyecto sean `GET` de documentos públicos es lo que hace esto
+    seguro de repetir. Si algún día saliera un método con efectos, este reintento **no** vale
+    para él.
+    """
+    ultimo: httpx.TransportError
+    for intento in range(len(esperas) + 1):
+        try:
+            return client.send(request, stream=True, follow_redirects=False)
+        except httpx.TransportError as exc:
+            ultimo = exc
+            if intento == len(esperas):
+                break
+            espera = esperas[intento]
+            # A `warning` y no a `error`: el fallo que importa es el de después del último
+            # intento. Pero se registra, porque una fuente que necesita dos intentos todos los
+            # días es una fuente que se está cayendo despacio, y eso solo se ve si queda escrito.
+            logger.warning(
+                "Fallo de red hablando con %s (%s: %s). Intento %s de %s; se reintenta en %ss.",
+                request.url.host,
+                type(exc).__name__,
+                exc,
+                intento + 1,
+                len(esperas) + 1,
+                espera,
+            )
+            time.sleep(espera)
+    raise FalloDeRed(
+        f"{request.url.host} no contestó en {len(esperas) + 1} intentos "
+        f"({type(ultimo).__name__}: {ultimo})"
+    ) from ultimo
+
+
 def fetch(
     url: str,
     *,
@@ -358,6 +456,7 @@ def fetch(
     max_redirects: int = MAX_REDIRECTS,
     resolver: Resolver = _default_resolver,
     client: httpx.Client | None = None,
+    esperas_reintento: tuple[float, ...] = ESPERAS_REINTENTO,
 ) -> bytes:
     """Descarga `url` aplicando todos los controles del módulo. Devuelve el cuerpo en bytes.
 
@@ -365,7 +464,8 @@ def fetch(
     responde 400 si no se le manda un `Accept` explícito). El `Host` no es negociable: lo
     pone el guardia, porque es la mitad del mecanismo de pinning.
 
-    Lanza `UrlGuardError` si cualquier control falla, en la URL inicial o en una redirección.
+    Lanza `UrlGuardError` si cualquier control falla, en la URL inicial o en una redirección, y
+    `FalloDeRed` si la fuente no contesta después de los reintentos de `esperas_reintento`.
     """
     # El contexto TLS se elige por el host de la URL **inicial**; si una redirección lleva a un
     # host con perfil distinto, se abre un cliente nuevo para ese salto (ver el bucle). Elegirlo
@@ -376,7 +476,7 @@ def fetch(
         for _ in range(max_redirects + 1):
             target = validate(current_url, allowlist=allowlist, resolver=resolver)
             request = _build_pinned_request(active_client, target, headers)
-            response = active_client.send(request, stream=True, follow_redirects=False)
+            response = _enviar_con_reintentos(active_client, request, esperas_reintento)
             try:
                 if response.status_code in _REDIRECT_STATUS:
                     location = response.headers.get("location")
@@ -399,6 +499,7 @@ def fetch(
                             max_bytes=max_bytes,
                             max_redirects=max_redirects - 1,
                             resolver=resolver,
+                            esperas_reintento=esperas_reintento,
                         )
                     continue
 
@@ -418,6 +519,7 @@ def _seguir_con_perfil_propio(
     max_bytes: int,
     max_redirects: int,
     resolver: Resolver,
+    esperas_reintento: tuple[float, ...],
 ) -> bytes:
     """Reanuda `fetch` para un host con perfil TLS heredado, sin relajar nada de los demás."""
     return fetch(
@@ -427,4 +529,5 @@ def _seguir_con_perfil_propio(
         max_bytes=max_bytes,
         max_redirects=max_redirects,
         resolver=resolver,
+        esperas_reintento=esperas_reintento,
     )
