@@ -324,3 +324,48 @@ class TestEstadoPersistido:
         assert (resumen.pendientes, resumen.ilegibles) == (1, 0)
         session.refresh(norma)
         assert norma.prefiltro_estado is EstadoPrefiltro.PENDIENTE
+
+
+class TestColumnaDeVigiladas:
+    """Cuando el prefiltro llena `referencias_watchlist`, y cuando la deja en NULL (ADR 0039).
+
+    La columna existe para que el versionado no tenga que releer el archivo, que desde el ADR
+    0032 es una transaccion facturable. Y el unico modo de que eso sea seguro es que NULL siga
+    queriendo decir "no se sabe": el que la lee decide ir al almacen precisamente por eso.
+    """
+
+    def test_con_cuerpo_legible_se_escribe_aunque_no_toque_ninguna(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """`[]` es un resultado: se leyo el cuerpo y no modifica ninguna vigilada.
+
+        Es el caso mayoritario —solo el 7 % de las disposiciones modifican algo (ADR 0027)— y es
+        justo el que hace que la columna ahorre: sin el, el versionado releeria el archivo para
+        volver a llegar a la misma nada.
+        """
+        norma = _norma_con_cuerpo(session, sumario, tmp_path, contenido=CUERPO_LEGIBLE)
+        session.commit()
+
+        servicio.aplicar(session, almacen_root=tmp_path, documento_id=sumario.id)
+
+        session.refresh(norma)
+        assert norma.referencias_watchlist == []
+        assert norma.referencias_watchlist_version == watchlist().version
+
+    def test_con_cuerpo_ilegible_queda_a_nulo(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """Un cuerpo ilegible apaga los dos ejes (ADR 0020), asi que tampoco se sabe esto.
+
+        Escribir `[]` aqui congelaria la norma como "no toca nada" justo en el estado que existe
+        para reintentarse en cada pasada.
+        """
+        norma = _norma_con_cuerpo(session, sumario, tmp_path)
+        session.commit()
+
+        servicio.aplicar(session, almacen_root=tmp_path, documento_id=sumario.id)
+
+        session.refresh(norma)
+        assert norma.prefiltro_estado is EstadoPrefiltro.ILEGIBLE
+        assert norma.referencias_watchlist is None
+        assert norma.referencias_watchlist_version is None

@@ -315,7 +315,7 @@ def _registrar_versionado(resumen: versionado.ResumenVersionado) -> None:
     logger.info(
         "Versionado (consolidado %s): %s candidatas → %s consultadas, %s con diff "
         "(%s versiones), %s sin consolidar todavía, %s fallidas. Quedan %s en cola. "
-        "Por norma vigilada: %s.",
+        "%s lecturas del archivo. Por norma vigilada: %s.",
         boe_consolidado.VERSION_CONSOLIDADO,
         resumen.candidatas,
         resumen.consultadas,
@@ -324,6 +324,7 @@ def _registrar_versionado(resumen: versionado.ResumenVersionado) -> None:
         resumen.sin_consolidar,
         resumen.fallidas,
         resumen.pendientes_restantes,
+        resumen.lecturas_almacen,
         resumen.por_norma_afectada or "ninguna",
     )
 

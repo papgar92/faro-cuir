@@ -229,6 +229,19 @@ def aplicar(
         norma.prefiltro_version_texto = VERSION_TEXTO_PLANO if texto is not None else None
         norma.prefiltro_evaluado_en = ahora
 
+        # **Qué vigiladas toca, no solo que toca alguna** (ADR 0039). El valor ya lo traía
+        # `resultado`; lo que faltaba era la columna. Lo lee el versionado para no releer el
+        # cuerpo del almacén, que desde el ADR 0032 es una transacción facturable.
+        #
+        # Solo se escribe si se evaluó sobre el cuerpo. Con `texto is None` —título solo, o
+        # cuerpo ilegible— no había referencias que mirar, así que un `[]` aquí afirmaría «no
+        # toca ninguna» cuando lo cierto es «no se ha mirado», y el versionado se lo creería.
+        # Se deja en NULL, que es lo que le manda ir al almacén. Misma regla y mismo motivo que
+        # la línea de `prefiltro_version_texto`, justo encima.
+        if texto is not None:
+            norma.referencias_watchlist = list(resultado.referencias_watchlist)
+            norma.referencias_watchlist_version = resultado.version_watchlist
+
         for eje in resultado.ejes:
             por_eje[eje.value] = por_eje.get(eje.value, 0) + 1
 

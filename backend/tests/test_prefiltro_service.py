@@ -257,3 +257,27 @@ def test_pendiente_es_el_estado_por_defecto(session: Session, documento: Documen
     assert norma is not None
     assert norma.prefiltro_estado is EstadoPrefiltro.PENDIENTE
     assert norma.prefiltro_version is None
+
+
+def test_sobre_el_titulo_la_columna_de_vigiladas_queda_a_nulo(
+    session: Session, documento: Documento
+) -> None:
+    """NULL porque no se sabe, y aqui la diferencia con `[]` es de verdad importante (ADR 0039).
+
+    Sobre el titulo no hay referencias que mirar (7.1). Un `[]` aqui afirmaria "no toca ninguna
+    vigilada" cuando lo cierto es "no se ha mirado el cuerpo", y el versionado —que lee esta
+    columna para no ir al almacen— se lo creeria y se saltaria la norma. Seria un fallo sin
+    sintoma: la pasada saldria verde con la vigilancia rota.
+
+    Es la misma regla que gobierna `prefiltro_version_texto`, y por eso se comprueban juntas.
+    """
+    session.add(_norma(documento, "BOE-A-1", "Ley de identidad de género"))
+    session.commit()
+
+    servicio.aplicar(session, almacen_root=ALMACEN, documento_id=documento.id)
+
+    norma = session.scalar(select(Norma))
+    assert norma is not None
+    assert norma.prefiltro_version_texto is None, "no se ha leido el cuerpo"
+    assert norma.referencias_watchlist is None
+    assert norma.referencias_watchlist_version is None

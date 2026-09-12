@@ -251,6 +251,34 @@ class Norma(Base):
     prefiltro_version_texto: Mapped[str | None] = mapped_column(String(20))
     prefiltro_evaluado_en: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # **QUÉ normas vigiladas toca esta, no solo que toca alguna** (ADR 0039). `prefiltro_ejes`
+    # dice que el eje referencial disparó; esto dice contra quién, que es lo que el versionado
+    # necesita y lo que hasta ahora recalculaba **releyendo el cuerpo del almacén**. Desde el
+    # ADR 0032 ese archivo vive en un bucket con cuota, así que releerlo cuesta dinero: es la
+    # otra mitad —la cara— del incidente que el ADR 0037 arregló a medias.
+    #
+    # El valor ya lo calculaba el prefiltro y lo tiraba: viajaba en `ResultadoPrefiltro`
+    # (`pipeline/prefiltro.py`) y no tenía columna donde caer.
+    #
+    # **NULL y lista vacía significan cosas distintas, y confundirlas es el modo de fallo.**
+    # `[]` es «se leyó el cuerpo y no toca ninguna vigilada»; NULL es «no se sabe», y obliga a
+    # quien lo necesite a ir al almacén. Por eso se escribe **solo cuando se evaluó sobre el
+    # cuerpo**: sobre el título no hay referencias que mirar (7.1) y una norma ilegible tampoco
+    # las tiene (ADR 0020). Es la misma regla que gobierna `prefiltro_version_texto`, un poco
+    # más arriba, y por el mismo motivo.
+    referencias_watchlist: Mapped[list[str] | None] = mapped_column(JSON)
+    # Con qué versión de la watchlist se calculó lo de arriba. **No es un duplicado de
+    # `prefiltro_version_watchlist`**: esta columna la puede rellenar también el versionado
+    # cuando encuentra un NULL y tiene que ir al almacén de todas formas (ver
+    # `services/versionado._objetivos`). Escribir en aquella desde allí sería mentir —diría que
+    # todo el prefiltro se reevaluó cuando no— y sin versión propia el valor cacheado no podría
+    # saberse caduco.
+    #
+    # Y esa caducidad no es teórica: al subir `VERSION_WATCHLIST` este valor deja de valer, y
+    # sin la comprobación el versionado usaría alegremente una lista de objetivos calculada con
+    # la watchlist de antes. Con ella, vuelve a leer, que es lo correcto y lo caro **una vez**.
+    referencias_watchlist_version: Mapped[str | None] = mapped_column(String(20))
+
     # --- Etapa 4 del pipeline: catálogo de reglas (ADR 0016) -------------------------------
     # Con qué versión de `pipeline/reglas.py` se pasó el catálogo por esta norma, y cuándo.
     # Existe por lo mismo que `prefiltro_version_texto`, y hace falta aquí y no en `deteccion`

@@ -435,3 +435,123 @@ class TestNoLeerDeMas:
         # es la que impide leer "1 consultada" como "ya esta".
         assert resumen.consultadas == 1
         assert resumen.pendientes_restantes == 2
+
+
+class TestReferenciasPersistidas:
+    """El versionado deja de releer el archivo para saber a quien toca cada norma (ADR 0039).
+
+    Lo que se prueba aqui NO es que vaya mas rapido. Es que **NULL y lista vacia siguen
+    significando cosas distintas**: `[]` es "se leyo el cuerpo y no toca ninguna vigilada" y NULL
+    es "no se sabe". Tratarlos igual haria que el versionado se saltara normas en silencio, que
+    es un fallo sin sintoma: la pasada saldria verde y la vigilancia estaria rota.
+    """
+
+    def test_con_la_columna_puesta_no_se_toca_el_almacen(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """El caso normal en regimen, y la razon de ser del ADR: cero lecturas."""
+        norma = _norma_con_cuerpo(session, sumario, tmp_path)
+        norma.referencias_watchlist = [VIGILADA]
+        norma.referencias_watchlist_version = LISTA.version
+        session.commit()
+        # Se borra el cuerpo del almacen: si el servicio fuera a leerlo, este test fallaria.
+        for fichero in tmp_path.rglob("*.xml"):
+            fichero.unlink()
+
+        resumen = _poblar(session, tmp_path, _cliente())
+
+        assert resumen.lecturas_almacen == 0
+        assert resumen.consultadas == 1
+        assert resumen.filas > 0
+
+    def test_sin_la_columna_se_lee_del_almacen_y_se_rellena(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """El relleno perezoso: se paga UNA lectura, y esa norma no vuelve a costar nunca.
+
+        Sin esto habria que esperar a un `--reprefiltrar` de 82.000 normas, que es justo lo que
+        la nube no puede permitirse (nota final de `.github/workflows/ingesta.yml`).
+        """
+        norma = _norma_con_cuerpo(session, sumario, tmp_path)
+        assert norma.referencias_watchlist is None
+        session.commit()
+
+        resumen = _poblar(session, tmp_path, _cliente())
+
+        assert resumen.lecturas_almacen == 1
+        session.refresh(norma)
+        assert norma.referencias_watchlist == [VIGILADA]
+        assert norma.referencias_watchlist_version == LISTA.version
+
+    def test_el_relleno_no_miente_sobre_el_prefiltro(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """Rellenar la columna NO es reevaluar el prefiltro, y no puede decir que lo fue.
+
+        Si el versionado tocara `prefiltro_version_watchlist`, la siguiente reevaluacion se
+        saltaria esta norma creyendola al dia.
+        """
+        norma = _norma_con_cuerpo(session, sumario, tmp_path)
+        norma.prefiltro_version_watchlist = None
+        session.commit()
+
+        _poblar(session, tmp_path, _cliente())
+
+        session.refresh(norma)
+        assert norma.referencias_watchlist_version == LISTA.version
+        assert norma.prefiltro_version_watchlist is None
+
+    def test_una_columna_de_otra_watchlist_no_se_usa(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """Al subir VERSION_WATCHLIST el valor cacheado caduca, y se vuelve a leer.
+
+        Una norma puede pasar a tocar una vigilada nueva sin que su fila cambie. Usar el valor
+        viejo seria el fallo mudo de la 6.9.6: la vigilancia diria que va bien.
+        """
+        norma = _norma_con_cuerpo(session, sumario, tmp_path)
+        norma.referencias_watchlist = []
+        norma.referencias_watchlist_version = "de-hace-tres-semanas"
+        session.commit()
+
+        resumen = _poblar(session, tmp_path, _cliente())
+
+        assert resumen.lecturas_almacen == 1, "una version caducada obliga a releer"
+        session.refresh(norma)
+        assert norma.referencias_watchlist == [VIGILADA]
+        assert norma.referencias_watchlist_version == LISTA.version
+
+    def test_una_lista_vacia_se_respeta_y_no_provoca_lectura(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """`[]` es un resultado, no un hueco. Confundirlo con NULL devolveria el gasto diario."""
+        norma = _norma_con_cuerpo(session, sumario, tmp_path)
+        norma.referencias_watchlist = []
+        norma.referencias_watchlist_version = LISTA.version
+        session.commit()
+
+        resumen = _poblar(session, tmp_path, _cliente())
+
+        assert resumen.lecturas_almacen == 0
+        assert resumen.candidatas == 0
+        assert resumen.consultadas == 0
+
+    def test_el_tope_de_lecturas_no_lo_gastan_las_cacheadas(
+        self, session: Session, sumario: Documento, tmp_path: Path
+    ) -> None:
+        """El tope cuenta lecturas del archivo, no normas.
+
+        Si las servidas desde la columna gastaran presupuesto, el freno dejaria fuera de la
+        pasada trabajo que ya no cuesta nada — lo contrario de lo que protege.
+        """
+        for indice in range(3):
+            norma = _norma_con_cuerpo(session, sumario, tmp_path, ident=f"{REFORMA}-{indice}")
+            norma.referencias_watchlist = [VIGILADA]
+            norma.referencias_watchlist_version = LISTA.version
+        session.commit()
+
+        resumen = _poblar(session, tmp_path, _cliente(), max_lecturas=1)
+
+        assert resumen.lecturas_almacen == 0
+        assert resumen.pendientes_restantes == 0, "ninguna se queda fuera: no leen nada"
+        assert resumen.candidatas == 3
