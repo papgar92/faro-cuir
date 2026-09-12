@@ -97,6 +97,11 @@ class ResumenVersionado:
     sin_consolidar: int
     fallidas: int
     pendientes_restantes: int = 0
+    # **Cuántas veces se leyó el archivo en esta pasada** (ADR 0039). Es la cifra del incidente:
+    # eran ~928 al día antes del ADR 0037, ~120 después, y con la columna persistida tiene que
+    # tender a 0 en régimen. Se publica en el log porque un ahorro que no se puede ver desde
+    # fuera es un ahorro que nadie nota cuando deja de producirse.
+    lecturas_almacen: int = 0
     # Cuántas versiones aportó cada norma vigilada. Es el desglose que dice si la watchlist está
     # viva o si siempre tira de la misma entrada, igual que `por_regla` en la clasificación.
     por_norma_afectada: dict[str, int] = field(default_factory=dict)
@@ -156,16 +161,33 @@ def _cola(documento_id: int | None):  # type: ignore[no-untyped-def]
 def _objetivos(
     norma: Norma, *, almacen_root: Path, lista: watchlist.Watchlist
 ) -> tuple[NormaVigilada, ...]:
-    """Qué normas vigiladas toca esta norma, según su propio `<analisis>`.
+    """Qué normas vigiladas toca esta norma. De la columna si se sabe; del almacén si no.
 
-    Se lee del cuerpo archivado y no de una columna porque el prefiltro guarda **qué ejes**
-    dispararon, no qué normas tocó (7.2). Leer del almacén no cuesta red y mantiene esta etapa
-    en el mismo régimen que el clasificador: se puede relanzar entera sin pedirle nada al BOE.
+    **El docstring anterior decía que esto se leía del cuerpo «porque el prefiltro guarda qué
+    ejes dispararon, no qué normas tocó», y eso era cierto y ya no lo es** (ADR 0039): el
+    prefiltro calculaba las normas tocadas desde el ADR 0022 —viajaban en `ResultadoPrefiltro`—
+    y simplemente no tenía columna donde dejarlas. Ahora la tiene.
+
+    También decía que «leer del almacén no cuesta red». Eso dejó de ser verdad con el ADR 0032:
+    el archivo vive en un bucket con cuota y cada lectura es una transacción facturable. Es la
+    mitad cara del incidente del ADR 0037, que se conformó con recortar la cola.
 
     `es_modificativa` es lo que separa «toca esta norma» de «la cita en el temario de una
     oposición», que es el falso positivo que el eje léxico produce a destajo. Una norma que solo
-    la cite no tiene diff que traer.
+    la cite no tiene diff que traer. Ese criterio no cambia: es **el mismo** con el que el
+    prefiltro llenó la columna, y por eso puede leerse de ahí en vez de recalcularse.
     """
+    if _cache_utilizable(norma, lista):
+        # El camino normal en régimen: cero lecturas del almacén. `referencias_watchlist` no
+        # puede ser None aquí —lo acaba de comprobar `_cache_utilizable`— y una lista vacía se
+        # respeta como lo que es: «se miró el cuerpo y no toca ninguna vigilada».
+        guardadas = norma.referencias_watchlist or ()
+        return tuple(
+            vigilada
+            for vigilada in (lista.buscar(identificador) for identificador in guardadas)
+            if vigilada is not None
+        )
+
     # Sin cuerpo (`None`) y con cuerpo ilegible (`CuerpoIlegible`, ADR 0020) acaban igual aquí:
     # sin referencias no hay nada que versionar. Se distinguen de todos modos porque el segundo
     # ya se ha registrado como error en el log y el primero es rutina, y porque dejar la
@@ -186,7 +208,38 @@ def _objetivos(
         # viaja es el nuestro, y el del documento no vuelve a usarse para nada (6.10).
         if vigilada is not None:
             objetivos.setdefault(vigilada.identificador, vigilada)
+
+    # **Se rellena la columna aquí, y por eso tiene versión propia.** Si hubiera que esperar a
+    # un `--reprefiltrar` para poblarla, las normas que ya están en la cola seguirían leyéndose
+    # del bucket cada día hasta que alguien lanzara un reproceso de 82.000 normas que la nube no
+    # puede permitirse (ver la nota final de `.github/workflows/ingesta.yml`). Rellenándola al
+    # paso, el coste es **una lectura por norma y nunca más**, que es la diferencia entre pagar
+    # una vez y pagar a diario.
+    #
+    # No se toca `prefiltro_version_watchlist`: aquí no se ha reevaluado el prefiltro, solo se
+    # ha recalculado este dato. Escribirla diría que sí, y la próxima reevaluación se saltaría
+    # normas creyéndolas al día.
+    norma.referencias_watchlist = [vigilada.identificador for vigilada in objetivos.values()]
+    norma.referencias_watchlist_version = lista.version
     return tuple(objetivos.values())
+
+
+def _cache_utilizable(norma: Norma, lista: watchlist.Watchlist) -> bool:
+    """Si la columna sirve para esta pasada, sin ir al almacén.
+
+    Dos condiciones, y las dos son de corrección, no de rendimiento:
+
+    - **No es NULL.** NULL es «no se sabe» —evaluada solo sobre el título, o cuerpo ilegible—,
+      distinto de `[]`, que es «se miró y no toca ninguna». Tratar NULL como vacío haría que el
+      versionado se saltara en silencio normas que sí tienen objetivos.
+    - **Se calculó con esta misma watchlist.** Al subir `VERSION_WATCHLIST` una norma puede pasar
+      a tocar una vigilada nueva sin que su fila cambie. Usar el valor viejo sería exactamente el
+      fallo mudo que la sección 6.9.6 prohíbe: la vigilancia seguiría diciendo que va bien.
+    """
+    return (
+        norma.referencias_watchlist is not None
+        and norma.referencias_watchlist_version == lista.version
+    )
 
 
 def _ya_versionada(session: Session, *, norma_id: int, afectada: str) -> bool:
@@ -285,12 +338,18 @@ def poblar(
 
     leidas = 0
     for norma in normas:
-        if max_lecturas is not None and leidas >= max_lecturas:
+        # **El tope cuenta lecturas del almacén, no normas** (ADR 0039). Desde que la columna
+        # `referencias_watchlist` existe, una norma servida desde ella cuesta CERO lecturas, así
+        # que gastar presupuesto con ella dejaría fuera de la pasada trabajo que ya no cuesta
+        # nada — justo lo contrario de lo que este tope protege.
+        del_almacen = not _cache_utilizable(norma, lista)
+        if del_almacen and max_lecturas is not None and leidas >= max_lecturas:
             # Tope de lecturas del almacén. **No se trunca en silencio**: lo que queda se cuenta
             # como pendiente y sale en el resumen, igual que el tope de peticiones al BOE.
             pendientes += 1
             continue
-        leidas += 1
+        if del_almacen:
+            leidas += 1
         for vigilada in _objetivos(norma, almacen_root=almacen_root, lista=lista):
             if _ya_versionada(session, norma_id=norma.id, afectada=vigilada.identificador):
                 continue
@@ -444,5 +503,6 @@ def poblar(
         sin_consolidar=sin_consolidar,
         fallidas=fallidas,
         pendientes_restantes=pendientes,
+        lecturas_almacen=leidas,
         por_norma_afectada=por_afectada,
     )
