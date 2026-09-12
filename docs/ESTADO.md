@@ -3557,10 +3557,114 @@ El aviso del reintento dice la **IP** y no el nombre (`176.12.84.29` en vez de `
 porque con el pinning de `url_guard` el `Host` de la petición es la IP. Se lee peor de lo que
 debería. No merece una rama para él solo; que se arregle cuando se toque `url_guard` por otra cosa.
 
-## ⇨ CÓMO RETOMAR ESTO DESDE CERO — cierre del 2026-09-10
+## ⇨ CÓMO RETOMAR ESTO DESDE CERO — cierre del 2026-09-12
 
 > **Esto es lo primero que hay que leer al abrir una sesión nueva**, antes que el resto del
-> fichero y antes de tocar nada. Lo de arriba es historia; esto es el estado.
+> fichero y antes de tocar nada. Todo lo de arriba es historia; esto es el estado. **Sustituye al
+> cierre del 2026-09-10**, que se conserva más abajo solo porque su apartado 4 (cómo levantar el
+> entorno local) y su apartado 5 (los backfills) siguen siendo el procedimiento vigente.
+
+### 1. Estado en una frase
+
+**La vigilancia diaria en la nube funciona**: el arreglo del cupo quedó validado, un fallo de red
+ya no cuesta un día de boletín, las tres fuentes nuevas están medidas y dan **cero detecciones
+honestas**, y hay **dos PR abiertos esperando tu autorización**. Lo único roto de verdad es el
+**BON en la nube**, y eso necesita una decisión tuya, no más código.
+
+### 2. Lo primero que hay que hacer: los dos PR
+
+**Ninguno se mergea sin tu «sí» (13.3).** Los dos tienen los siete pasos del CI pasados **sobre el
+resultado del merge en un clon limpio**, y el CI del PR verde.
+
+| PR | Qué | Qué falta |
+|---|---|---|
+| **#13** | El recuento de las tres fuentes + esta nota de cierre | Solo autorizar. Es docs y un script que no importa nadie. |
+| **#14** | Persistir `referencias_watchlist` (ADR 0039) | **Lleva migración: la revisas tú.** |
+| ~~#12~~ | Reintento de fallos de red (ADR 0038) | ✅ mergeado el 12 |
+
+**De #14, lo que hay que mirar no es el ahorro, es esto:** `NULL` y `[]` significan cosas
+distintas (`[]` = «se leyó el cuerpo y no toca ninguna vigilada»; `NULL` = «no se sabe»). Si
+alguien los confundiera, el versionado se saltaría normas con objetivos reales, **la pasada
+saldría verde** y la vigilancia estaría rota. Tres de sus nueve tests están puestos ahí.
+
+La migración es `d1f4b62e830c`, escrita a mano, dos columnas nullable y ninguna CHECK. Comprobado
+sobre base vacía: aplica limpia, **las CHECK siguen en 15**, y un `autogenerate` posterior sale
+**vacío** (modelo y esquema no se han separado).
+
+**Y sigue abierto el PR #8** desde el 5 de septiembre, ya superado por los hechos: proponía elegir
+*una* quinta fuente y al final entraron tres. Lo que vale de él es el script
+`scripts/medir_fuentes_pendientes.py` y el hallazgo de que Castilla y León no tiene ley autonómica.
+**Decidir si se cierra.**
+
+### 3. La decisión que está esperando: el BON en la nube
+
+Está entera en su entrada de arriba (⚠️ *El BON no ha funcionado NUNCA desde la nube*). En corto:
+
+- **5 pasadas de 5 fallidas**, siempre el mismo handshake TLS en la bisección.
+- Desde esta máquina, ese mismo servidor contesta en **96 ms**.
+- O sea: `wwwtmp.navarra.es` **no completa el TLS con una IP de centro de datos**. Ningún reintento
+  lo arregla y subir el timeout tampoco.
+
+Tres salidas, sin elegir: **(1)** declararlo fuente de ámbito local y que la página de cobertura lo
+diga —el rojo pasa a ser un dato publicado en vez de ruido—, **(2)** diagnosticar antes de decidir,
+**(3)** dejarlo rojo cada día. **Recomendación escrita: la 1**, porque un rojo permanente se deja de
+mirar y entonces el día que caiga otra fuente nadie lo verá.
+
+Mientras tanto **el BON se vigila desde casa**, que es de donde han salido todas sus normas.
+
+### 4. Cómo quedó la máquina
+
+- **Repositorio limpio**, en la rama `task/36-recuento-tres-fuentes`. Nada sin commitear, nada sin
+  subir.
+- **Los contenedores locales quedaron LEVANTADOS** con el compose local, y con los **tres backfills
+  corriendo** dentro. Es a propósito: son reanudables e idempotentes, así que si la máquina sigue
+  encendida siguen ganando cobertura solos, y si se apaga no se pierde nada.
+- Comprobado antes de lanzarlos, y hay que comprobarlo **siempre** (ADR 0037):
+  `almacen_remoto.configurado()` decía **`False`** y la base era la local. Con el `.env` a secas
+  esto habría escrito en producción.
+- **`backend/.venv` recreado.** No existía desde que se archivaron las dependencias; ahora la suite
+  se puede correr sin docker (`.venv/Scripts/python -m pytest`).
+- El contenedor `farocuir-ci-db` que se usó para verificar las migraciones **está retirado**. Si
+  aparece uno con ese nombre, es basura de una sesión anterior y se puede borrar.
+
+### 5. Lo siguiente, por orden de valor
+
+1. **Autorizar #13 y #14**, y decidir el BON. Sin eso, el trabajo de hoy está hecho y sin entrar.
+2. **Repetir la medición cuando terminen los backfills.** El corpus pasó de 780 normas a más de
+   7.000 en las dos horas siguientes a relanzarlos, así que la cifra de la entrada de arriba
+   envejece rápido: `docker compose ... exec -T worker python -m scripts.medir_tres_fuentes_nuevas`.
+3. **La pantalla de Metodología (7.6).** Es de lo poco pendiente que **el tribunal ve**: donde el
+   proyecto explica que no emite juicios propios y cómo se deriva cada veredicto. Con el Demo Day y
+   la entrega del 1 de octubre encima, esto rinde más que otra fuente.
+4. **Revisar qué más recorre el archivo entero** ahora que leerlo cuesta dinero (punto 3 del cierre
+   anterior, sigue abierto). El reclasificador está acotado, pero el ADR 0032 no lo miró con esta
+   luz. **~10k**
+5. Sigue abierto de antes: etiquetar los **32 borradores del gold set** (tiempo humano, es el cuello
+   real), la alerta de `BOE-A-2026-16172`, los preceptos por norma-vehículo, y publicar `fuente` en
+   `DocumentoResumen`.
+
+### 6. Deuda conocida que NO se ha tocado, a propósito
+
+- **`CLAUDE.md` sigue por encima de su límite** (~59 KB contra ~55). Hoy solo se le tocaron dos
+  dígitos de numeración de ADR. La receta que él mismo escribe es **sacar un bloque entero**, no
+  recortar frases; el candidato sigue siendo la narrativa de incidentes de la sección 6.
+- **El guardarraíl de la sección 8 está agotado en 7 fuentes.** La octava necesita una decisión, no
+  otra migración.
+- **El aviso de reintento de `url_guard` dice la IP y no el nombre** (`176.12.84.29` en vez de
+  `bon.navarra.es`), porque con el pinning el `Host` de la petición es la IP. Se lee peor de lo que
+  debería. No merece una rama para él solo: que se arregle cuando se toque ese módulo por otra cosa.
+- **Las tres fuentes nuevas siguen sin datos en la nube.** Solo local.
+- **El día 11 de septiembre del BON no está y nada lo va a echar de menos.** El ADR 0038 impide que
+  un timeout *cree* huecos; no rellena los que ya hay. Un barrido de los últimos N días por fuente
+  es la solución y necesita su propio ADR: cuesta peticiones a diario para un caso raro, y esa
+  cuenta hay que echarla, no suponerla.
+
+## ⇨ CÓMO RETOMAR ESTO DESDE CERO — cierre del 2026-09-10
+
+> **YA NO ES ESTO LO PRIMERO QUE HAY QUE LEER.** Lo sustituye el cierre del **2026-09-12**, justo
+> encima. Este se conserva porque su apartado 4 (cómo levantar el entorno local) y su apartado 5
+> (los backfills: cómo ver si viven y cómo relanzarlos) **siguen siendo el procedimiento vigente**
+> y no se han repetido arriba. Lo demás de aquí está superado.
 
 ### 0. Cómo quedó la máquina al cerrar
 
