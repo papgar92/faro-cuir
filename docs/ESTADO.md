@@ -3439,10 +3439,265 @@ cobertura, con `ultima_publicacion` por fuente — y hace falta que alguien la m
 los últimos N días por fuente es la solución y necesita su propio ADR: cuesta peticiones a diario
 para un caso raro, y esa cuenta hay que echarla.
 
-## ⇨ CÓMO RETOMAR ESTO DESDE CERO — cierre del 2026-09-10
+### 📊 Qué han dado las tres fuentes nuevas: cero detecciones, y el cero es honesto — 2026-09-12
+
+El punto 4 del cierre anterior. **780 normas de Madrid, Navarra y País Vasco entre el 1 de agosto
+y el 4 de septiembre de 2026, y cero detecciones.** Se escribe el número tal cual, que es lo que
+pedía aquel cierre: el ADR 0027 mide ~5 casos al año, así que cero es un resultado posible.
+
+Pero un cero a secas no vale, porque **hay dos ceros y son opuestos**:
+
+- **Cero honesto:** el pipeline leyó las 780, vio las modificaciones que había y ninguna tocaba
+  una norma vigilada.
+- **Cero ciego:** el eje referencial no funciona sobre estos formatos y habría dado cero pasara
+  lo que pasara. Eso no es un resultado, es una avería muda.
+
+Lo que los separa no está en ninguna columna —el prefiltro solo apunta el eje referencial cuando
+la norma citada **está en la watchlist**—, así que se recalculó leyendo los 780 cuerpos
+archivados con `scripts/medir_tres_fuentes_nuevas.py`. Sin red, sin LLM y sin escribir nada.
+
+| | BOCM | BON | BOPV | **Total** |
+|---|---|---|---|---|
+| Normas ingeridas | 339 | 336 | 105 | **780** |
+| Cuerpo leído | 339 | 336 | 105 | **780** |
+| **Ilegibles** | 0 | 0 | 0 | **0** |
+| Citan alguna norma | 251 (74 %) | 308 (92 %) | 96 (91 %) | **655 (84 %)** |
+| Con verbo modificativo | 33 | 11 | 8 | **52 (6,7 %)** |
+| **Citan una VIGILADA** | 18 | 1 | 9 | **28** |
+| **Modifican una vigilada** | 0 | 0 | 0 | **0** |
+
+#### Las tres cosas que dice esta tabla
+
+**1. El cero es honesto, y con margen.** El eje referencial **sí llega a la watchlist en estas
+fuentes: 28 veces**. Lo que hace con esas 28 es clasificarlas como cita y no como modificación,
+que es exactamente el trabajo de la regla del verbo pegado a la norma (ADR 0023, afinada en el
+0031). No es que no viera nada; es que vio 28 y dijo que no en las 28.
+
+**2. El 6,7 % confirma el ADR 0027 desde fuera.** Aquel midió que **solo el 7 % de las
+disposiciones modifican algo** y lo hizo sobre el corpus del BOE. Sobre 780 normas de tres
+boletines autonómicos que no se habían tocado nunca, sale 6,7 %. Es la primera vez que ese número
+se reproduce en otro corpus, y es lo que sostiene que la vigilancia referencial rinda ~5 casos al
+año: no es pesimismo, es la tasa base de la materia.
+
+**3. Cero ilegibles sobre 336 cuerpos HTML.** El BON es la primera fuente de nivel C y su recorte
+va contra un contenedor declarado (ADR 0036): si no casara, sus 336 normas estarían **todas** en
+`ilegible`. El desglose por nivel confirma que se derivaron 336 por HTML y 444 por XML, y que
+ninguna cayó. El nivel C funciona sobre un mes real, no solo sobre la fixture.
+
+#### ACTUALIZACIÓN de esa misma noche: el corpus se multiplicó por diez y el cero aguanta
+
+Los backfills relanzados ese día corrieron unas horas más y **el corpus pasó de 780 normas a
+7.980**. La medición se repitió sobre él, y el resultado no solo se mantiene: se refuerza.
+
+| | 780 normas (tarde) | **7.980 normas (noche)** |
+|---|---|---|
+| Cuerpo leído | 780 | **7.940** (40 aún sin cuerpo, backfill en vuelo) |
+| **Ilegibles** | 0 | **0** |
+| Citan alguna norma | 84 % | **77,8 %** |
+| Con verbo modificativo | 6,7 % | **5,9 %** (469) |
+| **Citan una VIGILADA** | 28 | **256** |
+| **Modifican una vigilada** | **0** | **0** |
+
+Ventanas al cerrar: Madrid 4.621 normas (desde el 1 de junio), Navarra 2.320 (desde el 1 de
+julio), País Vasco 1.440 (desde el 1 de junio).
+
+**Las tres conclusiones de la tarde salen más fuertes, no más débiles:**
+
+- **256 veces** el eje referencial llega a una norma vigilada, y **las 256** se clasifican como
+  cita y no como modificación. Con 28 se podía discutir si era muestra; con 256 ya no.
+- **El 5,9 % con verbo modificativo** sigue pegado al 7 % que el ADR 0027 midió sobre el BOE,
+  ahora sobre un corpus diez veces mayor y de tres boletines que no se habían tocado nunca.
+- **Cero ilegibles sobre 2.320 cuerpos HTML** del BON. El nivel C del ADR 0036 ya no está
+  validado sobre un mes: lo está sobre un trimestre entero.
+
+**El cero de detecciones, por tanto, se publica.** No es falta de corpus ni ceguera del embudo:
+es que en tres meses de Madrid, Navarra y País Vasco nadie tocó ninguna de sus cinco leyes
+vigiladas.
+
+#### Lo que este recuento NO dice
+
+- **La ventana sigue sin ser un año**: junio–septiembre de 2026 según la fuente. Los backfills se
+  siguen corriendo y la ventana crece sola: **repetir la medición es el punto 2 de la nota de
+  cierre**. Tres meses de tres comunidades siguen sin bastar para afirmar una tasa anual; bastan
+  para saber que el embudo no está ciego y que el cero no es de muestra pequeña.
+- **`--reprefiltrar` no se ha vuelto a pasar** con la watchlist vigente sobre estas normas, así
+  que las columnas del prefiltro cuentan lo que se decidió el día de la ingesta. El script no
+  depende de esas columnas —recalcula sobre el texto— pero un recuento por `prefiltro_ejes` en SQL
+  sí, y por eso da 0 donde el script da 256. Los dos números son correctos y miden cosas
+  distintas.
+- **Nada de esto ha pasado por la nube.** Las tres fuentes solo tienen datos en local, y el BON
+  además no puede ingerirse desde GitHub Actions (ver la entrada de abajo).
+
+### ⚠️ El BON no ha funcionado NUNCA desde la nube, y el reintento no puede arreglarlo — 2026-09-12
+
+**Decisión pendiente del humano. No se ha tocado nada.**
+
+Al mergear el ADR 0038 se relanzó la ingesta del 2026-09-11 para tapar el hueco de Navarra. El
+reintento hizo exactamente lo suyo:
+
+```
+WARNING url_guard  Fallo de red hablando con 176.12.84.29 (ConnectTimeout...). Intento 1 de 3
+WARNING url_guard  Fallo de red hablando con 176.12.84.29 (ConnectTimeout...). Intento 2 de 3
+ERROR   worker     La fuente 'bon' no contestó el 2026-09-11: ... no contestó en 3 intentos
+```
+
+Sin traceback, salida 1, y la pasada siguió hasta el final. **Pero el BON no contestó ninguna de
+las tres veces**, y al ir a mirar el histórico apareció lo de verdad:
+
+| Pasada con paso BON | Resultado |
+|---|---|
+| 09-09 (dispatch) · 09-10 (×2) · 09-11 · 09-12 | ❌ **las cinco**, mismo `_bisecar` + handshake |
+
+**El BON no se ha ingerido ni una sola vez desde GitHub Actions.** Sus 336 normas salieron todas
+del backfill local. (Una nota anterior de esta sesión dio por bueno un ✅ del 09-09: era falso —
+ese día el paso aún no existía en el workflow, así que no aparecía entre los fallos.)
+
+#### El dato que cambia el diagnóstico
+
+| Desde | Resultado |
+|---|---|
+| Esta máquina (conexión española) | handshake TLS en **96 ms**, HTTP 200 |
+| Runner de GitHub | **tres timeouts de 20 s**, cinco pasadas de cinco, misma IP |
+
+`bon.navarra.es` es `wwwtmp.navarra.es` (176.12.84.29), y **no completa el TLS con una IP de
+centro de datos**. Es justo la hipótesis que el ADR 0032 descartó para el BOE y el BOA —«un
+bloqueo por rango de IP»— y que allí se descartó bien: aquellos fallaban de forma distinta cada
+vez, que es firma de margen corto. Este falla igual siempre desde fuera y nunca desde dentro.
+**Ningún reintento arregla eso**, y subir el timeout tampoco: no es lentitud, es que no hay
+handshake.
+
+#### Por qué esto necesita una decisión y no un parche
+
+Dejarlo fallando a diario tiene el problema que este proyecto ya conoce por el gate humano: **un
+rojo permanente se deja de mirar**, y el día que se caiga otra fuente nadie lo verá. Pero
+silenciarlo sin más es degradación silenciosa, que es lo que prohíbe la 6.9.6. Las tres salidas,
+sin elegir:
+
+1. **Declarar el BON como fuente de ámbito local**: el paso deja de tumbar el job y la página de
+   cobertura —que ya publica `ultima_publicacion` por fuente— lo declara como sin vigilancia
+   diaria automática. El rojo pasa a ser un dato publicado en vez de ruido. Necesita ADR.
+2. **Diagnosticar antes de decidir**: sondear desde el runner si cae el TCP o el TLS, probar sin
+   pinning, buscar otra ruta de publicación de Navarra. Una o dos pasadas de diagnóstico.
+3. **Dejarlo como está**: rojo cada día y el BON por backfill local.
+
+Mientras tanto **el BON sigue vigilándose desde casa**, que es de donde vinieron sus 336 normas.
+
+#### Y un detalle menor, anotado para que no se pierda
+
+El aviso del reintento dice la **IP** y no el nombre (`176.12.84.29` en vez de `bon.navarra.es`),
+porque con el pinning de `url_guard` el `Host` de la petición es la IP. Se lee peor de lo que
+debería. No merece una rama para él solo; que se arregle cuando se toque `url_guard` por otra cosa.
+
+## ⇨ CÓMO RETOMAR ESTO DESDE CERO — cierre del 2026-09-12
 
 > **Esto es lo primero que hay que leer al abrir una sesión nueva**, antes que el resto del
-> fichero y antes de tocar nada. Lo de arriba es historia; esto es el estado.
+> fichero y antes de tocar nada. Todo lo de arriba es historia; esto es el estado. **Sustituye al
+> cierre del 2026-09-10**, que se conserva más abajo solo porque su apartado 4 (cómo levantar el
+> entorno local) y su apartado 5 (los backfills) siguen siendo el procedimiento vigente.
+
+### 1. Estado en una frase
+
+**La vigilancia diaria en la nube funciona**: el arreglo del cupo quedó validado, un fallo de red
+ya no cuesta un día de boletín, las tres fuentes nuevas están medidas y dan **cero detecciones
+honestas**, y hay **dos PR abiertos esperando tu autorización**. Lo único roto de verdad es el
+**BON en la nube**, y eso necesita una decisión tuya, no más código.
+
+### 2. Lo primero que hay que hacer: los dos PR
+
+**Ninguno se mergea sin tu «sí» (13.3).** Los dos tienen los siete pasos del CI pasados **sobre el
+resultado del merge en un clon limpio**, y el CI del PR verde.
+
+| PR | Qué | Qué falta |
+|---|---|---|
+| **#13** | El recuento de las tres fuentes + esta nota de cierre | Solo autorizar. Es docs y un script que no importa nadie. |
+| **#14** | Persistir `referencias_watchlist` (ADR 0039) | **Lleva migración: la revisas tú.** |
+| ~~#12~~ | Reintento de fallos de red (ADR 0038) | ✅ mergeado el 12 |
+
+**De #14, lo que hay que mirar no es el ahorro, es esto:** `NULL` y `[]` significan cosas
+distintas (`[]` = «se leyó el cuerpo y no toca ninguna vigilada»; `NULL` = «no se sabe»). Si
+alguien los confundiera, el versionado se saltaría normas con objetivos reales, **la pasada
+saldría verde** y la vigilancia estaría rota. Tres de sus nueve tests están puestos ahí.
+
+La migración es `d1f4b62e830c`, escrita a mano, dos columnas nullable y ninguna CHECK. Comprobado
+sobre base vacía: aplica limpia, **las CHECK siguen en 15**, y un `autogenerate` posterior sale
+**vacío** (modelo y esquema no se han separado).
+
+**Y sigue abierto el PR #8** desde el 5 de septiembre, ya superado por los hechos: proponía elegir
+*una* quinta fuente y al final entraron tres. Lo que vale de él es el script
+`scripts/medir_fuentes_pendientes.py` y el hallazgo de que Castilla y León no tiene ley autonómica.
+**Decidir si se cierra.**
+
+### 3. La decisión que está esperando: el BON en la nube
+
+Está entera en su entrada de arriba (⚠️ *El BON no ha funcionado NUNCA desde la nube*). En corto:
+
+- **5 pasadas de 5 fallidas**, siempre el mismo handshake TLS en la bisección.
+- Desde esta máquina, ese mismo servidor contesta en **96 ms**.
+- O sea: `wwwtmp.navarra.es` **no completa el TLS con una IP de centro de datos**. Ningún reintento
+  lo arregla y subir el timeout tampoco.
+
+Tres salidas, sin elegir: **(1)** declararlo fuente de ámbito local y que la página de cobertura lo
+diga —el rojo pasa a ser un dato publicado en vez de ruido—, **(2)** diagnosticar antes de decidir,
+**(3)** dejarlo rojo cada día. **Recomendación escrita: la 1**, porque un rojo permanente se deja de
+mirar y entonces el día que caiga otra fuente nadie lo verá.
+
+Mientras tanto **el BON se vigila desde casa**, que es de donde han salido todas sus normas.
+
+### 4. Cómo quedó la máquina
+
+- **Repositorio limpio**, en la rama `task/36-recuento-tres-fuentes`. Nada sin commitear, nada sin
+  subir.
+- **Los contenedores locales quedaron LEVANTADOS** con el compose local, y con los **tres backfills
+  corriendo** dentro. Es a propósito: son reanudables e idempotentes, así que si la máquina sigue
+  encendida siguen ganando cobertura solos, y si se apaga no se pierde nada.
+- Comprobado antes de lanzarlos, y hay que comprobarlo **siempre** (ADR 0037):
+  `almacen_remoto.configurado()` decía **`False`** y la base era la local. Con el `.env` a secas
+  esto habría escrito en producción.
+- **`backend/.venv` recreado.** No existía desde que se archivaron las dependencias; ahora la suite
+  se puede correr sin docker (`.venv/Scripts/python -m pytest`).
+- El contenedor `farocuir-ci-db` que se usó para verificar las migraciones **está retirado**. Si
+  aparece uno con ese nombre, es basura de una sesión anterior y se puede borrar.
+
+### 5. Lo siguiente, por orden de valor
+
+1. **Autorizar #13 y #14**, y decidir el BON. Sin eso, el trabajo de hoy está hecho y sin entrar.
+2. **Repetir la medición cuando terminen los backfills.** Ya se repitió esa misma noche sobre
+   **7.980 normas** y el cero aguantó (256 citas a vigiladas, 0 modificaciones, 0 ilegibles sobre
+   2.320 cuerpos HTML). Los backfills seguían corriendo al cerrar, así que la cifra sigue
+   envejeciendo: `docker compose ... exec -T worker python -m scripts.medir_tres_fuentes_nuevas`.
+   Tarda ~10 min sobre este corpus.
+3. **La pantalla de Metodología (7.6).** Es de lo poco pendiente que **el tribunal ve**: donde el
+   proyecto explica que no emite juicios propios y cómo se deriva cada veredicto. Con el Demo Day y
+   la entrega del 1 de octubre encima, esto rinde más que otra fuente.
+4. **Revisar qué más recorre el archivo entero** ahora que leerlo cuesta dinero (punto 3 del cierre
+   anterior, sigue abierto). El reclasificador está acotado, pero el ADR 0032 no lo miró con esta
+   luz. **~10k**
+5. Sigue abierto de antes: etiquetar los **32 borradores del gold set** (tiempo humano, es el cuello
+   real), la alerta de `BOE-A-2026-16172`, los preceptos por norma-vehículo, y publicar `fuente` en
+   `DocumentoResumen`.
+
+### 6. Deuda conocida que NO se ha tocado, a propósito
+
+- **`CLAUDE.md` sigue por encima de su límite** (~59 KB contra ~55). Hoy solo se le tocaron dos
+  dígitos de numeración de ADR. La receta que él mismo escribe es **sacar un bloque entero**, no
+  recortar frases; el candidato sigue siendo la narrativa de incidentes de la sección 6.
+- **El guardarraíl de la sección 8 está agotado en 7 fuentes.** La octava necesita una decisión, no
+  otra migración.
+- **El aviso de reintento de `url_guard` dice la IP y no el nombre** (`176.12.84.29` en vez de
+  `bon.navarra.es`), porque con el pinning el `Host` de la petición es la IP. Se lee peor de lo que
+  debería. No merece una rama para él solo: que se arregle cuando se toque ese módulo por otra cosa.
+- **Las tres fuentes nuevas siguen sin datos en la nube.** Solo local.
+- **El día 11 de septiembre del BON no está y nada lo va a echar de menos.** El ADR 0038 impide que
+  un timeout *cree* huecos; no rellena los que ya hay. Un barrido de los últimos N días por fuente
+  es la solución y necesita su propio ADR: cuesta peticiones a diario para un caso raro, y esa
+  cuenta hay que echarla, no suponerla.
+
+## ⇨ CÓMO RETOMAR ESTO DESDE CERO — cierre del 2026-09-10
+
+> **YA NO ES ESTO LO PRIMERO QUE HAY QUE LEER.** Lo sustituye el cierre del **2026-09-12**, justo
+> encima. Este se conserva porque su apartado 4 (cómo levantar el entorno local) y su apartado 5
+> (los backfills: cómo ver si viven y cómo relanzarlos) **siguen siendo el procedimiento vigente**
+> y no se han repetido arriba. Lo demás de aquí está superado.
 
 ### 0. Cómo quedó la máquina al cerrar
 
@@ -3530,7 +3785,7 @@ arreglado, solo que ese día se gastó menos.
 |---|---|---|
 | Arreglo del versionado (ADR 0037) | `main` | **mergeado y VALIDADO** el 2026-09-12 — ver el apartado 2 |
 | Reintento de los fallos de red (ADR 0038) | `main` | mergeado; **el día 11 del BON sigue sin recuperarse** |
-| Backfill local de BOCM, BOPV y BON | contenedor `worker` | **parado** al cerrar, reanudable con marcas a 0 |
+| Backfill local de BOCM, BOPV y BON | contenedor `worker` | **relanzado el 2026-09-12** y corriendo; marcas a 0, así que repite agosto en segundos |
 | Medición de la quinta fuente | **PR #8** | abierto, **ya superado por los hechos** |
 | Nota de cierre de sesión | **PR #11** | abierto; **si estás leyendo esto en `main`, ya se mergeó** |
 
@@ -3612,10 +3867,11 @@ disposiciones modifican algo, y de esas solo cuentan las que tocan la watchlist.
 resultado posible y honesto**, y si al terminar sigue en cero eso es lo que hay que publicar, no
 un motivo para aflojar una regla.
 
-4. **Contar qué ha dado el backfill.** Cuántas normas por comunidad, cuántas en cola de revisión,
-   cuántas detecciones. Es el dato que dice si añadir tres fuentes sirvió de algo, y **hay que
-   decirlo aunque salga cero**: el ADR 0027 mide ~5 casos al año, así que cero es un resultado
-   posible y honesto. **~8k**
+4. ~~**Contar qué ha dado el backfill.**~~ **HECHO el 2026-09-12**: 780 normas, **cero
+   detecciones**, y el cero es honesto — el eje referencial llega a la watchlist 28 veces y las
+   descarta las 28 por la regla del verbo. Cero ilegibles sobre 336 cuerpos HTML. Ver la entrada
+   de arriba. **Queda repetirlo cuando terminen los backfills**, que se relanzaron ese mismo día:
+   la ventana medida es de solo cinco semanas.
 5. Sigue abierto de antes: etiquetar los 32 borradores del gold set (tiempo humano, es el cuello
    real), la pantalla de Metodología (7.6), la alerta de `BOE-A-2026-16172`, los preceptos por
    norma-vehículo, y publicar `fuente` en `DocumentoResumen`.
