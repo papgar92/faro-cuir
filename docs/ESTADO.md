@@ -3484,16 +3484,47 @@ va contra un contenedor declarado (ADR 0036): si no casara, sus 336 normas estar
 `ilegible`. El desglose por nivel confirma que se derivaron 336 por HTML y 444 por XML, y que
 ninguna cayó. El nivel C funciona sobre un mes real, no solo sobre la fixture.
 
+#### ACTUALIZACIÓN de esa misma noche: el corpus se multiplicó por diez y el cero aguanta
+
+Los backfills relanzados ese día corrieron unas horas más y **el corpus pasó de 780 normas a
+7.980**. La medición se repitió sobre él, y el resultado no solo se mantiene: se refuerza.
+
+| | 780 normas (tarde) | **7.980 normas (noche)** |
+|---|---|---|
+| Cuerpo leído | 780 | **7.940** (40 aún sin cuerpo, backfill en vuelo) |
+| **Ilegibles** | 0 | **0** |
+| Citan alguna norma | 84 % | **77,8 %** |
+| Con verbo modificativo | 6,7 % | **5,9 %** (469) |
+| **Citan una VIGILADA** | 28 | **256** |
+| **Modifican una vigilada** | **0** | **0** |
+
+Ventanas al cerrar: Madrid 4.621 normas (desde el 1 de junio), Navarra 2.320 (desde el 1 de
+julio), País Vasco 1.440 (desde el 1 de junio).
+
+**Las tres conclusiones de la tarde salen más fuertes, no más débiles:**
+
+- **256 veces** el eje referencial llega a una norma vigilada, y **las 256** se clasifican como
+  cita y no como modificación. Con 28 se podía discutir si era muestra; con 256 ya no.
+- **El 5,9 % con verbo modificativo** sigue pegado al 7 % que el ADR 0027 midió sobre el BOE,
+  ahora sobre un corpus diez veces mayor y de tres boletines que no se habían tocado nunca.
+- **Cero ilegibles sobre 2.320 cuerpos HTML** del BON. El nivel C del ADR 0036 ya no está
+  validado sobre un mes: lo está sobre un trimestre entero.
+
+**El cero de detecciones, por tanto, se publica.** No es falta de corpus ni ceguera del embudo:
+es que en tres meses de Madrid, Navarra y País Vasco nadie tocó ninguna de sus cinco leyes
+vigiladas.
+
 #### Lo que este recuento NO dice
 
-- **La ventana es corta**: del 1 de agosto al 4 de septiembre, ~5 semanas. Los backfills se
-  relanzaron el 2026-09-12 (seis meses para BOCM y BOPV, tres para BON) y al terminar habrá que
-  repetir la medición. **Cinco semanas de tres comunidades no bastan para afirmar una tasa**, solo
-  para saber que el embudo no está ciego.
-- **`--reprefiltrar` no se ha vuelto a pasar** con la watchlist vigente sobre estas 780, así que
-  las columnas del prefiltro cuentan lo que se decidió el día de la ingesta. El script no depende
-  de esas columnas —recalcula sobre el texto— pero un recuento por `prefiltro_ejes` en SQL sí, y
-  por eso da 0 donde el script da 28. Los dos números son correctos y miden cosas distintas.
+- **La ventana sigue sin ser un año**: junio–septiembre de 2026 según la fuente. Los backfills se
+  siguen corriendo y la ventana crece sola: **repetir la medición es el punto 2 de la nota de
+  cierre**. Tres meses de tres comunidades siguen sin bastar para afirmar una tasa anual; bastan
+  para saber que el embudo no está ciego y que el cero no es de muestra pequeña.
+- **`--reprefiltrar` no se ha vuelto a pasar** con la watchlist vigente sobre estas normas, así
+  que las columnas del prefiltro cuentan lo que se decidió el día de la ingesta. El script no
+  depende de esas columnas —recalcula sobre el texto— pero un recuento por `prefiltro_ejes` en SQL
+  sí, y por eso da 0 donde el script da 256. Los dos números son correctos y miden cosas
+  distintas.
 - **Nada de esto ha pasado por la nube.** Las tres fuentes solo tienen datos en local, y el BON
   además no puede ingerirse desde GitHub Actions (ver la entrada de abajo).
 
@@ -3630,9 +3661,11 @@ Mientras tanto **el BON se vigila desde casa**, que es de donde han salido todas
 ### 5. Lo siguiente, por orden de valor
 
 1. **Autorizar #13 y #14**, y decidir el BON. Sin eso, el trabajo de hoy está hecho y sin entrar.
-2. **Repetir la medición cuando terminen los backfills.** El corpus pasó de 780 normas a más de
-   7.000 en las dos horas siguientes a relanzarlos, así que la cifra de la entrada de arriba
-   envejece rápido: `docker compose ... exec -T worker python -m scripts.medir_tres_fuentes_nuevas`.
+2. **Repetir la medición cuando terminen los backfills.** Ya se repitió esa misma noche sobre
+   **7.980 normas** y el cero aguantó (256 citas a vigiladas, 0 modificaciones, 0 ilegibles sobre
+   2.320 cuerpos HTML). Los backfills seguían corriendo al cerrar, así que la cifra sigue
+   envejeciendo: `docker compose ... exec -T worker python -m scripts.medir_tres_fuentes_nuevas`.
+   Tarda ~10 min sobre este corpus.
 3. **La pantalla de Metodología (7.6).** Es de lo poco pendiente que **el tribunal ve**: donde el
    proyecto explica que no emite juicios propios y cómo se deriva cada veredicto. Con el Demo Day y
    la entrega del 1 de octubre encima, esto rinde más que otra fuente.
